@@ -1,0 +1,27 @@
+# UNIFY Student Wallet ownership
+#
+# Kumbirai is not listed here yet because their GitHub account is not currently
+# a member of the AdvanceUCT organization. Add them once they have joined.
+
+# Default owner for wallet changes.
+* @CalebVoskuil
+
+# Repository governance and delivery setup.
+/.github/ @CalebVoskuil @JoshuaWood13
+/CONTRIBUTING.md @CalebVoskuil @JoshuaWood13
+/SECURITY.md @CalebVoskuil @JoshuaWood13
+
+# Student wallet application.
+/src/wallet/ @CalebVoskuil
+/src/student/ @CalebVoskuil
+/app/wallet/ @CalebVoskuil
+/apps/wallet/ @CalebVoskuil
+
+# Credential storage and presentation.
+/src/credentials/ @CalebVoskuil @JoshuaWood13
+/src/qr/ @CalebVoskuil @Lusa458
+/src/payments/ @CalebVoskuil @Lusa458
+
+# Shared code needs a second pair of eyes.
+/src/shared/ @CalebVoskuil @JoshuaWood13 @Lusa458
+/packages/ @CalebVoskuil @JoshuaWood13 @Lusa458
