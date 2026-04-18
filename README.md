@@ -20,15 +20,33 @@ This repo owns:
 
 ## Getting Started
 
-Add the application stack here once implementation starts.
-
-Expected baseline commands once a package is present:
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Start the Expo development server:
+
+```bash
+npm start
+```
+
+Common local checks:
+
+```bash
 npm run lint
 npm run typecheck
 npm test
 npm run build
 ```
+
+## App Structure
+
+- `app/` contains Expo Router screens and navigation groups.
+- `src/components/` contains small shared UI primitives.
+- `src/lib/api/` contains mock API data and typed client placeholders.
+- `src/lib/storage/` contains secure storage wrappers for future sensitive values.
+- `src/lib/validation/` contains QR payload validation.
+- `src/theme/` contains shared colors, spacing, and typography.
 
