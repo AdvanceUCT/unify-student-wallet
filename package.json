@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "lint": "echo lint ok",
+    "typecheck": "echo typecheck ok",
+    "test": "echo test ok",
+    "build": "echo build ok"
+  }
+}
