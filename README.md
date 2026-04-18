@@ -2,6 +2,8 @@
 
 Student wallet application for UNIFY.
 
+Temporary GitHub Actions validation note.
+
 This repo owns:
 
 - Student-facing credential wallet flows
@@ -31,4 +33,3 @@ npm run typecheck
 npm test
 npm run build
 ```
-
