@@ -36,14 +36,17 @@ export default function CredentialScreen() {
             }}
           >
             <View style={{ alignItems: "flex-start", gap: spacing.sm }}>
-              <StatusPill label={credential.status} tone="success" />
+              <StatusPill label={credential.lifecycleState} tone="success" />
               <Text style={[typography.title, { color: colors.white }]}>{credential.holderName}</Text>
               <Text style={{ color: colors.primarySoft, fontSize: 16 }}>{credential.programme}</Text>
             </View>
 
             <View style={{ backgroundColor: colors.white, borderRadius: 8, padding: spacing.md, gap: spacing.sm }}>
               <InfoRow label="Student number" value={credential.studentNumber} />
+              <InfoRow label="Faculty" value={credential.faculty} />
               <InfoRow label="Issuer" value={credential.issuer} />
+              <InfoRow label="Enrolment status" value={credential.enrolmentStatus} />
+              <InfoRow label="Valid from" value={credential.validFrom} />
               <InfoRow label="Expires" value={credential.expiresAt} tone="warning" />
             </View>
           </View>

@@ -34,7 +34,7 @@ export default function HomeScreen() {
 
         <View style={{ backgroundColor: colors.primary, borderRadius: 8, padding: spacing.lg, gap: spacing.md }}>
           <View style={{ alignItems: "flex-start" }}>
-            <StatusPill label={credential?.status ?? "Loading"} tone="success" />
+            <StatusPill label={credential?.lifecycleState ?? "Loading"} tone="success" />
           </View>
           <Text style={[typography.title, { color: colors.white }]}>{credential?.holderName ?? "Student"}</Text>
           <Text style={{ color: colors.primarySoft, fontSize: 16 }}>{credential?.programme ?? "Credential loading"}</Text>

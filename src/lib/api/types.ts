@@ -4,13 +4,26 @@ export type StudentProfile = {
   institution: string;
 };
 
+export type CredentialLifecycleState =
+  | "Pending"
+  | "Issuing"
+  | "Offered"
+  | "Active"
+  | "Suspended"
+  | "Revoked"
+  | "Expired"
+  | "Renewed";
+
 export type StudentCredential = {
   id: string;
   holderName: string;
   issuer: string;
+  faculty: string;
   programme: string;
-  status: "Active" | "Suspended" | "Expired";
+  enrolmentStatus: "Registered" | "Suspended" | "Withdrawn" | "Graduated";
+  lifecycleState: CredentialLifecycleState;
   studentNumber: string;
+  validFrom: string;
   expiresAt: string;
 };
 

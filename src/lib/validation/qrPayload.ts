@@ -1,11 +1,20 @@
 import { z } from "zod";
 
-export const qrPayloadSchema = z.object({
+const baseServicePointQrPayloadSchema = z.object({
   vendorId: z.string().min(1),
   servicePointId: z.string().min(1),
-  amount: z.number().nonnegative(),
   nonce: z.string().min(1),
 });
+
+export const qrPayloadSchema = z.discriminatedUnion("type", [
+  baseServicePointQrPayloadSchema.extend({
+    type: z.literal("payment"),
+    amount: z.number().nonnegative(),
+  }),
+  baseServicePointQrPayloadSchema.extend({
+    type: z.literal("verification"),
+  }),
+]);
 
 export type QrPayload = z.infer<typeof qrPayloadSchema>;
 

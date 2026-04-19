@@ -10,9 +10,12 @@ export const mockStudentCredential: StudentCredential = {
   id: "credential-demo-001",
   holderName: mockStudentProfile.name,
   issuer: mockStudentProfile.institution,
+  faculty: "Commerce",
   programme: "Bachelor of Business Science",
-  status: "Active",
+  enrolmentStatus: "Registered",
+  lifecycleState: "Active",
   studentNumber: "VSKCAL001",
+  validFrom: "1 Jan 2026",
   expiresAt: "31 Dec 2026",
 };
 

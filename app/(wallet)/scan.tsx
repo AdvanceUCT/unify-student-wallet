@@ -11,6 +11,7 @@ import { typography } from "@/src/theme/typography";
 const demoPayload = JSON.stringify({
   vendorId: "vendor-001",
   servicePointId: "library-cafe",
+  type: "payment",
   amount: 42.5,
   nonce: "demo-nonce",
 });
@@ -53,7 +54,7 @@ export default function ScanScreen() {
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.lg, gap: spacing.sm }}>
           <Text style={typography.sectionTitle}>Demo QR payload</Text>
           <Text style={typography.body}>
-            {demoResult.ok ? `Parsed request for ${demoResult.data.servicePointId}` : "Invalid demo QR payload"}
+            {demoResult.ok ? `Parsed ${demoResult.data.type} request for ${demoResult.data.servicePointId}` : "Invalid demo QR payload"}
           </Text>
         </View>
       </View>
