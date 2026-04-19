@@ -1,6 +1,21 @@
 # UNIFY Student Wallet
 
-Student wallet application for UNIFY.
+Student wallet application for UNIFY. This repo is the React Native mobile wallet used by students to activate, store, present, and use their student credential.
+
+Future Codex instances should read this file first, then:
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/DECISIONS.md](docs/DECISIONS.md)
+- [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md)
+- [docs/WORKFLOW.md](docs/WORKFLOW.md)
+
+## Current Status
+
+- Stack: Expo Router, React Native, TypeScript.
+- Scaffold branch: `feature/scaffold-student-wallet`.
+- PR: https://github.com/AdvanceUCT/unify-student-wallet/pull/8
+- Current data: mock-only; no real student data or production secrets.
+- Active local checks: lint, typecheck, Jest tests, Expo export build.
 
 This repo owns:
 
@@ -19,6 +34,12 @@ This repo owns:
 - Security-sensitive changes need two approving reviews before merge.
 
 ## Getting Started
+
+Requirements:
+
+- Node.js and npm
+- Expo-compatible local environment
+- Android Studio or Xcode only when running native emulators
 
 Install dependencies:
 
@@ -41,6 +62,14 @@ npm test
 npm run build
 ```
 
+Platform commands:
+
+```bash
+npm run android
+npm run ios
+npm run web
+```
+
 ## App Structure
 
 - `app/` contains Expo Router screens and navigation groups.
@@ -49,4 +78,11 @@ npm run build
 - `src/lib/storage/` contains secure storage wrappers for future sensitive values.
 - `src/lib/validation/` contains QR payload validation.
 - `src/theme/` contains shared colors, spacing, and typography.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md): systems, repo boundaries, and runtime flows.
+- [Decisions](docs/DECISIONS.md): important project decisions and why they were made.
+- [API Contracts](docs/API_CONTRACTS.md): draft contracts between wallet, admin, vendor, and future backend services.
+- [Workflow](docs/WORKFLOW.md): GitHub Issues, PRs, checks, releases, and deployment conventions.
 
