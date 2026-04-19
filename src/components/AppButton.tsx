@@ -5,13 +5,14 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 
 type AppButtonProps = {
+  disabled?: boolean;
   label: string;
   href?: Href;
   onPress?: () => void;
   variant?: "primary" | "secondary";
 };
 
-export function AppButton({ label, href, onPress, variant = "primary" }: AppButtonProps) {
+export function AppButton({ disabled = false, label, href, onPress, variant = "primary" }: AppButtonProps) {
   const backgroundColor = variant === "primary" ? colors.primary : colors.surface;
   const borderColor = variant === "primary" ? colors.primary : colors.border;
   const color = variant === "primary" ? colors.white : colors.text;
@@ -19,6 +20,8 @@ export function AppButton({ label, href, onPress, variant = "primary" }: AppButt
   const content = (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: "center",
@@ -26,7 +29,7 @@ export function AppButton({ label, href, onPress, variant = "primary" }: AppButt
         borderColor,
         borderRadius: 8,
         borderWidth: 1,
-        opacity: pressed ? 0.85 : 1,
+        opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
       })}

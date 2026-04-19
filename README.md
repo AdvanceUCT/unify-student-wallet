@@ -100,4 +100,5 @@ This repo should stay aligned with the BA system document:
 - [Decisions](docs/DECISIONS.md): important project decisions and why they were made.
 - [API Contracts](docs/API_CONTRACTS.md): draft contracts between wallet, admin, vendor, and future backend services.
 - [Workflow](docs/WORKFLOW.md): GitHub Issues, PRs, checks, releases, and deployment conventions.
+- [Mobile Wallet Plan](docs/MOBILE_WALLET_PLAN.md): phased implementation plan for the student wallet MVP.
 
