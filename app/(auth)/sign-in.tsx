@@ -1,13 +1,15 @@
-import { router } from "expo-router";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function SignInScreen() {
+  const { isHydrated, signInDemo } = useWalletSession();
+
   return (
     <AppScreen>
       <View style={{ flex: 1, justifyContent: "space-between", gap: spacing.xl }}>
@@ -35,8 +37,8 @@ export default function SignInScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <AppButton label="Continue with demo wallet" onPress={() => router.replace("/(wallet)/home")} />
-          <AppButton label="Activate credential" variant="secondary" onPress={() => router.push("/(auth)/activate")} />
+          <AppButton disabled={!isHydrated} label="Continue with demo wallet" onPress={signInDemo} />
+          <Text style={[typography.body, { fontSize: 14 }]}>Demo sign-in continues to credential activation.</Text>
         </View>
       </View>
     </AppScreen>
