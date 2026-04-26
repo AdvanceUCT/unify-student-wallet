@@ -3,8 +3,13 @@ export type WalletActivationStatus = "notActivated" | "activationPending" | "act
 export type WalletLockStatus = "locked" | "unlocked";
 
 export type WalletSession = {
+  activationId?: string;
+  activationInvitationId?: string;
+  activationSource?: "token" | "oob" | "demo-code";
   authStatus: WalletAuthStatus;
   activationStatus: WalletActivationStatus;
+  credentialRecordId?: string;
+  holderConnectionId?: string;
   lockStatus: WalletLockStatus;
   studentId?: string;
   walletId?: string;

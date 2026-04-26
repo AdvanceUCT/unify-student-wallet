@@ -21,8 +21,13 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
       session: {
+        activationId: parsed.session?.activationId,
+        activationInvitationId: parsed.session?.activationInvitationId,
+        activationSource: parsed.session?.activationSource,
         authStatus: parsed.session?.authStatus ?? "signedOut",
         activationStatus: parsed.session?.activationStatus ?? "notActivated",
+        credentialRecordId: parsed.session?.credentialRecordId,
+        holderConnectionId: parsed.session?.holderConnectionId,
         lockStatus: parsed.session?.lockStatus ?? "locked",
         studentId: parsed.session?.studentId,
         walletId: parsed.session?.walletId,

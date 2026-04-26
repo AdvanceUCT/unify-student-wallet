@@ -1,6 +1,6 @@
 # UNIFY Decisions
 
-Status: living decision log. Last updated: 2026-04-19.
+Status: living decision log. Last updated: 2026-04-26.
 
 Use this file to understand why the repo is shaped the way it is. Add new decisions when a future change would otherwise need chat history to explain it.
 
@@ -38,8 +38,8 @@ Alignment note:
 
 - The BA document names React Native, React Navigation, Metro, Hermes, react-native-vision-camera, react-native-fs, react-native-get-random-values, Credo, and Aries Askar as target mobile technologies.
 - Expo Router is built on React Navigation and keeps the scaffold compatible with the React Native direction.
-- Current Expo SecureStore usage is a scaffold placeholder. Final VC/key storage should align with Credo and Aries Askar.
-- If Credo mobile integration requires native modules that Expo Go cannot support, move to an Expo development build or prebuild rather than abandoning the React Native direction.
+- Expo SecureStore stores safe session metadata and PIN material. Credential records and holder wallet material belong in Credo and Aries Askar.
+- Credo mobile integration uses native modules that Expo Go does not support, so the wallet uses an Expo development build path for native holder-agent testing.
 
 ## 3. Use Next.js for Admin and Vendor
 
@@ -163,8 +163,10 @@ Target components:
 Current state:
 
 - Frontend scaffolds and contracts exist.
-- Identity services are not implemented yet.
-- Mock data should remain clearly marked until the backend/identity service exists.
+- The student wallet now owns holder-side Credo activation for AD-39.
+- Issuer and verifier services are not implemented in this repo.
+- Activation resolution and completion use typed mock adapters until the issuer/activation service exists.
+- Mock student/payment data should remain clearly marked until backend services exist.
 
 ## 12. Model Credential Lifecycle Explicitly
 
@@ -201,3 +203,50 @@ Reasoning:
 
 - Environment secrets keep deploy configuration separate from repo-wide secrets.
 - Production can later require manual approval through environment protection rules if the GitHub plan supports it.
+
+## 14. Do Not Build A Blockchain
+
+Decision: UNIFY will not build a blockchain or operate custom low-level Indy infrastructure for the proof of concept.
+
+Reasoning:
+
+- The project needs issuer, holder, verifier, and lifecycle behavior, not a custom ledger.
+- BCovrin Test already provides a development Indy network with genesis data and public DID registration support.
+- VON-style development networks are appropriate for testing and demos, not production trust infrastructure.
+
+Boundary:
+
+- BCovrin Test may store public DIDs, schemas, credential definitions, revocation registries, and revocation status objects.
+- Student records, payment data, UI state, audit logs, and operational records stay in normal backend/database storage.
+- Production ledger/trust-network selection is a later decision.
+
+## 15. Use Yarn For Mobile Credo Integration
+
+Decision: the student wallet uses Yarn 1 through Corepack instead of npm.
+
+Reasoning:
+
+- Credo's current Expo React Native setup relies on Yarn resolutions for native package compatibility.
+- npm overrides were not selected for this repo because the Credo Expo guidance treats that path as unsupported.
+- `package-lock.json` is removed and `yarn.lock` is the dependency lockfile.
+
+Local workflow:
+
+```bash
+corepack enable
+corepack yarn install --frozen-lockfile
+corepack yarn lint
+corepack yarn typecheck
+corepack yarn test
+corepack yarn build
+```
+
+## 16. Treat Credo Native Wallet Changes As Security-Sensitive
+
+Decision: changes touching Credo, Aries Askar, AnonCreds, Indy VDR, DIDComm, BCovrin, SecureStore, PIN, activation, credential storage, or credential presentation need security-sensitive review.
+
+Reasoning:
+
+- These paths control credential custody, wallet activation, proof presentation, and trust resolution.
+- Raw activation tokens, private keys, credential payloads, and full OOB URLs must not be persisted in source, logs, tests, or session JSON.
+- The wallet may persist only safe identifiers such as activation ID, wallet ID, connection ID, credential record ID, and activation status.

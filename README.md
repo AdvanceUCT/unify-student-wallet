@@ -12,12 +12,14 @@ Future Codex instances should read this file first, then:
 ## Current Status
 
 - Stack: Expo Router, React Native, TypeScript.
-- Scaffold branch: `feature/scaffold-student-wallet`.
-- PR: https://github.com/AdvanceUCT/unify-student-wallet/pull/8
-- Current data: mock-only; no real student data or production secrets.
+- Active feature: AD-39 wallet activation with Credo holder-agent support.
+- Package workflow: Yarn 1 through Corepack.
+- Runtime requirement: Expo development build for native Credo/Askar/AnonCreds/Indy VDR bindings. Expo Go is not sufficient for this feature.
+- Current data: simulated student, balance, and payment data only; no real student data or production secrets.
 - Active local checks: lint, typecheck, Jest tests, Expo export build.
 - System scope: proof of concept using simulated student records, simulated payments, and simulated service-provider flows.
-- Target identity stack from `BA Innovation.docx`: W3C Verifiable Credentials, AnonCreds, Credo, DIDComm, Hyperledger Indy/BCovrin, Indy VDR, and Aries Askar.
+- Identity stack: Credo holder agent, DIDComm, AnonCreds, Aries Askar wallet storage, Indy VDR, and BCovrin Test as the development Indy ledger.
+- Ledger boundary: BCovrin Test is used only for public DID, schema, credential definition, and revocation-related objects. Student records, payment data, UI state, and audit logs stay off-ledger in application storage.
 
 This repo owns:
 
@@ -41,37 +43,46 @@ This repo owns:
 
 Requirements:
 
-- Node.js and npm
+- Node.js with Corepack enabled
+- Yarn 1.22.22 through `packageManager`
 - Expo-compatible local environment
+- Expo development build when testing the native holder agent
 - Android Studio or Xcode only when running native emulators
 
 Install dependencies:
 
 ```bash
-npm install
+corepack enable
+corepack yarn install --frozen-lockfile
 ```
 
 Start the Expo development server:
 
 ```bash
-npm start
+corepack yarn start
+```
+
+Start for a development client:
+
+```bash
+corepack yarn start:dev-client
 ```
 
 Common local checks:
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
+corepack yarn lint
+corepack yarn typecheck
+corepack yarn test
+corepack yarn build
 ```
 
 Platform commands:
 
 ```bash
-npm run android
-npm run ios
-npm run web
+corepack yarn android
+corepack yarn ios
+corepack yarn web
 ```
 
 ## App Structure
@@ -83,6 +94,24 @@ npm run web
 - `src/lib/validation/` contains QR payload validation.
 - `src/theme/` contains shared colors, spacing, and typography.
 
+## Activation And SSI Notes
+
+The wallet accepts activation links shaped as `unifywallet://activate?token=<opaque-token>`. For development, it also accepts `unifywallet://activate?oob=<encoded-oob-url>` so an issuer-provided DIDComm out-of-band invitation can be exercised before the activation service exists.
+
+The issuer service, verifier service, mediator, app database, email delivery, and fallback web landing pages are integration points outside this repo. This app owns the holder-side activation flow, local PIN gate, Credo holder-agent initialization, Askar credential storage, and safe SecureStore session metadata.
+
+Implementation basis:
+
+- [Credo Agent Setup](https://credo.js.org/guides/getting-started/set-up)
+- [Aries Askar](https://credo.js.org/guides/getting-started/set-up/aries-askar)
+- [AnonCreds](https://credo.js.org/guides/getting-started/set-up/anoncreds)
+- [Indy VDR](https://credo.js.org/guides/getting-started/set-up/indy-vdr)
+- [Credo DIDComm issuance](https://credo.js.org/guides/tutorials/issue-an-anoncreds-credential-over-didcomm)
+- [Credo mediation](https://credo.js.org/guides/tutorials/mediation)
+- [BCovrin Test](https://test.bcovrin.vonx.io/)
+- [VON Network](https://github.com/bcgov/von-network)
+- [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/)
+
 ## Scope Alignment
 
 This repo should stay aligned with the BA system document:
@@ -92,7 +121,8 @@ This repo should stay aligned with the BA system document:
 - Do not integrate real payment gateways or bank settlement.
 - Keep wallet balances and top-ups simulated until a later decision changes scope.
 - Store no PII on-chain.
-- Treat Credo/Aries Askar integration as the target for real credential/key storage.
+- Do not build a blockchain or write student/payment/audit records to BCovrin.
+- Treat Credo, Aries Askar, AnonCreds, Indy VDR, DIDComm, and BCovrin changes as security-sensitive.
 
 ## Documentation
 

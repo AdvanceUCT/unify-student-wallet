@@ -1,6 +1,6 @@
 # UNIFY API Contracts
 
-Status: draft. Last updated: 2026-04-19.
+Status: draft. Last updated: 2026-04-26.
 
 These contracts describe how the student wallet, admin portal, vendor portal, and future backend should talk. They are not final backend implementation requirements yet.
 
@@ -15,7 +15,9 @@ Primary source alignment: `BA Innovation.docx` defines the prototype as a simula
 - Do not trust client-provided credential status without backend verification.
 - Return typed error codes that the apps can map to clear user-facing messages.
 - Treat all payments as simulated unless a later decision explicitly adds a real payment provider.
-- Do not write personally identifiable information to Hyperledger Indy or BCovrin.
+- Do not write personally identifiable information, student records, payment data, UI state, or audit logs to Hyperledger Indy or BCovrin.
+- Use BCovrin Test only for public DID, schema, credential definition, and revocation-related ledger objects during development.
+- Do not persist raw activation tokens, full credential payloads, or full out-of-band URLs in the mobile wallet session state.
 
 ## Shared Types
 
@@ -109,7 +111,8 @@ Rules:
 Planned endpoints:
 
 ```http
-POST /wallet/activation/verify
+POST /wallet/activation/resolve
+POST /wallet/activation/complete
 GET /wallet/me
 GET /wallet/credentials
 GET /wallet/payments
@@ -118,11 +121,118 @@ POST /wallet/presentations
 POST /wallet/payments/authorize
 ```
 
-### POST /wallet/activation/verify
+### Activation Links
 
-Purpose: activate a student wallet from an activation code or issuer-provided enrollment flow.
+Primary activation link:
+
+```text
+unifywallet://activate?token=<opaque-token>
+```
+
+Development-only direct OOB path:
+
+```text
+unifywallet://activate?oob=<encoded-oob-url>
+```
+
+Rules:
+
+- `token` is the production path and must be opaque, short-lived, single-use, and resolved by the issuer/activation service.
+- `oob` is optional for development and should contain an encoded DIDComm out-of-band invitation URL.
+- A link must not contain both `token` and `oob`.
+- The wallet must not store raw tokens or full OOB URLs after resolution.
+- If the wallet has no PIN yet, it must move to `activationPending` and require PIN setup before accepting and storing the credential.
+
+### POST /wallet/activation/resolve
+
+Purpose: resolve an activation token or development OOB value into a holder-consumable DIDComm/AnonCreds invitation.
 
 Request:
+
+```json
+{
+  "kind": "token",
+  "token": "opaque-token",
+  "deviceId": "optional-device-id"
+}
+```
+
+Development request:
+
+```json
+{
+  "kind": "oob",
+  "oobUrl": "https://issuer.example/oob?oob=...",
+  "deviceId": "optional-device-id"
+}
+```
+
+Response:
+
+```json
+{
+  "activationId": "activation-001",
+  "studentId": "student-demo-001",
+  "walletId": "wallet-001",
+  "invitationId": "invitation-001",
+  "invitationUrl": "https://issuer.example/oob?oob=...",
+  "expiresAt": "2026-09-01T12:00:00Z",
+  "ledger": {
+    "name": "BCovrin Test",
+    "indyNamespace": "bcovrin:test",
+    "genesisUrl": "https://test.bcovrin.vonx.io/genesis"
+  },
+  "student": {
+    "id": "student-demo-001",
+    "name": "Demo Student",
+    "institution": "University of Cape Town"
+  }
+}
+```
+
+Security notes:
+
+- The service should bind the activation to the expected simulated student and intended credential offer.
+- Raw activation tokens must be validated server-side and never returned.
+- `invitationUrl` is transient. The wallet may use it to initialize DIDComm exchange but must not persist it in SecureStore session JSON.
+- Issuer/verifier services remain responsible for public DID, schema, credential definition, and revocation objects on BCovrin Test.
+
+### POST /wallet/activation/complete
+
+Purpose: let the activation service record that the holder accepted the invitation and stored the credential.
+
+Request:
+
+```json
+{
+  "activationId": "activation-001",
+  "holderConnectionId": "connection-001",
+  "credentialRecordId": "credential-001"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "Activated",
+  "activationId": "activation-001",
+  "walletId": "wallet-001",
+  "credentialRecordId": "credential-001",
+  "holderConnectionId": "connection-001",
+  "completedAt": "2026-09-01T12:05:00Z"
+}
+```
+
+Security notes:
+
+- `credentialRecordId` and `holderConnectionId` are safe wallet-local identifiers, not credential payloads.
+- The service should reject completion after token expiry, reuse, or student mismatch.
+- Audit events belong in the app database, not the ledger.
+
+### Legacy: POST /wallet/activation/verify
+
+Purpose: legacy mock activation from the first wallet scaffold. New AD-39 work should prefer `resolve` and `complete`.
 
 ```json
 {

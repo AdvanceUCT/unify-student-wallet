@@ -13,6 +13,7 @@ let mockWalletSession: {
   hasPin: boolean;
   isHydrated: boolean;
   lockWallet: jest.Mock;
+  prepareActivationFromLink: jest.Mock;
   session: WalletSession;
   setBiometricEnabled: jest.Mock;
   setPin: jest.Mock;
@@ -24,6 +25,11 @@ let mockWalletSession: {
 
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock("expo-linking", () => ({
+  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  getInitialURL: jest.fn(async () => null),
 }));
 
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
@@ -38,6 +44,7 @@ function createMockWalletSession() {
     hasPin: false,
     isHydrated: true,
     lockWallet: jest.fn(),
+    prepareActivationFromLink: jest.fn().mockResolvedValue({ ok: true }),
     session: {
       authStatus: "signedIn",
       activationStatus: "activated",
@@ -76,6 +83,17 @@ describe("auth screens", () => {
 
     await waitFor(() => expect(screen.getByText("Enter the demo activation code.")).toBeTruthy());
     expect(mockWalletSession.activateDemoWallet).toHaveBeenCalledWith("WRONG");
+  });
+
+  it("submits an activation link from the initial URL", async () => {
+    const Linking = jest.requireMock("expo-linking") as { getInitialURL: jest.Mock };
+    Linking.getInitialURL.mockResolvedValueOnce("unifywallet://activate?token=demo-token");
+
+    render(<ActivateScreen />);
+
+    await waitFor(() =>
+      expect(mockWalletSession.prepareActivationFromLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
+    );
   });
 
   it("submits matching PIN entries", async () => {

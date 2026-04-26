@@ -1,6 +1,6 @@
 # UNIFY Workflow
 
-Status: living workflow guide. Last updated: 2026-04-19.
+Status: living workflow guide. Last updated: 2026-04-26.
 
 This file explains how work should enter the repos and which GitHub features are active or planned.
 
@@ -44,7 +44,7 @@ Target flows:
 - Design W3C-compatible student VC schema with selective disclosure fields.
 - Generate simulated student registration data.
 - Implement VC issuer service and batch issuance pipeline for at least 100 simulated VCs.
-- Implement VC delivery and activation mechanism.
+- Implement VC delivery and activation mechanism through `unifywallet://activate?...` links and a Credo holder agent in the student wallet.
 - Implement VC revocation service with status reflected across services within the target 60-second window where feasible for the prototype.
 - Scaffold student wallet navigation and auth flow.
 - Build wallet VC activation, VC display, balance/top-up, QR payment scan, and transaction history screens.
@@ -145,6 +145,7 @@ Security-sensitive areas include:
 - Credo, DIDComm, AnonCreds, Indy VDR, BCovrin, Hyperledger Indy, or Aries Askar integration.
 - GitHub Actions workflows.
 - Dependency, secret, environment, or release changes.
+- Activation links, activation resolver adapters, holder-agent setup, SecureStore session state, and PIN storage.
 
 ## Merge Policy
 
@@ -203,12 +204,21 @@ Current behavior:
 Student wallet:
 
 ```bash
-npm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
+corepack enable
+corepack yarn install --frozen-lockfile
+corepack yarn lint
+corepack yarn typecheck
+corepack yarn test
+corepack yarn build
 ```
+
+Native holder-agent smoke checks require an Expo development build:
+
+```bash
+corepack yarn start:dev-client
+```
+
+Do not use Expo Go as the AD-39 native smoke path because Credo, Aries Askar, AnonCreds, Indy VDR, and React Native filesystem/random bindings require native modules.
 
 Wallet implementation should also add targeted tests for:
 
@@ -217,6 +227,9 @@ Wallet implementation should also add targeted tests for:
 - Credential lifecycle state handling.
 - Payment confirmation and rollback behavior for simulated payments.
 - Secure-storage wrapper behavior.
+- Activation-link parsing for token and development OOB paths.
+- `notActivated`, `activationPending`, and `activated` route/session behavior.
+- Safe serialization that excludes raw activation tokens, full OOB URLs, and full credential payloads.
 
 Admin and vendor portals before scaffolding:
 
@@ -225,13 +238,7 @@ Admin and vendor portals before scaffolding:
 
 Admin and vendor portals after Next.js scaffolding:
 
-```bash
-npm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
+Use each portal repo's own package manager and lockfile. The student wallet uses Yarn 1 through Corepack; do not copy npm commands into wallet docs or workflows.
 
 Admin/vendor implementation should add tests for:
 
