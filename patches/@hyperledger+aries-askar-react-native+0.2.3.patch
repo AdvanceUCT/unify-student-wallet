@@ -1,0 +1,27 @@
+diff --git a/node_modules/@hyperledger/aries-askar-react-native/android/CMakeLists.txt b/node_modules/@hyperledger/aries-askar-react-native/android/CMakeLists.txt
+index 65104f3..a9f1782 100644
+--- a/node_modules/@hyperledger/aries-askar-react-native/android/CMakeLists.txt
++++ b/node_modules/@hyperledger/aries-askar-react-native/android/CMakeLists.txt
+@@ -87,14 +87,21 @@ if(${REACT_NATIVE_VERSION} LESS 71)
+   )
+ endif()
+ 
+-if(${REACT_NATIVE_VERSION} GREATER_EQUAL 71)
++if(${REACT_NATIVE_VERSION} GREATER_EQUAL 76)
++  target_link_libraries(
++    ${PACKAGE_NAME}
++    ReactAndroid::jsi
++    ReactAndroid::reactnative
++    fbjni::fbjni
++  )
++elseif(${REACT_NATIVE_VERSION} GREATER_EQUAL 71)
+   target_link_libraries(
+     ${PACKAGE_NAME}
+     ReactAndroid::jsi
+     ReactAndroid::reactnativejni
+     fbjni::fbjni
+   )
+ elseif(${REACT_NATIVE_VERSION} LESS 66)
+   # JSI lib didn't exist on RN 0.65 and before. Simply omit it.
+   set (JSI_LIB "")
+ else()
