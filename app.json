@@ -9,9 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.advanceuct.unifystudentwallet",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.advanceuct.unifystudentwallet",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
