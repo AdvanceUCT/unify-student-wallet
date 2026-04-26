@@ -1,4 +1,3 @@
-import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
 import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
@@ -6,7 +5,7 @@ import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 import type { ResolvedWalletActivation } from "./activationResolver";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
-const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-key";
+const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
 
 export type HolderActivationResult = {
   credentialRecordId: string;
@@ -30,7 +29,7 @@ type HolderAgent = {
   initialize: () => Promise<void>;
 };
 
-async function getOrCreateHolderWalletKey(walletId: string) {
+async function getOrCreateHolderWalletKey(walletId: string, generateRawKey: () => string) {
   const storageKey = `${HOLDER_WALLET_KEY_PREFIX}.${walletId}`;
   const existingKey = await getSecureValue(storageKey);
 
@@ -38,7 +37,7 @@ async function getOrCreateHolderWalletKey(walletId: string) {
     return existingKey;
   }
 
-  const newKey = `${Crypto.randomUUID()}-${Crypto.randomUUID()}`;
+  const newKey = generateRawKey();
   await saveSecureValue(storageKey, newKey);
   return newKey;
 }
@@ -92,14 +91,23 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       import("@credo-ts/didcomm"),
       import("@credo-ts/react-native"),
       import("@credo-ts/askar"),
-      import("@hyperledger/aries-askar-react-native"),
+      import("@openwallet-foundation/askar-react-native"),
       import("@credo-ts/anoncreds"),
       import("@hyperledger/anoncreds-react-native"),
       import("@credo-ts/indy-vdr"),
       import("@hyperledger/indy-vdr-react-native"),
     ]);
 
-    const walletKey = await getOrCreateHolderWalletKey(activation.walletId);
+    const walletKey = await getOrCreateHolderWalletKey(activation.walletId, () => {
+      const rawKey = (askarBindings as DynamicModule).askar as { storeGenerateRawKey?: (options: object) => string } | undefined;
+      const generatedKey = rawKey?.storeGenerateRawKey?.({});
+
+      if (!generatedKey) {
+        throw new Error("Askar raw key generation is unavailable.");
+      }
+
+      return generatedKey;
+    });
     const genesisTransactions = await loadBcovrinGenesisTransactions();
 
     const coreExports = core as DynamicModule;
@@ -137,10 +145,11 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
         registries: [new IndyVdrAnonCredsRegistry()],
       }),
       askar: new AskarModule({
-        ariesAskar: askarBindings.ariesAskar,
+        askar: askarBindings.askar,
         store: {
           id: activation.walletId,
           key: walletKey,
+          keyDerivationMethod: "raw",
         },
       }),
       didcomm: new DidCommModule({

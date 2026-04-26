@@ -1,0 +1,13 @@
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build.gradle b/node_modules/@openwallet-foundation/askar-react-native/android/build.gradle
+index 2d37f8a..b51d236 100644
+--- a/node_modules/@openwallet-foundation/askar-react-native/android/build.gradle
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build.gradle
+@@ -87,7 +87,7 @@ android {
+     
+     externalNativeBuild {
+         cmake {
+-            cppFlags "-fexceptions", "-frtti", "-std=c++1y", "-DONANDROID"
++            cppFlags "-fexceptions", "-frtti", "-std=c++20", "-DONANDROID"
+             abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+             arguments "-DANDROID_STL=c++_shared",
+                       "-DREACT_NATIVE_VERSION=${REACT_NATIVE_VERSION}",
