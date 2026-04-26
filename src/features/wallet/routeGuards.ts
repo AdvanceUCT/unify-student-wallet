@@ -11,7 +11,7 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
     return "activation";
   }
 
-  if (session.activationStatus === "activationPending" && !hasPin) {
+  if (session.activationStatus === "activationPending") {
     return "pinSetup";
   }
 

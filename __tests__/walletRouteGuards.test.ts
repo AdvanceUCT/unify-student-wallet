@@ -43,6 +43,16 @@ describe("wallet route guards", () => {
     expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
   });
 
+  it("keeps activation-pending users on PIN setup while credential storage completes", () => {
+    const access = getWalletRouteAccess(
+      session({ authStatus: "signedIn", activationStatus: "activationPending" }),
+      true,
+    );
+
+    expect(access).toBe("pinSetup");
+    expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
+  });
+
   it("routes activated locked users with a PIN to unlock", () => {
     const access = getWalletRouteAccess(session({ authStatus: "signedIn", activationStatus: "activated" }), true);
 
