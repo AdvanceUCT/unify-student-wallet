@@ -1,5 +1,5 @@
-import * as Linking from "expo-linking";
-import { useCallback, useEffect } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
@@ -13,8 +13,36 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
+function firstParam(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function activationUrlFromParams(params: { oob?: string | string[]; token?: string | string[] }) {
+  const token = firstParam(params.token)?.trim();
+  const oob = firstParam(params.oob)?.trim();
+
+  if (!token && !oob) {
+    return null;
+  }
+
+  const queryParams: string[] = [];
+
+  if (token) {
+    queryParams.push(`token=${encodeURIComponent(token)}`);
+  }
+
+  if (oob) {
+    queryParams.push(`oob=${encodeURIComponent(oob)}`);
+  }
+
+  return `unifywallet://activate?${queryParams.join("&")}`;
+}
+
 export default function ActivateScreen() {
   const { activateDemoWallet, isHydrated, prepareActivationFromLink } = useWalletSession();
+  const params = useLocalSearchParams<{ oob?: string | string[]; token?: string | string[] }>();
+  const routeActivationUrl = useMemo(() => activationUrlFromParams(params), [params]);
+  const processedActivationUrlRef = useRef<string | null>(null);
   const [activationCode, setActivationCode] = useState(DEMO_ACTIVATION_CODE);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -36,23 +64,13 @@ export default function ActivateScreen() {
   );
 
   useEffect(() => {
-    let isMounted = true;
+    if (!isHydrated || !routeActivationUrl || processedActivationUrlRef.current === routeActivationUrl) {
+      return;
+    }
 
-    Linking.getInitialURL().then((url) => {
-      if (isMounted && url) {
-        void handleActivationLink(url);
-      }
-    });
-
-    const subscription = Linking.addEventListener("url", ({ url }) => {
-      void handleActivationLink(url);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, [handleActivationLink]);
+    processedActivationUrlRef.current = routeActivationUrl;
+    void handleActivationLink(routeActivationUrl);
+  }, [handleActivationLink, isHydrated, routeActivationUrl]);
 
   async function handleActivation() {
     const result = await activateDemoWallet(activationCode);
