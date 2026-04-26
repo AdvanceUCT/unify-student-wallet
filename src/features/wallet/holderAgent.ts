@@ -22,7 +22,7 @@ type HolderAgent = {
     oob?: {
       receiveInvitationFromUrl?: (
         invitationUrl: string,
-        options: { autoAcceptConnection?: boolean; label: string },
+        options: { autoAcceptConnection?: boolean; autoAcceptInvitation?: boolean; label: string },
       ) => Promise<{ connectionRecord?: { id?: string }; outOfBandRecord?: { id?: string } }>;
     };
     registerOutboundTransport?: (transport: unknown) => void;
@@ -138,6 +138,10 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       }),
       askar: new AskarModule({
         ariesAskar: askarBindings.ariesAskar,
+        store: {
+          id: activation.walletId,
+          key: walletKey,
+        },
       }),
       didcomm: new DidCommModule({
         credentials: {
@@ -178,10 +182,6 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
     const agent = new Agent({
       config: {
         label: "UNIFY Student Wallet",
-        walletConfig: {
-          id: activation.walletId,
-          key: walletKey,
-        },
       },
       dependencies: reactNative.agentDependencies,
       modules,
@@ -189,8 +189,10 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
 
     await agent.initialize();
 
+    const autoAcceptIssuerConnection = activation.activationSource === "oob";
     const invitationRecord = await agent.didcomm?.oob?.receiveInvitationFromUrl?.(activation.invitationUrl, {
-      autoAcceptConnection: true,
+      autoAcceptConnection: autoAcceptIssuerConnection,
+      autoAcceptInvitation: autoAcceptIssuerConnection,
       label: "UNIFY Student Wallet",
     });
     const credentialRecords = (await agent.didcomm?.credentials?.getAll?.()) ?? [];

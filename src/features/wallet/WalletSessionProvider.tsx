@@ -4,7 +4,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import { parseActivationLink } from "./activationLinks";
 import { completeWalletActivation, resolveWalletActivation, type ResolvedWalletActivation } from "./activationResolver";
-import { acceptHolderActivation } from "./holderAgent";
+import { acceptHolderActivation, type HolderActivationResult } from "./holderAgent";
 import { createPinSalt, hashPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
@@ -19,6 +19,9 @@ import {
 } from "./sessionTypes";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
+type HolderActivationActionResult =
+  | { data: HolderActivationResult; ok: true }
+  | { error: string; ok: false };
 
 type WalletProviderState = PersistedWalletSessionState & {
   biometricAvailable: boolean;
@@ -85,6 +88,23 @@ function clearTransientActivation(state: PersistedWalletSessionState): Persisted
   };
 }
 
+function actionErrorFromUnknown(error: unknown): ActionResult {
+  if (error instanceof Error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: false, error: "Wallet activation could not be completed." };
+}
+
+async function tryAcceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationActionResult> {
+  try {
+    return { data: await acceptHolderActivation(activation), ok: true };
+  } catch (error) {
+    const result = actionErrorFromUnknown(error);
+    return result.ok ? { error: "Wallet activation could not be completed.", ok: false } : result;
+  }
+}
+
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<WalletProviderState>(initialState);
 
@@ -145,11 +165,16 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const prepareResolvedActivation = useCallback(
     async (activation: ResolvedWalletActivation): Promise<ActionResult> => {
       if (hasStoredPin(state)) {
-        const holderResult = await acceptHolderActivation(activation);
+        const holderResult = await tryAcceptHolderActivation(activation);
+
+        if (!holderResult.ok) {
+          return holderResult;
+        }
+
         const completion = await completeWalletActivation(
           activation,
-          holderResult.holderConnectionId,
-          holderResult.credentialRecordId,
+          holderResult.data.holderConnectionId,
+          holderResult.data.credentialRecordId,
         );
 
         if (!completion.ok) {
@@ -273,11 +298,16 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
         setState((current) => ({ ...current, ...nextPinState }));
 
-        const holderResult = await acceptHolderActivation(pendingActivation);
+        const holderResult = await tryAcceptHolderActivation(pendingActivation);
+
+        if (!holderResult.ok) {
+          return holderResult;
+        }
+
         const completion = await completeWalletActivation(
           pendingActivation,
-          holderResult.holderConnectionId,
-          holderResult.credentialRecordId,
+          holderResult.data.holderConnectionId,
+          holderResult.data.credentialRecordId,
         );
 
         if (!completion.ok) {

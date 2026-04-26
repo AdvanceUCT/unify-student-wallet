@@ -31,22 +31,32 @@ function suffixFor(value: string) {
   return value.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "demo";
 }
 
+function base64UrlEncode(value: string) {
+  const utf8Value = encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_match, hex) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
+
+  return btoa(utf8Value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
 function mockInvitationUrl(invitationId: string) {
   const invitation = {
     "@id": invitationId,
     "@type": "https://didcomm.org/out-of-band/1.1/invitation",
+    "handshake_protocols": ["https://didcomm.org/didexchange/1.0"],
     label: "UNIFY Issuer Service",
     services: [
       {
         id: "#inline",
-        recipientKeys: ["did:key:z6MkunifyIssuerDemoKey"],
+        recipientKeys: ["did:key:z6MkiTBzj1u3bdF7S7Q4TzqzH4Rb9SLGZwk9N4qe68q8nW1N"],
         routingKeys: [],
         serviceEndpoint: "https://issuer.advanceuct.test/didcomm",
+        type: "did-communication",
       },
     ],
   };
 
-  return `https://issuer.advanceuct.test/oob?oob=${encodeURIComponent(JSON.stringify(invitation))}`;
+  return `https://issuer.advanceuct.test/oob?oob=${base64UrlEncode(JSON.stringify(invitation))}`;
 }
 
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
