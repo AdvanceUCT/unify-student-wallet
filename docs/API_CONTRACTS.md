@@ -172,21 +172,15 @@ Response:
 ```json
 {
   "activationId": "activation-001",
+  "activationSource": "token",
+  "createdAt": "2026-09-01T12:00:00Z",
   "studentId": "student-demo-001",
   "walletId": "wallet-001",
   "invitationId": "invitation-001",
   "invitationUrl": "https://issuer.example/oob?oob=...",
-  "expiresAt": "2026-09-01T12:00:00Z",
-  "ledger": {
-    "name": "BCovrin Test",
-    "indyNamespace": "bcovrin:test",
-    "genesisUrl": "https://test.bcovrin.vonx.io/genesis"
-  },
-  "student": {
-    "id": "student-demo-001",
-    "name": "Demo Student",
-    "institution": "University of Cape Town"
-  }
+  "issuerLabel": "UNIFY Issuer Service",
+  "ledgerName": "BCovrin Test",
+  "expiresAt": "2026-09-02T12:00:00Z"
 }
 ```
 
@@ -215,12 +209,12 @@ Response:
 
 ```json
 {
-  "status": "Activated",
+  "activatedAt": "2026-09-01T12:05:00Z",
   "activationId": "activation-001",
-  "walletId": "wallet-001",
+  "credentialId": "credential-demo-002",
+  "studentId": "student-demo-002",
   "credentialRecordId": "credential-001",
-  "holderConnectionId": "connection-001",
-  "completedAt": "2026-09-01T12:05:00Z"
+  "holderConnectionId": "connection-001"
 }
 ```
 
@@ -229,6 +223,22 @@ Security notes:
 - `credentialRecordId` and `holderConnectionId` are safe wallet-local identifiers, not credential payloads.
 - The service should reject completion after token expiry, reuse, or student mismatch.
 - Audit events belong in the app database, not the ledger.
+
+### Proof-of-concept admin mock activation service
+
+During local demo testing, the wallet may call the admin portal mock API when `EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL` is set. On web, the wallet defaults to `http://localhost:3000` outside the test environment. Native dev-client testing should set the same environment variable to the simulator/device-reachable admin host.
+
+```http
+POST /api/mock/wallet/activation/resolve
+POST /api/mock/wallet/activation/complete
+```
+
+Rules:
+
+- The mock service accepts only token activation links from the admin portal.
+- If the configured mock service is unavailable, the wallet falls back to its existing local mock resolver for proof-of-concept development.
+- Admin API token errors such as unknown or expired tokens are surfaced to the wallet rather than silently falling back.
+- The wallet still persists only safe IDs after completion, not raw tokens, full OOB URLs, or credential payloads.
 
 ### Legacy: POST /wallet/activation/verify
 

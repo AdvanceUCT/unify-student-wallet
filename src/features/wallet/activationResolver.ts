@@ -1,4 +1,6 @@
-import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
+import { Platform } from "react-native";
+
+import { DEMO_ACTIVATION_CODE, DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
 import type { ActivationLinkRequest } from "./activationLinks";
 
 // Mock adapter boundary for AD-39 until the issuer/activation service exists.
@@ -26,6 +28,94 @@ export type CompletedWalletActivation = {
 };
 
 export type ActivationResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+type RemotePostResult<T> =
+  | { data: T; status: "ok" }
+  | { error: string; status: "error" }
+  | { status: "unavailable" };
+
+type RemoteResolveResponse = {
+  activationId: string;
+  activationSource?: "token";
+  createdAt: string;
+  expiresAt?: string;
+  invitationId: string;
+  invitationUrl: string;
+  issuerLabel: string;
+  ledger?: { name?: string };
+  ledgerName?: "BCovrin Test";
+  mediatorInvitationUrl?: string;
+  studentId: string;
+  walletId: string;
+};
+
+type RemoteCompleteResponse = {
+  activatedAt?: string;
+  activationId: string;
+  completedAt?: string;
+  credentialRecordId: string;
+  holderConnectionId: string;
+};
+
+const DEFAULT_WEB_ADMIN_API_BASE_URL = "http://localhost:3000";
+
+function getAdminActivationApiBaseUrl() {
+  const configuredBaseUrl = process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, "");
+  }
+
+  if (Platform.OS === "web" && process.env.NODE_ENV !== "test") {
+    return DEFAULT_WEB_ADMIN_API_BASE_URL;
+  }
+
+  return null;
+}
+
+function apiErrorMessage(value: unknown, fallback: string) {
+  if (
+    value &&
+    typeof value === "object" &&
+    "error" in value &&
+    value.error &&
+    typeof value.error === "object" &&
+    "message" in value.error &&
+    typeof value.error.message === "string"
+  ) {
+    return value.error.message;
+  }
+
+  return fallback;
+}
+
+async function postAdminMock<T>(path: string, body: object): Promise<RemotePostResult<T>> {
+  const baseUrl = getAdminActivationApiBaseUrl();
+
+  if (!baseUrl || typeof fetch !== "function") {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const responseBody = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        error: apiErrorMessage(responseBody, `Admin mock activation request failed with status ${response.status}.`),
+        status: "error",
+      };
+    }
+
+    return { data: responseBody as T, status: "ok" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
 
 function suffixFor(value: string) {
   return value.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "demo";
@@ -60,6 +150,42 @@ function mockInvitationUrl(invitationId: string) {
 }
 
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
+  if (request.kind === "token" && request.token.trim().toUpperCase() !== DEMO_ACTIVATION_CODE) {
+    const remoteResult = await postAdminMock<RemoteResolveResponse>("/api/mock/wallet/activation/resolve", {
+      kind: "token",
+      sourceUrl: request.sourceUrl,
+      token: request.token,
+    });
+
+    if (remoteResult.status === "ok") {
+      return {
+        ok: true,
+        data: {
+          activationId: remoteResult.data.activationId,
+          activationSource: "token",
+          createdAt: remoteResult.data.createdAt,
+          invitationId: remoteResult.data.invitationId,
+          invitationUrl: remoteResult.data.invitationUrl,
+          issuerLabel: remoteResult.data.issuerLabel,
+          ledgerName: remoteResult.data.ledgerName ?? "BCovrin Test",
+          mediatorInvitationUrl: remoteResult.data.mediatorInvitationUrl,
+          studentId: remoteResult.data.studentId,
+          walletId: remoteResult.data.walletId,
+        },
+      };
+    }
+
+    if (remoteResult.status === "error") {
+      return { ok: false, error: remoteResult.error };
+    }
+  }
+
+  return resolveLocalWalletActivation(request);
+}
+
+async function resolveLocalWalletActivation(
+  request: ActivationLinkRequest,
+): Promise<ActivationResult<ResolvedWalletActivation>> {
   const seedValue = request.kind === "token" ? request.token : request.invitationUrl;
   const suffix = suffixFor(seedValue);
   const invitationId = `unify-oob-${suffix}`;
@@ -85,6 +211,30 @@ export async function completeWalletActivation(
   holderConnectionId: string,
   credentialRecordId: string,
 ): Promise<ActivationResult<CompletedWalletActivation>> {
+  if (activation.activationSource === "token") {
+    const remoteResult = await postAdminMock<RemoteCompleteResponse>("/api/mock/wallet/activation/complete", {
+      activationId: activation.activationId,
+      credentialRecordId,
+      holderConnectionId,
+    });
+
+    if (remoteResult.status === "ok") {
+      return {
+        ok: true,
+        data: {
+          activationId: remoteResult.data.activationId,
+          completedAt: remoteResult.data.completedAt ?? remoteResult.data.activatedAt ?? new Date().toISOString(),
+          credentialRecordId: remoteResult.data.credentialRecordId,
+          holderConnectionId: remoteResult.data.holderConnectionId,
+        },
+      };
+    }
+
+    if (remoteResult.status === "error") {
+      return { ok: false, error: remoteResult.error };
+    }
+  }
+
   return {
     ok: true,
     data: {
