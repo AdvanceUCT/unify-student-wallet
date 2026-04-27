@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-import { DEMO_ACTIVATION_CODE, DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
+import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
 import type { ActivationLinkRequest } from "./activationLinks";
 
 // Mock adapter boundary for AD-39 until the issuer/activation service exists.
@@ -9,7 +9,7 @@ import type { ActivationLinkRequest } from "./activationLinks";
 
 export type ResolvedWalletActivation = {
   activationId: string;
-  activationSource: ActivationLinkRequest["kind"] | "demo-code";
+  activationSource: ActivationLinkRequest["kind"];
   createdAt: string;
   invitationId: string;
   invitationUrl: string;
@@ -150,7 +150,7 @@ function mockInvitationUrl(invitationId: string) {
 }
 
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
-  if (request.kind === "token" && request.token.trim().toUpperCase() !== DEMO_ACTIVATION_CODE) {
+  if (request.kind === "token") {
     const remoteResult = await postAdminMock<RemoteResolveResponse>("/api/mock/wallet/activation/resolve", {
       kind: "token",
       sourceUrl: request.sourceUrl,
@@ -178,6 +178,11 @@ export async function resolveWalletActivation(request: ActivationLinkRequest): P
     if (remoteResult.status === "error") {
       return { ok: false, error: remoteResult.error };
     }
+
+    return {
+      ok: false,
+      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+    };
   }
 
   return resolveLocalWalletActivation(request);
@@ -233,6 +238,11 @@ export async function completeWalletActivation(
     if (remoteResult.status === "error") {
       return { ok: false, error: remoteResult.error };
     }
+
+    return {
+      ok: false,
+      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+    };
   }
 
   return {

@@ -105,7 +105,7 @@ describe("wallet activation resolver", () => {
     );
   });
 
-  it("falls back to the local mock resolver when no admin API is configured", async () => {
+  it("returns an activation service error when token resolve has no admin API", async () => {
     delete process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
     global.fetch = jest.fn();
 
@@ -116,17 +116,13 @@ describe("wallet activation resolver", () => {
     });
 
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(resolved).toMatchObject({
-      ok: true,
-      data: {
-        activationId: "activation-caltoken",
-        studentId: DEMO_STUDENT_ID,
-        walletId: DEMO_WALLET_ID,
-      },
+    expect(resolved).toEqual({
+      ok: false,
+      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
     });
   });
 
-  it("falls back to the local mock when the configured admin API is unavailable", async () => {
+  it("returns an activation service error when the configured admin API is unavailable", async () => {
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
     global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
@@ -137,11 +133,46 @@ describe("wallet activation resolver", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(resolved).toEqual({
+      ok: false,
+      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+    });
+  });
+
+  it("keeps local OOB resolution for issuer development", async () => {
+    delete process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
+    global.fetch = jest.fn();
+    const invitationUrl = "https://issuer.advanceuct.test/oob?oob=abc";
+
+    const resolved = await resolveWalletActivation({
+      invitationUrl,
+      kind: "oob",
+      sourceUrl: `unifywallet://activate?oob=${encodeURIComponent(invitationUrl)}`,
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
     expect(resolved).toMatchObject({
       ok: true,
       data: {
-        activationId: "activation-inetoken",
+        activationSource: "oob",
+        invitationUrl,
         studentId: DEMO_STUDENT_ID,
+        walletId: DEMO_WALLET_ID,
+      },
+    });
+
+    if (!resolved.ok) {
+      throw new Error(resolved.error);
+    }
+
+    const completed = await completeWalletActivation(resolved.data, "connection-oob", "credential-record-oob");
+
+    expect(completed).toMatchObject({
+      ok: true,
+      data: {
+        activationId: resolved.data.activationId,
+        credentialRecordId: "credential-record-oob",
+        holderConnectionId: "connection-oob",
       },
     });
   });

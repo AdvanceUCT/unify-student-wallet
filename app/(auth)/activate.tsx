@@ -1,13 +1,11 @@
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { DEMO_ACTIVATION_CODE } from "@/src/features/wallet/sessionTypes";
 import { mockStudentProfile } from "@/src/lib/api/mockStudent";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -39,13 +37,20 @@ function activationUrlFromParams(params: { oob?: string | string[]; token?: stri
 }
 
 export default function ActivateScreen() {
-  const { activateDemoWallet, isHydrated, prepareActivationFromLink } = useWalletSession();
+  const { isHydrated, prepareActivationFromLink } = useWalletSession();
   const params = useLocalSearchParams<{ oob?: string | string[]; token?: string | string[] }>();
   const routeActivationUrl = useMemo(() => activationUrlFromParams(params), [params]);
   const processedActivationUrlRef = useRef<string | null>(null);
-  const [activationCode, setActivationCode] = useState(DEMO_ACTIVATION_CODE);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const invitationStatus = error
+    ? "Needs attention"
+    : status
+      ? "Accepted"
+      : routeActivationUrl
+        ? "Checking link"
+        : "Waiting for link";
+  const invitationTone = error ? "warning" : status ? "success" : "default";
 
   const handleActivationLink = useCallback(
     async (url: string) => {
@@ -72,12 +77,6 @@ export default function ActivateScreen() {
     void handleActivationLink(routeActivationUrl);
   }, [handleActivationLink, isHydrated, routeActivationUrl]);
 
-  async function handleActivation() {
-    const result = await activateDemoWallet(activationCode);
-    setError(result.ok ? null : result.error);
-    setStatus(result.ok ? "Activation accepted. Set a PIN to store the credential." : null);
-  }
-
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
@@ -85,7 +84,7 @@ export default function ActivateScreen() {
           <Text style={typography.eyebrow}>Activation</Text>
           <Text style={typography.title}>Connect your student credential</Text>
           <Text style={typography.body}>
-            Use the invitation from your university to activate your wallet.
+            Open the activation link from your university to connect your student credential.
           </Text>
         </View>
 
@@ -100,30 +99,16 @@ export default function ActivateScreen() {
         >
           <InfoRow label="Student" value={mockStudentProfile.name} />
           <InfoRow label="Institution" value={mockStudentProfile.institution} />
-          <InfoRow label="Invitation" value="Demo code required" tone="warning" />
+          <InfoRow label="Activation link" value={invitationStatus} tone={invitationTone} />
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <TextInput
-            accessibilityLabel="Activation code"
-            autoCapitalize="characters"
-            onChangeText={setActivationCode}
-            placeholder="Activation code"
-            placeholderTextColor={colors.muted}
-            style={{
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              color: colors.text,
-              fontSize: 16,
-              padding: spacing.md,
-            }}
-            value={activationCode}
-          />
           {error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text> : null}
           {status ? <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700" }}>{status}</Text> : null}
-          <AppButton disabled={!isHydrated} label="Activate wallet" onPress={handleActivation} />
+          {!routeActivationUrl ? (
+            <Text style={typography.body}>No activation link is open in this session.</Text>
+          ) : null}
+          {!isHydrated ? <Text style={typography.body}>Loading wallet session...</Text> : null}
         </View>
       </View>
     </AppScreen>

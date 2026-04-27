@@ -236,8 +236,9 @@ POST /api/mock/wallet/activation/complete
 Rules:
 
 - The mock service accepts only token activation links from the admin portal.
-- If the configured mock service is unavailable, the wallet falls back to its existing local mock resolver for proof-of-concept development.
-- Admin API token errors such as unknown or expired tokens are surfaced to the wallet rather than silently falling back.
+- If the configured mock service is unavailable, token activation shows an activation-service error.
+- Admin API token errors such as unknown or expired tokens are surfaced to the wallet.
+- Development OOB activation remains local to the wallet for issuer testing.
 - The wallet still persists only safe IDs after completion, not raw tokens, full OOB URLs, or credential payloads.
 
 ### Legacy: POST /wallet/activation/verify
