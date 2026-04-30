@@ -9,10 +9,11 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function SetPinScreen() {
-  const { setPin } = useWalletSession();
+  const { session, setPin } = useWalletSession();
   const [pin, setPinValue] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const isActivationPending = session.activationStatus === "activationPending";
 
   async function handleSetPin() {
     const result = await setPin(pin, confirmation);
@@ -25,7 +26,11 @@ export default function SetPinScreen() {
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Wallet security</Text>
           <Text style={typography.title}>Set your wallet PIN</Text>
-          <Text style={typography.body}>Use a 4 to 6 digit PIN to protect this demo wallet.</Text>
+          <Text style={typography.body}>
+            {isActivationPending
+              ? "Set a 4 to 6 digit PIN before the credential is accepted into local wallet storage."
+              : "Use a 4 to 6 digit PIN to protect this demo wallet."}
+          </Text>
         </View>
 
         <View style={{ gap: spacing.sm }}>

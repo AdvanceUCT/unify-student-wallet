@@ -27,11 +27,19 @@
 Run the checks that apply to the files you changed:
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
+corepack enable
+corepack yarn install --frozen-lockfile
+corepack yarn lint
+corepack yarn typecheck
+corepack yarn test
+corepack yarn build
 ```
 
 If a command is not configured yet, note that in the PR.
+
+Credo/Askar/AnonCreds/Indy VDR wallet changes require an Expo development build for native smoke testing:
+
+```bash
+corepack yarn start:dev-client
+```
 

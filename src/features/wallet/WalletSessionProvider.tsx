@@ -2,6 +2,9 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { parseActivationLink } from "./activationLinks";
+import { completeWalletActivation, resolveWalletActivation, type ResolvedWalletActivation } from "./activationResolver";
+import { acceptHolderActivation, type HolderActivationResult } from "./holderAgent";
 import { createPinSalt, hashPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
@@ -16,10 +19,14 @@ import {
 } from "./sessionTypes";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
+type HolderActivationActionResult =
+  | { data: HolderActivationResult; ok: true }
+  | { error: string; ok: false };
 
 type WalletProviderState = PersistedWalletSessionState & {
   biometricAvailable: boolean;
   isHydrated: boolean;
+  pendingActivation?: ResolvedWalletActivation;
 };
 
 type WalletSessionContextValue = {
@@ -29,6 +36,7 @@ type WalletSessionContextValue = {
   hasPin: boolean;
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
+  prepareActivationFromLink: (url: string) => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<ActionResult>;
   setPin: (pin: string, confirmation: string) => Promise<ActionResult>;
@@ -64,6 +72,39 @@ function lockHydratedSession(state: PersistedWalletSessionState): PersistedWalle
   return state;
 }
 
+function clearTransientActivation(state: PersistedWalletSessionState): PersistedWalletSessionState {
+  if (state.session.activationStatus !== "activationPending") {
+    return state;
+  }
+
+  return {
+    ...state,
+    session: {
+      authStatus: "signedIn",
+      activationStatus: "notActivated",
+      lockStatus: "locked",
+      studentId: state.session.studentId,
+    },
+  };
+}
+
+function actionErrorFromUnknown(error: unknown): ActionResult {
+  if (error instanceof Error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: false, error: "Wallet activation could not be completed." };
+}
+
+async function tryAcceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationActionResult> {
+  try {
+    return { data: await acceptHolderActivation(activation), ok: true };
+  } catch (error) {
+    const result = actionErrorFromUnknown(error);
+    return result.ok ? { error: "Wallet activation could not be completed.", ok: false } : result;
+  }
+}
+
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<WalletProviderState>(initialState);
 
@@ -72,7 +113,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
     async function hydrateSession() {
       const [storedState, biometricAvailable] = await Promise.all([loadWalletSessionState(), canUseBiometricUnlock()]);
-      const lockedState = lockHydratedSession(storedState);
+      const lockedState = lockHydratedSession(clearTransientActivation(storedState));
 
       if (isMounted) {
         setState({
@@ -96,6 +137,80 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     await saveWalletSessionState(nextState);
   }, []);
 
+  const persistActivatedState = useCallback(
+    async (activation: ResolvedWalletActivation, credentialRecordId: string, holderConnectionId: string) => {
+      await persistState({
+        biometricEnabled: state.biometricEnabled,
+        pinHash: state.pinHash,
+        pinSalt: state.pinSalt,
+        session: {
+          activationId: activation.activationId,
+          activationInvitationId: activation.invitationId,
+          activationSource: activation.activationSource,
+          authStatus: "signedIn",
+          activationStatus: "activated",
+          credentialRecordId,
+          holderConnectionId,
+          lockStatus: "locked",
+          studentId: activation.studentId,
+          walletId: activation.walletId,
+        },
+      });
+
+      setState((current) => ({ ...current, pendingActivation: undefined }));
+    },
+    [persistState, state.biometricEnabled, state.pinHash, state.pinSalt],
+  );
+
+  const prepareResolvedActivation = useCallback(
+    async (activation: ResolvedWalletActivation): Promise<ActionResult> => {
+      if (hasStoredPin(state)) {
+        const holderResult = await tryAcceptHolderActivation(activation);
+
+        if (!holderResult.ok) {
+          return holderResult;
+        }
+
+        const completion = await completeWalletActivation(
+          activation,
+          holderResult.data.holderConnectionId,
+          holderResult.data.credentialRecordId,
+        );
+
+        if (!completion.ok) {
+          return completion;
+        }
+
+        await persistActivatedState(
+          activation,
+          completion.data.credentialRecordId,
+          completion.data.holderConnectionId,
+        );
+        return { ok: true };
+      }
+
+      await persistState({
+        biometricEnabled: state.biometricEnabled,
+        pinHash: state.pinHash,
+        pinSalt: state.pinSalt,
+        session: {
+          activationId: activation.activationId,
+          activationInvitationId: activation.invitationId,
+          activationSource: activation.activationSource,
+          authStatus: "signedIn",
+          activationStatus: "activationPending",
+          lockStatus: "locked",
+          studentId: activation.studentId,
+          walletId: activation.walletId,
+        },
+      });
+      setState((current) => ({ ...current, pendingActivation: activation }));
+
+      return { ok: true };
+    },
+    [persistActivatedState, persistState, state],
+  );
+
   const signInDemo = useCallback(async () => {
     await persistState({
       biometricEnabled: state.biometricEnabled,
@@ -116,22 +231,38 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: false, error: "Enter the demo activation code." };
       }
 
-      await persistState({
-        biometricEnabled: state.biometricEnabled,
-        pinHash: state.pinHash,
-        pinSalt: state.pinSalt,
-        session: {
-          authStatus: "signedIn",
-          activationStatus: "activated",
-          lockStatus: "locked",
-          studentId: state.session.studentId ?? DEMO_STUDENT_ID,
-          walletId: DEMO_WALLET_ID,
-        },
+      const resolved = await resolveWalletActivation({
+        kind: "token",
+        sourceUrl: "unifywallet://activate?token=UNIFY-DEMO-2026",
+        token: DEMO_ACTIVATION_CODE,
       });
 
-      return { ok: true };
+      if (!resolved.ok) {
+        return resolved;
+      }
+
+      return prepareResolvedActivation({ ...resolved.data, activationSource: "demo-code" });
     },
-    [persistState, state.biometricEnabled, state.pinHash, state.pinSalt, state.session.studentId],
+    [prepareResolvedActivation],
+  );
+
+  const prepareActivationFromLink = useCallback(
+    async (url: string): Promise<ActionResult> => {
+      const parsed = parseActivationLink(url);
+
+      if (!parsed.ok) {
+        return parsed;
+      }
+
+      const resolved = await resolveWalletActivation(parsed.data);
+
+      if (!resolved.ok) {
+        return resolved;
+      }
+
+      return prepareResolvedActivation(resolved.data);
+    },
+    [prepareResolvedActivation],
   );
 
   const setPin = useCallback(
@@ -145,23 +276,81 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       const pinSalt = createPinSalt();
       const pinHash = await hashPin(pin, pinSalt);
 
-      await persistState({
+      const nextPinState: PersistedWalletSessionState = {
         biometricEnabled: state.biometricEnabled,
         pinHash,
         pinSalt,
         session: {
           ...state.session,
           authStatus: "signedIn",
-          activationStatus: "activated",
           lockStatus: "unlocked",
           studentId: state.session.studentId ?? DEMO_STUDENT_ID,
           walletId: state.session.walletId ?? DEMO_WALLET_ID,
+        },
+      };
+
+      if (state.session.activationStatus === "activationPending") {
+        const pendingActivation = state.pendingActivation;
+
+        if (!pendingActivation) {
+          return { ok: false, error: "Open the activation link again to finish credential storage." };
+        }
+
+        setState((current) => ({ ...current, ...nextPinState }));
+
+        const holderResult = await tryAcceptHolderActivation(pendingActivation);
+
+        if (!holderResult.ok) {
+          return holderResult;
+        }
+
+        const completion = await completeWalletActivation(
+          pendingActivation,
+          holderResult.data.holderConnectionId,
+          holderResult.data.credentialRecordId,
+        );
+
+        if (!completion.ok) {
+          return completion;
+        }
+
+        const activatedState: PersistedWalletSessionState = {
+          ...nextPinState,
+          session: {
+            ...nextPinState.session,
+            activationId: pendingActivation.activationId,
+            activationInvitationId: pendingActivation.invitationId,
+            activationSource: pendingActivation.activationSource,
+            activationStatus: "activated",
+            credentialRecordId: completion.data.credentialRecordId,
+            holderConnectionId: completion.data.holderConnectionId,
+            lockStatus: "unlocked",
+            studentId: pendingActivation.studentId,
+            walletId: pendingActivation.walletId,
+          },
+        };
+
+        await saveWalletSessionState(activatedState);
+        setState((current) => ({
+          ...current,
+          ...activatedState,
+          pendingActivation: undefined,
+        }));
+
+        return { ok: true };
+      }
+
+      await persistState({
+        ...nextPinState,
+        session: {
+          ...nextPinState.session,
+          activationStatus: "activated",
         },
       });
 
       return { ok: true };
     },
-    [persistState, state.biometricEnabled, state.session],
+    [persistState, state],
   );
 
   const unlockWithPin = useCallback(
@@ -257,6 +446,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       hasPin: hasStoredPin(state),
       isHydrated: state.isHydrated,
       lockWallet,
+      prepareActivationFromLink,
       session: state.session,
       setBiometricEnabled,
       setPin,
@@ -265,7 +455,18 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       unlockWithBiometric,
       unlockWithPin,
     }),
-    [activateDemoWallet, lockWallet, setBiometricEnabled, setPin, signInDemo, signOut, state, unlockWithBiometric, unlockWithPin],
+    [
+      activateDemoWallet,
+      lockWallet,
+      prepareActivationFromLink,
+      setBiometricEnabled,
+      setPin,
+      signInDemo,
+      signOut,
+      state,
+      unlockWithBiometric,
+      unlockWithPin,
+    ],
   );
 
   return <WalletSessionContext.Provider value={value}>{children}</WalletSessionContext.Provider>;

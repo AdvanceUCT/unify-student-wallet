@@ -1,3 +1,5 @@
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
@@ -11,14 +13,69 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
+function firstParam(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function activationUrlFromParams(params: { oob?: string | string[]; token?: string | string[] }) {
+  const token = firstParam(params.token)?.trim();
+  const oob = firstParam(params.oob)?.trim();
+
+  if (!token && !oob) {
+    return null;
+  }
+
+  const queryParams: string[] = [];
+
+  if (token) {
+    queryParams.push(`token=${encodeURIComponent(token)}`);
+  }
+
+  if (oob) {
+    queryParams.push(`oob=${encodeURIComponent(oob)}`);
+  }
+
+  return `unifywallet://activate?${queryParams.join("&")}`;
+}
+
 export default function ActivateScreen() {
-  const { activateDemoWallet, isHydrated } = useWalletSession();
+  const { activateDemoWallet, isHydrated, prepareActivationFromLink } = useWalletSession();
+  const params = useLocalSearchParams<{ oob?: string | string[]; token?: string | string[] }>();
+  const routeActivationUrl = useMemo(() => activationUrlFromParams(params), [params]);
+  const processedActivationUrlRef = useRef<string | null>(null);
   const [activationCode, setActivationCode] = useState(DEMO_ACTIVATION_CODE);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const handleActivationLink = useCallback(
+    async (url: string) => {
+      const result = await prepareActivationFromLink(url);
+
+      if (result.ok) {
+        setError(null);
+        setStatus("Activation link accepted. Set a PIN to store the credential.");
+        return;
+      }
+
+      setStatus(null);
+      setError(result.error);
+    },
+    [prepareActivationFromLink],
+  );
+
+  useEffect(() => {
+    if (!isHydrated || !routeActivationUrl || processedActivationUrlRef.current === routeActivationUrl) {
+      return;
+    }
+
+    processedActivationUrlRef.current = routeActivationUrl;
+    void handleActivationLink(routeActivationUrl);
+  }, [handleActivationLink, isHydrated, routeActivationUrl]);
 
   async function handleActivation() {
     const result = await activateDemoWallet(activationCode);
     setError(result.ok ? null : result.error);
+    setStatus(result.ok ? "Activation accepted. Set a PIN to store the credential." : null);
   }
 
   return (
@@ -65,6 +122,7 @@ export default function ActivateScreen() {
             value={activationCode}
           />
           {error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text> : null}
+          {status ? <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700" }}>{status}</Text> : null}
           <AppButton disabled={!isHydrated} label="Activate wallet" onPress={handleActivation} />
         </View>
       </View>

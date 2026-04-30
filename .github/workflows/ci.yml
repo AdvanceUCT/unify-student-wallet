@@ -34,23 +34,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
 
       - name: Install dependencies
         if: steps.node.outputs.present == 'true'
         shell: bash
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          corepack enable
+          corepack yarn install --frozen-lockfile
 
       - name: Lint
         if: steps.node.outputs.present == 'true'
         shell: bash
         run: |
           if node -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)"; then
-            npm run lint
+            corepack yarn lint
           else
             echo "No lint script configured."
           fi
@@ -60,8 +59,8 @@ jobs:
         shell: bash
         run: |
           if node -e "const s=require('./package.json').scripts||{}; process.exit((s.typecheck || s['type-check']) ? 0 : 1)"; then
-            npm run typecheck --if-present
-            npm run type-check --if-present
+            script=$(node -p "const s=require('./package.json').scripts||{}; s.typecheck ? 'typecheck' : 'type-check'")
+            corepack yarn "$script"
           else
             echo "No typecheck script configured."
           fi
@@ -71,7 +70,7 @@ jobs:
         shell: bash
         run: |
           if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
-            npm test
+            corepack yarn test
           else
             echo "No test script configured."
           fi
@@ -101,7 +100,7 @@ jobs:
 
           gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed-files.txt
 
-          if ! grep -Eq '(^|/)(wallet|issuer|verifier|credential|credentials|auth|security|secrets?)(/|$)|^SECURITY\.md$|^\.github/CODEOWNERS$|^\.github/workflows/' changed-files.txt; then
+          if ! grep -Eq '(^|/)(wallet|issuer|verifier|credential|credentials|auth|security|secrets?)(/|$)|^SECURITY\.md$|^\.github/CODEOWNERS$|^\.github/workflows/|^(package\.json|yarn\.lock|package-lock\.json|metro\.config\.js|index\.js)$|^noop/' changed-files.txt; then
             echo "No security-sensitive files changed."
             exit 0
           fi
