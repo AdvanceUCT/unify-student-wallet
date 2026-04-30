@@ -87,6 +87,15 @@ describe("auth screens", () => {
     );
   });
 
+  it("submits an activation link from route params", async () => {
+    mockSearchParams = { token: "demo-token" };
+    render(<ActivateScreen />);
+
+    await waitFor(() =>
+      expect(mockWalletSession.prepareActivationFromLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
+    );
+  });
+
   it("submits matching PIN entries", async () => {
     const screen = render(<SetPinScreen />);
 
