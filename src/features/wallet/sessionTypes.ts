@@ -5,7 +5,7 @@ export type WalletLockStatus = "locked" | "unlocked";
 export type WalletSession = {
   activationId?: string;
   activationInvitationId?: string;
-  activationSource?: "token" | "oob" | "demo-code";
+  activationSource?: "token" | "oob";
   authStatus: WalletAuthStatus;
   activationStatus: WalletActivationStatus;
   credentialRecordId?: string;
@@ -22,7 +22,6 @@ export type PersistedWalletSessionState = {
   session: WalletSession;
 };
 
-export const DEMO_ACTIVATION_CODE = "UNIFY-DEMO-2026";
 export const DEMO_STUDENT_ID = "student-demo-001";
 export const DEMO_WALLET_ID = "wallet-demo-001";
 

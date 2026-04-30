@@ -8,7 +8,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function SignInScreen() {
-  const { isHydrated, signInDemo } = useWalletSession();
+  const { continueMockSession, isHydrated } = useWalletSession();
 
   return (
     <AppScreen>
@@ -37,8 +37,8 @@ export default function SignInScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <AppButton disabled={!isHydrated} label="Continue with demo wallet" onPress={signInDemo} />
-          <Text style={[typography.body, { fontSize: 14 }]}>Demo sign-in continues to credential activation.</Text>
+          <AppButton disabled={!isHydrated} label="Continue" onPress={continueMockSession} />
+          <Text style={[typography.body, { fontSize: 14 }]}>Continue to credential activation.</Text>
         </View>
       </View>
     </AppScreen>

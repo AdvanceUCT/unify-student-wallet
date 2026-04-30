@@ -9,7 +9,6 @@ import { createPinSalt, hashPin, validatePinConfirmation, verifyPin } from "./pi
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
 import {
-  DEMO_ACTIVATION_CODE,
   DEMO_STUDENT_ID,
   DEMO_WALLET_ID,
   hasStoredPin,
@@ -30,9 +29,9 @@ type WalletProviderState = PersistedWalletSessionState & {
 };
 
 type WalletSessionContextValue = {
-  activateDemoWallet: (activationCode: string) => Promise<ActionResult>;
   biometricAvailable: boolean;
   biometricEnabled: boolean;
+  continueMockSession: () => Promise<void>;
   hasPin: boolean;
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
@@ -40,7 +39,6 @@ type WalletSessionContextValue = {
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<ActionResult>;
   setPin: (pin: string, confirmation: string) => Promise<ActionResult>;
-  signInDemo: () => Promise<void>;
   signOut: () => Promise<void>;
   unlockWithBiometric: () => Promise<ActionResult>;
   unlockWithPin: (pin: string) => Promise<ActionResult>;
@@ -211,7 +209,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [persistActivatedState, persistState, state],
   );
 
-  const signInDemo = useCallback(async () => {
+  const continueMockSession = useCallback(async () => {
     await persistState({
       biometricEnabled: state.biometricEnabled,
       pinHash: state.pinHash,
@@ -224,27 +222,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       },
     });
   }, [persistState, state.biometricEnabled, state.pinHash, state.pinSalt]);
-
-  const activateDemoWallet = useCallback(
-    async (activationCode: string): Promise<ActionResult> => {
-      if (activationCode.trim().toUpperCase() !== DEMO_ACTIVATION_CODE) {
-        return { ok: false, error: "Enter the demo activation code." };
-      }
-
-      const resolved = await resolveWalletActivation({
-        kind: "token",
-        sourceUrl: "unifywallet://activate?token=UNIFY-DEMO-2026",
-        token: DEMO_ACTIVATION_CODE,
-      });
-
-      if (!resolved.ok) {
-        return resolved;
-      }
-
-      return prepareResolvedActivation({ ...resolved.data, activationSource: "demo-code" });
-    },
-    [prepareResolvedActivation],
-  );
 
   const prepareActivationFromLink = useCallback(
     async (url: string): Promise<ActionResult> => {
@@ -440,9 +417,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<WalletSessionContextValue>(
     () => ({
-      activateDemoWallet,
       biometricAvailable: state.biometricAvailable,
       biometricEnabled: state.biometricEnabled,
+      continueMockSession,
       hasPin: hasStoredPin(state),
       isHydrated: state.isHydrated,
       lockWallet,
@@ -450,18 +427,16 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       session: state.session,
       setBiometricEnabled,
       setPin,
-      signInDemo,
       signOut,
       unlockWithBiometric,
       unlockWithPin,
     }),
     [
-      activateDemoWallet,
+      continueMockSession,
       lockWallet,
       prepareActivationFromLink,
       setBiometricEnabled,
       setPin,
-      signInDemo,
       signOut,
       state,
       unlockWithBiometric,

@@ -41,8 +41,8 @@ Implementation changes:
 - Initialize a platform-gated Credo React Native holder agent with Aries Askar, AnonCreds, Indy VDR, BCovrin Test genesis config, outbound DIDComm transport, and optional mediation recipient config.
 - Store credentials in Aries Askar through Credo. Store only wallet/session IDs, credential record ID, connection ID, PIN state, and safe activation metadata in SecureStore.
 - Add or update auth screens:
-  - Sign in: creates a demo session.
-  - Activate: accepts activation links and keeps demo activation code `UNIFY-DEMO-2026` as a fallback path.
+  - Sign in: creates the current mock session until real authentication exists.
+  - Activate: accepts admin-issued token links and development-only OOB links.
   - Set PIN: collects and confirms a 4-6 digit PIN before final credential storage when no PIN exists.
   - Unlock: unlocks with PIN, with biometric option when available.
 - Update Settings:
@@ -69,9 +69,8 @@ type WalletSession = {
 Acceptance criteria:
 
 - Fresh app launch starts at sign-in.
-- Demo sign-in routes to activation.
-- Invalid activation code shows an error.
-- Valid activation code routes to PIN setup.
+- Mock sign-in routes to activation.
+- Missing or unavailable token activation services show an error.
 - Valid activation link routes to PIN setup when no PIN exists.
 - Activation through link resolution never persists the raw token or full OOB URL in session JSON.
 - PIN setup requires matching 4-6 digit PIN entries.
@@ -336,7 +335,7 @@ Suggested labels:
 - The plan keeps simulated payments and student records but uses real holder-side Credo activation for AD-39.
 - PIN plus optional biometric is the chosen unlock model.
 - Simulated local balance/activity is the chosen payment/top-up model.
-- Demo activation code is `UNIFY-DEMO-2026`.
+- Admin-issued token links are the chosen activation path; OOB remains development-only.
 - Currency is ZAR.
 - PIN length is 4-6 digits.
 - SecureStore is acceptable for the current scaffold state.

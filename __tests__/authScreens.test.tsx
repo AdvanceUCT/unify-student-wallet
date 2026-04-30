@@ -7,9 +7,9 @@ import UnlockScreen from "@/app/(auth)/unlock";
 import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 
 let mockWalletSession: {
-  activateDemoWallet: jest.Mock;
   biometricAvailable: boolean;
   biometricEnabled: boolean;
+  continueMockSession: jest.Mock;
   hasPin: boolean;
   isHydrated: boolean;
   lockWallet: jest.Mock;
@@ -17,7 +17,6 @@ let mockWalletSession: {
   session: WalletSession;
   setBiometricEnabled: jest.Mock;
   setPin: jest.Mock;
-  signInDemo: jest.Mock;
   signOut: jest.Mock;
   unlockWithBiometric: jest.Mock;
   unlockWithPin: jest.Mock;
@@ -35,9 +34,9 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
 
 function createMockWalletSession() {
   mockWalletSession = {
-    activateDemoWallet: jest.fn().mockResolvedValue({ ok: true }),
     biometricAvailable: false,
     biometricEnabled: false,
+    continueMockSession: jest.fn(),
     hasPin: false,
     isHydrated: true,
     lockWallet: jest.fn(),
@@ -51,7 +50,6 @@ function createMockWalletSession() {
     },
     setBiometricEnabled: jest.fn().mockResolvedValue({ ok: true }),
     setPin: jest.fn().mockResolvedValue({ ok: true }),
-    signInDemo: jest.fn(),
     signOut: jest.fn(),
     unlockWithBiometric: jest.fn().mockResolvedValue({ ok: true }),
     unlockWithPin: jest.fn().mockResolvedValue({ ok: true }),
@@ -64,23 +62,29 @@ describe("auth screens", () => {
     mockSearchParams = {};
   });
 
-  it("starts a demo session from sign-in", () => {
+  it("continues the mock session from sign-in", () => {
     const screen = render(<SignInScreen />);
 
-    fireEvent.press(screen.getByText("Continue with demo wallet"));
+    fireEvent.press(screen.getByText("Continue"));
 
-    expect(mockWalletSession.signInDemo).toHaveBeenCalledTimes(1);
+    expect(mockWalletSession.continueMockSession).toHaveBeenCalledTimes(1);
   });
 
-  it("submits the activation code and shows invalid activation errors", async () => {
-    mockWalletSession.activateDemoWallet.mockResolvedValueOnce({ ok: false, error: "Enter the demo activation code." });
+  it("waits for an activation link when no token is open", () => {
     const screen = render(<ActivateScreen />);
 
-    fireEvent.changeText(screen.getByPlaceholderText("Activation code"), "WRONG");
-    fireEvent.press(screen.getByText("Activate wallet"));
+    expect(screen.getByText("Waiting for link")).toBeTruthy();
+    expect(screen.getByText("No activation link is open in this session.")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Activation code")).toBeNull();
+  });
 
-    await waitFor(() => expect(screen.getByText("Enter the demo activation code.")).toBeTruthy());
-    expect(mockWalletSession.activateDemoWallet).toHaveBeenCalledWith("WRONG");
+  it("submits an activation link from route params", async () => {
+    mockSearchParams = { token: "demo-token" };
+    render(<ActivateScreen />);
+
+    await waitFor(() =>
+      expect(mockWalletSession.prepareActivationFromLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
+    );
   });
 
   it("submits an activation link from route params", async () => {
