@@ -18,20 +18,17 @@ export function validatePin(pin: string): PinValidationResult {
     return { ok: false, error: "Use a 4 to 6 digit PIN." };
   }
 
-  if (WEAK_PINS.has(pin)) {
-    return { ok: false, error: "This PIN is too easy to guess. Choose a less predictable combination." };
-  }
-
   return { ok: true };
 }
 
-export function validateNewPin(newPin: string, currentPinHash: string, currentPinSalt: string): PinValidationResult {
+export function validateNewPin(newPin: string): PinValidationResult {
   const baseValidation = validatePin(newPin);
   if (!baseValidation.ok) return baseValidation;
 
-  // We can't compare raw values so we'll do hash comparison at call site — this
-  // function handles structural / weak-PIN checks only. Same-PIN check is async
-  // and done in the provider via verifyPin().
+  if (WEAK_PINS.has(newPin)) {
+    return { ok: false, error: "This PIN is too easy to guess. Choose a less predictable combination." };
+  }
+
   return { ok: true };
 }
 

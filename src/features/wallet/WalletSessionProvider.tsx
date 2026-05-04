@@ -566,7 +566,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       }
 
       // Step 2: Validate new PIN structure and weak-PIN check
-      const newPinValidation = validateNewPin(newPin, state.pinHash, state.pinSalt);
+      const newPinValidation = validateNewPin(newPin);
       if (!newPinValidation.ok) {
         return newPinValidation;
       }
