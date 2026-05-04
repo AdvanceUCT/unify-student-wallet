@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import { Switch, Text, View } from "react-native";
 
@@ -57,6 +58,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
+          <AppButton label="Change PIN" variant="secondary" onPress={() => router.push("/(auth)/change-pin")} />
           <AppButton label="Lock wallet" onPress={lockWallet} />
           <AppButton label="Sign out" variant="secondary" onPress={signOut} />
         </View>

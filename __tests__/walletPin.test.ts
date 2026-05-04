@@ -1,4 +1,4 @@
-import { hashPin, validatePin, validatePinConfirmation, verifyPin } from "@/src/features/wallet/pin";
+import { hashPin, validateNewPin, validatePin, validatePinConfirmation, verifyPin } from "@/src/features/wallet/pin";
 
 jest.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: {
@@ -29,5 +29,31 @@ describe("wallet PIN helpers", () => {
 
     await expect(verifyPin("1234", "demo-salt", hash)).resolves.toBe(true);
     await expect(verifyPin("4321", "demo-salt", hash)).resolves.toBe(false);
+  });
+
+  it("validateNewPin accepts a strong PIN", () => {
+    expect(validateNewPin("246813")).toEqual({ ok: true });
+    expect(validateNewPin("9517")).toEqual({ ok: true });
+  });
+
+  it("validateNewPin rejects all-same-digit PINs", () => {
+    expect(validateNewPin("1111")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+    expect(validateNewPin("000000")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+  });
+
+  it("validateNewPin rejects ascending sequential PINs", () => {
+    expect(validateNewPin("1234")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+    expect(validateNewPin("123456")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+    expect(validateNewPin("3456")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+  });
+
+  it("validateNewPin rejects descending sequential PINs", () => {
+    expect(validateNewPin("9876")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+    expect(validateNewPin("987654")).toEqual({ ok: false, error: expect.stringContaining("too easy to guess") });
+  });
+
+  it("validateNewPin still rejects invalid PIN format", () => {
+    expect(validateNewPin("123")).toEqual({ ok: false, error: "Use a 4 to 6 digit PIN." });
+    expect(validateNewPin("abcdef")).toEqual({ ok: false, error: "Use a 4 to 6 digit PIN." });
   });
 });

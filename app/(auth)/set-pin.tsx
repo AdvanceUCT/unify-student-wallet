@@ -1,79 +1,98 @@
-import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import * as Haptics from "expo-haptics";
+import { useRef, useState } from "react";
+import { Text, View } from "react-native";
 
-import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { PinDots } from "@/src/features/auth/PinDots";
+import { PinKeypad } from "@/src/features/auth/PinKeypad";
+import { usePinEntry } from "@/src/features/auth/usePinEntry";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
+import { PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
+type Step = "enter" | "confirm";
+
 export default function SetPinScreen() {
   const { session, setPin } = useWalletSession();
-  const [pin, setPinValue] = useState("");
-  const [confirmation, setConfirmation] = useState("");
+  const [step, setStep] = useState<Step>("enter");
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const firstPinRef = useRef("");
+
   const isActivationPending = session.activationStatus === "activationPending";
 
-  async function handleSetPin() {
-    const result = await setPin(pin, confirmation);
-    setError(result.ok ? null : result.error);
+  const { append: appendFirst, backspace: backFirst, clear: clearFirst, pin: pinFirst } = usePinEntry({
+    length: PIN_LENGTH,
+    onComplete: (p) => {
+      firstPinRef.current = p;
+      clearFirst();
+      setError(null);
+      setStep("confirm");
+    },
+  });
+
+  const { append: appendConfirm, backspace: backConfirm, clear: clearConfirm, pin: pinConfirm } = usePinEntry({
+    length: PIN_LENGTH,
+    onComplete: (p) => {
+      void handleConfirm(p);
+    },
+  });
+
+  async function handleConfirm(confirmation: string) {
+    setIsSubmitting(true);
+    const result = await setPin(firstPinRef.current, confirmation);
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(result.error);
+      clearConfirm();
+
+      if (result.error === "PIN entries do not match.") {
+        firstPinRef.current = "";
+        setStep("enter");
+      }
+    }
   }
+
+  const isEnterStep = step === "enter";
 
   return (
     <AppScreen>
-      <View style={{ flex: 1, justifyContent: "space-between", gap: spacing.xl }}>
+      <View style={{ flex: 1, justifyContent: "space-between", paddingBottom: spacing.xl }}>
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Wallet security</Text>
-          <Text style={typography.title}>Set your wallet PIN</Text>
+          <Text style={typography.title}>{isEnterStep ? "Set your PIN" : "Confirm your PIN"}</Text>
           <Text style={typography.body}>
-            {isActivationPending
-              ? "Set a 4 to 6 digit PIN before the credential is accepted into local wallet storage."
-              : "Use a 4 to 6 digit PIN to protect this demo wallet."}
+            {isEnterStep
+              ? isActivationPending
+                ? "Set a 6-digit PIN before the credential is accepted into local wallet storage."
+                : "Create a 6-digit PIN to protect this wallet."
+              : "Re-enter your PIN to confirm."}
           </Text>
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <TextInput
-            accessibilityLabel="PIN"
-            keyboardType="number-pad"
-            maxLength={6}
-            onChangeText={setPinValue}
-            placeholder="PIN"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            style={{
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              color: colors.text,
-              fontSize: 16,
-              padding: spacing.md,
-            }}
-            value={pin}
-          />
-          <TextInput
-            accessibilityLabel="Confirm PIN"
-            keyboardType="number-pad"
-            maxLength={6}
-            onChangeText={setConfirmation}
-            placeholder="Confirm PIN"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            style={{
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              color: colors.text,
-              fontSize: 16,
-              padding: spacing.md,
-            }}
-            value={confirmation}
-          />
-          {error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text> : null}
-          <AppButton label="Save PIN" onPress={handleSetPin} />
+        <View style={{ alignItems: "center", gap: spacing.lg }}>
+          <PinDots filled={isEnterStep ? pinFirst.length : pinConfirm.length} length={PIN_LENGTH} />
+
+          {error !== null ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ color: colors.warning, fontSize: 14, fontWeight: "700", textAlign: "center" }}
+            >
+              {error}
+            </Text>
+          ) : (
+            <View style={{ height: 20 }} />
+          )}
+
+          {isEnterStep ? (
+            <PinKeypad disabled={isSubmitting} onBackspace={backFirst} onDigit={appendFirst} />
+          ) : (
+            <PinKeypad disabled={isSubmitting} onBackspace={backConfirm} onDigit={appendConfirm} />
+          )}
         </View>
       </View>
     </AppScreen>

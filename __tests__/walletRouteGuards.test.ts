@@ -70,4 +70,14 @@ describe("wallet route guards", () => {
     expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(auth)", "unlock"], access)).toBe(false);
   });
+
+  it("allows the change-pin screen for unlocked wallet access", () => {
+    const access = getWalletRouteAccess(
+      session({ authStatus: "signedIn", activationStatus: "activated", lockStatus: "unlocked" }),
+      true,
+    );
+
+    expect(access).toBe("wallet");
+    expect(isRouteAllowedForAccess(["(auth)", "change-pin"], access)).toBe(true);
+  });
 });

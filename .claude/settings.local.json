@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\HPI5~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-HP-i5-Desktop-unify-student-wallet\\\\79c31b17-90ef-440a-8ad5-25eef165f3c7\\\\tasks\\\\b41hvguw6.output\")",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(yarn test *)"
+    ]
+  }
+}
