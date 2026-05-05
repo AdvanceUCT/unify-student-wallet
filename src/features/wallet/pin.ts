@@ -1,5 +1,7 @@
 import * as Crypto from "expo-crypto";
 
+import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "./sessionTypes";
+
 export type PinValidationResult = { ok: true } | { ok: false; error: string };
 
 // Common sequential and repeated-digit patterns that are trivially guessable.
@@ -14,7 +16,9 @@ const WEAK_PINS = new Set([
 ]);
 
 export function validatePin(pin: string): PinValidationResult {
-  if (!/^\d{4,6}$/.test(pin)) {
+  const pinPattern = new RegExp(`^\\d{${MIN_PIN_LENGTH},${MAX_PIN_LENGTH}}$`);
+
+  if (!pinPattern.test(pin)) {
     return { ok: false, error: "Use a 4 to 6 digit PIN." };
   }
 

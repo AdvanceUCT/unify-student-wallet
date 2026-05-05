@@ -184,7 +184,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       setState((current) => ({ ...current, pendingActivation: undefined }));
     },
-    [persistState, state.biometricEnabled, state.failedAttempts, state.pinHash, state.pinSalt],
+    [
+      persistState,
+      state.biometricEnabled,
+      state.changePinAttempts,
+      state.failedAttempts,
+      state.pinHash,
+      state.pinSalt,
+    ],
   );
 
   const prepareResolvedActivation = useCallback(
@@ -247,13 +254,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinSalt: state.pinSalt,
       session: {
         authStatus: "signedIn",
-        activationStatus: "activated",
+        activationStatus: "notActivated",
         lockStatus: "locked",
         studentId: DEMO_STUDENT_ID,
-        walletId: DEMO_WALLET_ID,
       },
     });
-  }, [persistState, state.biometricEnabled, state.pinHash, state.pinSalt]);
+  }, [persistState, state.biometricEnabled, state.changePinAttempts, state.pinHash, state.pinSalt]);
 
   const prepareActivationFromLink = useCallback(
     async (url: string): Promise<ActionResult> => {

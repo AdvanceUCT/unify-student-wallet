@@ -26,7 +26,8 @@ export type PersistedWalletSessionState = {
 
 export const MAX_PIN_ATTEMPTS = 5;
 export const MAX_CHANGE_PIN_ATTEMPTS = 3;
-export const PIN_LENGTH = 6;
+export const MIN_PIN_LENGTH = 4;
+export const MAX_PIN_LENGTH = 6;
 
 export const DEMO_STUDENT_ID = "student-demo-001";
 export const DEMO_WALLET_ID = "wallet-demo-001";

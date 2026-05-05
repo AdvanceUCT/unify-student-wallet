@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react-native";
-import { AppState } from "react-native";
-import { Text, View } from "react-native";
+import { useEffect } from "react";
+import { AppState, Text, View } from "react-native";
 
 import { AutoLockProvider, useAutoLock } from "@/src/features/wallet/AutoLockProvider";
 import { BACKGROUND_LOCK_MS, INACTIVITY_LOCK_MS } from "@/src/features/wallet/lockConfig";
@@ -165,8 +165,6 @@ describe("auto-lock suspension", () => {
   function SuspendingChild({ id }: { id: string }) {
     const { resumeAutoLock, suspendAutoLock } = useAutoLock();
 
-    // Suspend on mount, resume on unmount — mirrors real screen usage.
-    const { useEffect } = require("react");
     useEffect(() => {
       suspendAutoLock(id);
       return () => resumeAutoLock(id);
@@ -205,7 +203,11 @@ describe("auto-lock suspension", () => {
     });
 
     // Re-render without the suspending child to simulate returning to normal.
-    render(<AutoLockProvider><View /></AutoLockProvider>);
+    render(
+      <AutoLockProvider>
+        <View />
+      </AutoLockProvider>,
+    );
 
     await act(async () => {
       jest.advanceTimersByTime(INACTIVITY_LOCK_MS);
@@ -217,7 +219,6 @@ describe("auto-lock suspension", () => {
   it("requires all suspension keys to be released before locking resumes", async () => {
     function DoubleHolder() {
       const { resumeAutoLock, suspendAutoLock } = useAutoLock();
-      const { useEffect } = require("react");
 
       useEffect(() => {
         // Two independent activities both hold a suspension.

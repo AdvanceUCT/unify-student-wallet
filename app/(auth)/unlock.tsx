@@ -8,7 +8,7 @@ import { PinDots, type PinDotStatus } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { MAX_PIN_ATTEMPTS, PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
+import { MAX_PIN_ATTEMPTS, MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -24,8 +24,9 @@ export default function UnlockScreen() {
   const biometricFired = useRef(false);
   const canUseBiometrics = biometricAvailable && biometricEnabled;
 
-  const { append, backspace, clear, pin } = usePinEntry({
-    length: PIN_LENGTH,
+  const { append, backspace, canSubmit, clear, pin, submit } = usePinEntry({
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: handlePinSubmit,
   });
 
@@ -101,7 +102,7 @@ export default function UnlockScreen() {
         </View>
 
         <View style={{ alignItems: "center", gap: spacing.lg }}>
-          <PinDots filled={pin.length} length={PIN_LENGTH} status={dotStatus} />
+          <PinDots filled={pin.length} length={MAX_PIN_LENGTH} status={dotStatus} />
 
           {phase === "error" && errorMessage !== null ? (
             <Text
@@ -118,7 +119,13 @@ export default function UnlockScreen() {
             <View style={{ height: 20 }} />
           )}
 
-          <PinKeypad disabled={isInteractionDisabled} onBackspace={backspace} onDigit={append} />
+          <PinKeypad
+            canSubmit={canSubmit}
+            disabled={isInteractionDisabled}
+            onBackspace={backspace}
+            onDigit={append}
+            onSubmit={submit}
+          />
 
           {canUseBiometrics ? (
             <AppButton

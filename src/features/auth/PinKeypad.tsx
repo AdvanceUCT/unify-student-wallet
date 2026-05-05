@@ -4,9 +4,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/src/theme/colors";
 
 type PinKeypadProps = {
+  canSubmit?: boolean;
   disabled?: boolean;
   onBackspace: () => void;
   onDigit: (digit: string) => void;
+  onSubmit?: () => void;
 };
 
 const ROWS = [
@@ -16,7 +18,7 @@ const ROWS = [
   ["", "0", "⌫"],
 ] as const;
 
-export function PinKeypad({ disabled = false, onBackspace, onDigit }: PinKeypadProps) {
+export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, onDigit, onSubmit }: PinKeypadProps) {
   function handleKey(key: string) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (key === "⌫") {
@@ -32,7 +34,27 @@ export function PinKeypad({ disabled = false, onBackspace, onDigit }: PinKeypadP
         <View key={ri} style={styles.row}>
           {row.map((key, ci) =>
             key === "" ? (
-              <View key={ci} style={styles.cell} />
+              onSubmit ? (
+                <Pressable
+                  key={ci}
+                  accessibilityLabel="Submit PIN"
+                  accessibilityRole="button"
+                  disabled={disabled || !canSubmit}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    onSubmit();
+                  }}
+                  style={({ pressed }) => [
+                    styles.cell,
+                    styles.button,
+                    { opacity: disabled || !canSubmit ? 0.4 : pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={styles.label}>OK</Text>
+                </Pressable>
+              ) : (
+                <View key={ci} style={styles.cell} />
+              )
             ) : (
               <Pressable
                 key={ci}

@@ -5,6 +5,7 @@ import ChangePinScreen from "@/app/(auth)/change-pin";
 import SetPinScreen from "@/app/(auth)/set-pin";
 import SignInScreen from "@/app/(auth)/sign-in";
 import UnlockScreen from "@/app/(auth)/unlock";
+import SettingsScreen from "@/app/(wallet)/settings";
 import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 
 jest.mock("expo-haptics", () => ({
@@ -24,6 +25,7 @@ let mockWalletSession: {
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: jest.Mock;
+  confirmPinToDisableBiometric: jest.Mock;
   continueMockSession: jest.Mock;
   failedAttempts: number;
   hasPin: boolean;
@@ -55,6 +57,7 @@ function createMockWalletSession() {
     biometricAvailable: false,
     biometricEnabled: false,
     changePin: jest.fn().mockResolvedValue({ ok: true }),
+    confirmPinToDisableBiometric: jest.fn().mockResolvedValue({ ok: true }),
     continueMockSession: jest.fn(),
     failedAttempts: 0,
     hasPin: false,
@@ -131,12 +134,35 @@ describe("auth screens", () => {
     await waitFor(() => expect(mockWalletSession.setPin).toHaveBeenCalledWith("123456", "123456"));
   });
 
+  it("submits matching 4-digit PIN entries via the keypad submit action", async () => {
+    const screen = render(<SetPinScreen />);
+
+    pressDigits(screen, ["1", "3", "5", "7"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(screen.getByText("Confirm your PIN")).toBeTruthy());
+
+    pressDigits(screen, ["1", "3", "5", "7"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(mockWalletSession.setPin).toHaveBeenCalledWith("1357", "1357"));
+  });
+
   it("submits PIN unlock attempts via keypad", async () => {
     const screen = render(<UnlockScreen />);
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
     await waitFor(() => expect(mockWalletSession.unlockWithPin).toHaveBeenCalledWith("123456"));
+  });
+
+  it("submits 4-digit PIN unlock attempts via the keypad submit action", async () => {
+    const screen = render(<UnlockScreen />);
+
+    pressDigits(screen, ["1", "3", "5", "7"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(mockWalletSession.unlockWithPin).toHaveBeenCalledWith("1357"));
   });
 
   it("shows the hard-locked screen when wallet is locked out", () => {
@@ -182,6 +208,23 @@ describe("auth screens", () => {
     await waitFor(() =>
       expect(mockWalletSession.changePin).toHaveBeenCalledWith("123456", "246813", "246813"),
     );
+  });
+
+  it("supports changing to a 4-digit PIN via explicit submit", async () => {
+    const screen = render(<ChangePinScreen />);
+
+    pressDigits(screen, ["1", "3", "5", "7"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+
+    pressDigits(screen, ["2", "5", "8", "0"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+    await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
+
+    pressDigits(screen, ["2", "5", "8", "0"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(mockWalletSession.changePin).toHaveBeenCalledWith("1357", "2580", "2580"));
   });
 
   it("rejects a weak new PIN at step 2 and stays on that step", async () => {
@@ -231,5 +274,26 @@ describe("auth screens", () => {
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
     await waitFor(() => expect(screen.getByText("Too many attempts")).toBeTruthy());
+  });
+
+  it("requires PIN confirmation before disabling biometric unlock", async () => {
+    mockWalletSession.biometricAvailable = true;
+    mockWalletSession.biometricEnabled = true;
+    mockWalletSession.setBiometricEnabled = jest.fn().mockResolvedValue({
+      ok: false,
+      error: "PIN required to disable biometric unlock.",
+      requiresPin: true,
+    });
+
+    const screen = render(<SettingsScreen />);
+
+    fireEvent(screen.getByLabelText("Toggle biometric unlock"), "valueChange", false);
+
+    await waitFor(() => expect(screen.getByText("Enter your PIN")).toBeTruthy());
+
+    pressDigits(screen, ["1", "3", "5", "7"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(mockWalletSession.confirmPinToDisableBiometric).toHaveBeenCalledWith("1357"));
   });
 });

@@ -4,7 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { PinDots, type PinDotStatus } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
-import { PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
+import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -21,7 +21,8 @@ type PinVerificationModalProps = {
 
 export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, visible }: PinVerificationModalProps) {
   const { append, backspace, clear, pin } = usePinEntry({
-    length: PIN_LENGTH,
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: onSubmit,
   });
 
@@ -54,7 +55,7 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
           </View>
 
           <View style={{ alignItems: "center", gap: spacing.lg }}>
-            <PinDots filled={pin.length} length={PIN_LENGTH} status={dotStatus} />
+            <PinDots filled={pin.length} length={MAX_PIN_LENGTH} status={dotStatus} />
 
             <View style={styles.errorContainer}>
               {phase === "error" && errorMessage ? (
@@ -64,7 +65,13 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
               ) : null}
             </View>
 
-            <PinKeypad disabled={isInteractionDisabled} onBackspace={backspace} onDigit={append} />
+            <PinKeypad
+              canSubmit={pin.length >= MIN_PIN_LENGTH}
+              disabled={isInteractionDisabled}
+              onBackspace={backspace}
+              onDigit={append}
+              onSubmit={() => onSubmit(pin)}
+            />
           </View>
 
           <Pressable

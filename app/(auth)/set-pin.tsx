@@ -7,7 +7,7 @@ import { PinDots } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
+import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -23,8 +23,16 @@ export default function SetPinScreen() {
 
   const isActivationPending = session.activationStatus === "activationPending";
 
-  const { append: appendFirst, backspace: backFirst, clear: clearFirst, pin: pinFirst } = usePinEntry({
-    length: PIN_LENGTH,
+  const {
+    append: appendFirst,
+    backspace: backFirst,
+    canSubmit: canSubmitFirst,
+    clear: clearFirst,
+    pin: pinFirst,
+    submit: submitFirst,
+  } = usePinEntry({
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: (p) => {
       firstPinRef.current = p;
       clearFirst();
@@ -33,8 +41,16 @@ export default function SetPinScreen() {
     },
   });
 
-  const { append: appendConfirm, backspace: backConfirm, clear: clearConfirm, pin: pinConfirm } = usePinEntry({
-    length: PIN_LENGTH,
+  const {
+    append: appendConfirm,
+    backspace: backConfirm,
+    canSubmit: canSubmitConfirm,
+    clear: clearConfirm,
+    pin: pinConfirm,
+    submit: submitConfirm,
+  } = usePinEntry({
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: (p) => {
       void handleConfirm(p);
     },
@@ -68,14 +84,14 @@ export default function SetPinScreen() {
           <Text style={typography.body}>
             {isEnterStep
               ? isActivationPending
-                ? "Set a 6-digit PIN before the credential is accepted into local wallet storage."
-                : "Create a 6-digit PIN to protect this wallet."
+                ? "Set a 4 to 6 digit PIN before the credential is accepted into local wallet storage."
+                : "Create a 4 to 6 digit PIN to protect this wallet."
               : "Re-enter your PIN to confirm."}
           </Text>
         </View>
 
         <View style={{ alignItems: "center", gap: spacing.lg }}>
-          <PinDots filled={isEnterStep ? pinFirst.length : pinConfirm.length} length={PIN_LENGTH} />
+          <PinDots filled={isEnterStep ? pinFirst.length : pinConfirm.length} length={MAX_PIN_LENGTH} />
 
           {error !== null ? (
             <Text
@@ -89,9 +105,21 @@ export default function SetPinScreen() {
           )}
 
           {isEnterStep ? (
-            <PinKeypad disabled={isSubmitting} onBackspace={backFirst} onDigit={appendFirst} />
+            <PinKeypad
+              canSubmit={canSubmitFirst}
+              disabled={isSubmitting}
+              onBackspace={backFirst}
+              onDigit={appendFirst}
+              onSubmit={submitFirst}
+            />
           ) : (
-            <PinKeypad disabled={isSubmitting} onBackspace={backConfirm} onDigit={appendConfirm} />
+            <PinKeypad
+              canSubmit={canSubmitConfirm}
+              disabled={isSubmitting}
+              onBackspace={backConfirm}
+              onDigit={appendConfirm}
+              onSubmit={submitConfirm}
+            />
           )}
         </View>
       </View>

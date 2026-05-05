@@ -115,6 +115,9 @@ describe("wallet activation flow", () => {
       await walletContext?.continueMockSession();
     });
 
+    await waitFor(() => expect(walletContext?.session.activationStatus).toBe("notActivated"));
+    expect(walletContext?.session.walletId).toBeUndefined();
+
     await act(async () => {
       const result = await walletContext?.prepareActivationFromLink("unifywallet://activate?token=raw-secret-token");
       expect(result).toEqual({ ok: true });

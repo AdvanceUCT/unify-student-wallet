@@ -9,7 +9,7 @@ import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
 import { validateNewPin } from "@/src/features/wallet/pin";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { MAX_CHANGE_PIN_ATTEMPTS, PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
+import { MAX_CHANGE_PIN_ATTEMPTS, MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -46,7 +46,8 @@ export default function ChangePinScreen() {
   const newPinRef = useRef("");
 
   const currentEntry = usePinEntry({
-    length: PIN_LENGTH,
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: (pin) => {
       currentPinRef.current = pin;
       setStep("enter-new");
@@ -54,7 +55,8 @@ export default function ChangePinScreen() {
   });
 
   const newEntry = usePinEntry({
-    length: PIN_LENGTH,
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: (pin) => {
       const validation = validateNewPin(pin);
       if (!validation.ok) {
@@ -68,7 +70,8 @@ export default function ChangePinScreen() {
   });
 
   const confirmEntry = usePinEntry({
-    length: PIN_LENGTH,
+    maxLength: MAX_PIN_LENGTH,
+    minLength: MIN_PIN_LENGTH,
     onComplete: async (confirmation) => {
       setPhase("verifying");
       const result = await changePin(currentPinRef.current, newPinRef.current, confirmation);
@@ -148,7 +151,7 @@ export default function ChangePinScreen() {
           <Text style={[typography.body, { textAlign: "center" }]}>{config.body}</Text>
         </View>
 
-        <PinDots filled={activeEntry.pin.length} length={PIN_LENGTH} status={dotStatus} />
+        <PinDots filled={activeEntry.pin.length} length={MAX_PIN_LENGTH} status={dotStatus} />
 
         <View style={{ height: 20, justifyContent: "center" }}>
           {phase === "error" && error ? (
@@ -161,7 +164,13 @@ export default function ChangePinScreen() {
           ) : null}
         </View>
 
-        <PinKeypad disabled={isInteractionDisabled} onBackspace={activeEntry.backspace} onDigit={activeEntry.append} />
+        <PinKeypad
+          canSubmit={activeEntry.canSubmit}
+          disabled={isInteractionDisabled}
+          onBackspace={activeEntry.backspace}
+          onDigit={activeEntry.append}
+          onSubmit={activeEntry.submit}
+        />
 
         <Pressable
           accessibilityRole="button"
