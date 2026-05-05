@@ -5,6 +5,8 @@ describe("wallet session storage serialization", () => {
   it("round-trips persisted session state", () => {
     const state: PersistedWalletSessionState = {
       biometricEnabled: true,
+      changePinAttempts: 0,
+      failedAttempts: 0,
       pinHash: "hash",
       pinSalt: "salt",
       session: {
@@ -29,9 +31,48 @@ describe("wallet session storage serialization", () => {
     expect(parseWalletSessionState("not-json").session.authStatus).toBe("signedOut");
   });
 
+  it("defaults failedAttempts to 0 when missing from stored data", () => {
+    const legacyState = {
+      biometricEnabled: false,
+      pinHash: "hash",
+      pinSalt: "salt",
+      session: {
+        authStatus: "signedIn",
+        activationStatus: "activated",
+        lockStatus: "locked",
+        studentId: "student-demo-001",
+        walletId: "wallet-demo-001",
+      },
+    };
+
+    const parsed = parseWalletSessionState(JSON.stringify(legacyState));
+    expect(parsed.failedAttempts).toBe(0);
+  });
+
+  it("preserves non-zero failedAttempts through round-trip", () => {
+    const state: PersistedWalletSessionState = {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 3,
+      pinHash: "hash",
+      pinSalt: "salt",
+      session: {
+        authStatus: "signedIn",
+        activationStatus: "activated",
+        lockStatus: "locked",
+        studentId: "student-demo-001",
+        walletId: "wallet-demo-001",
+      },
+    };
+
+    expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
+  });
+
   it("does not require raw activation tokens or out-of-band URLs in persisted state", () => {
     const state: PersistedWalletSessionState = {
       biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
       session: {
         activationId: "activation-demo",
         activationInvitationId: "unify-oob-demo",

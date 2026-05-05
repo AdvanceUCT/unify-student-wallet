@@ -10,7 +10,7 @@ export function serializeWalletSessionState(state: PersistedWalletSessionState) 
 
 export function parseWalletSessionState(rawValue: string | null): PersistedWalletSessionState {
   if (!rawValue) {
-    return { biometricEnabled: false, session: signedOutSession };
+    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
   }
 
   try {
@@ -18,6 +18,8 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
 
     return {
       biometricEnabled: Boolean(parsed.biometricEnabled),
+      changePinAttempts: parsed.changePinAttempts ?? 0,
+      failedAttempts: parsed.failedAttempts ?? 0,
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
       session: {
@@ -34,7 +36,7 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       },
     };
   } catch {
-    return { biometricEnabled: false, session: signedOutSession };
+    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
   }
 }
 

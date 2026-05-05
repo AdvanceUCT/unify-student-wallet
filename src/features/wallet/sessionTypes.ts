@@ -17,10 +17,17 @@ export type WalletSession = {
 
 export type PersistedWalletSessionState = {
   biometricEnabled: boolean;
+  changePinAttempts: number;
+  failedAttempts: number;
   pinHash?: string;
   pinSalt?: string;
   session: WalletSession;
 };
+
+export const MAX_PIN_ATTEMPTS = 5;
+export const MAX_CHANGE_PIN_ATTEMPTS = 3;
+export const MIN_PIN_LENGTH = 4;
+export const MAX_PIN_LENGTH = 6;
 
 export const DEMO_STUDENT_ID = "student-demo-001";
 export const DEMO_WALLET_ID = "wallet-demo-001";
@@ -33,4 +40,8 @@ export const signedOutSession: WalletSession = {
 
 export function hasStoredPin(state: Pick<PersistedWalletSessionState, "pinHash" | "pinSalt">) {
   return Boolean(state.pinHash && state.pinSalt);
+}
+
+export function isSessionHardLocked(failedAttempts: number) {
+  return failedAttempts >= MAX_PIN_ATTEMPTS;
 }

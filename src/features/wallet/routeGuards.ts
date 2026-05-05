@@ -58,6 +58,9 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
     case "unlock":
       return lastSegment === "unlock";
     case "wallet":
-      return segments.includes("(wallet)") || ["home", "credential", "scan", "payments", "settings"].includes(lastSegment ?? "");
+      return (
+        segments.includes("(wallet)") ||
+        ["home", "credential", "scan", "payments", "settings", "change-pin"].includes(lastSegment ?? "")
+      );
   }
 }
