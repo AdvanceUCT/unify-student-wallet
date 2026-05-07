@@ -13,11 +13,16 @@ export type HolderActivationResult = {
   holderConnectionId: string;
 };
 
+export type HolderAgentConfig = {
+  mediatorInvitationUrl?: string;
+  walletId: string;
+};
+
 type Constructor<T> = new (...args: unknown[]) => T;
 type DynamicModule = Record<string, unknown>;
-type HolderAgent = {
+export type HolderAgent = {
   didcomm?: {
-    credentials?: { getAll?: () => Promise<Array<{ id?: string }>> };
+    credentials?: { getAll?: () => Promise<{ id?: string }[]> };
     oob?: {
       receiveInvitationFromUrl?: (
         invitationUrl: string,
@@ -76,6 +81,27 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
   }
 
   try {
+    const agent = await initializeHolderAgent({
+      mediatorInvitationUrl: activation.mediatorInvitationUrl,
+      walletId: activation.walletId,
+    });
+
+    return acceptCredentialInvitation(agent, activation);
+  } catch (error) {
+    if (process.env.NODE_ENV === "test") {
+      return fallbackActivationResult(activation);
+    }
+
+    throw error;
+  }
+}
+
+export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent | null> {
+  if (Platform.OS === "web") {
+    return null;
+  }
+
+  try {
     const [
       core,
       didcomm,
@@ -83,7 +109,6 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       askarModule,
       askarBindings,
       anoncredsModule,
-      anoncredsBindings,
       indyVdrModule,
       indyVdrBindings,
     ] = await Promise.all([
@@ -93,12 +118,11 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       import("@credo-ts/askar"),
       import("@openwallet-foundation/askar-react-native"),
       import("@credo-ts/anoncreds"),
-      import("@hyperledger/anoncreds-react-native"),
       import("@credo-ts/indy-vdr"),
       import("@hyperledger/indy-vdr-react-native"),
     ]);
 
-    const walletKey = await getOrCreateHolderWalletKey(activation.walletId, () => {
+    const walletKey = await getOrCreateHolderWalletKey(config.walletId, () => {
       const rawKey = (askarBindings as DynamicModule).askar as { storeGenerateRawKey?: (options: object) => string } | undefined;
       const generatedKey = rawKey?.storeGenerateRawKey?.({});
 
@@ -147,7 +171,7 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       askar: new AskarModule({
         askar: askarBindings.askar,
         store: {
-          id: activation.walletId,
+          id: config.walletId,
           key: walletKey,
           keyDerivationMethod: "raw",
         },
@@ -167,8 +191,8 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
             }),
           ],
         },
-        mediationRecipient: activation.mediatorInvitationUrl
-          ? { mediatorInvitationUrl: activation.mediatorInvitationUrl }
+        mediationRecipient: config.mediatorInvitationUrl
+          ? { mediatorInvitationUrl: config.mediatorInvitationUrl }
           : false,
         mediator: false,
         transports: {
@@ -197,28 +221,38 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
     });
 
     await agent.initialize();
-
-    const autoAcceptIssuerConnection = activation.activationSource === "oob";
-    const invitationRecord = await agent.didcomm?.oob?.receiveInvitationFromUrl?.(activation.invitationUrl, {
-      autoAcceptConnection: autoAcceptIssuerConnection,
-      autoAcceptInvitation: autoAcceptIssuerConnection,
-      label: "UNIFY Student Wallet",
-    });
-    const credentialRecords = (await agent.didcomm?.credentials?.getAll?.()) ?? [];
-
-    return {
-      credentialRecordId: credentialRecords[0]?.id ?? `credential-${activation.activationId}`,
-      holderAgentInitialized: true,
-      holderConnectionId:
-        invitationRecord?.connectionRecord?.id ??
-        invitationRecord?.outOfBandRecord?.id ??
-        `connection-${activation.invitationId}`,
-    };
+    return agent;
   } catch (error) {
     if (process.env.NODE_ENV === "test") {
-      return fallbackActivationResult(activation);
+      return null;
     }
 
     throw error;
   }
+}
+
+export async function acceptCredentialInvitation(
+  agent: HolderAgent | null,
+  activation: ResolvedWalletActivation,
+): Promise<HolderActivationResult> {
+  if (!agent) {
+    return fallbackActivationResult(activation);
+  }
+
+  const autoAcceptIssuerConnection = activation.activationSource === "oob";
+  const invitationRecord = await agent.didcomm?.oob?.receiveInvitationFromUrl?.(activation.invitationUrl, {
+    autoAcceptConnection: autoAcceptIssuerConnection,
+    autoAcceptInvitation: autoAcceptIssuerConnection,
+    label: "UNIFY Student Wallet",
+  });
+  const credentialRecords = (await agent.didcomm?.credentials?.getAll?.()) ?? [];
+
+  return {
+    credentialRecordId: credentialRecords[0]?.id ?? `credential-${activation.activationId}`,
+    holderAgentInitialized: true,
+    holderConnectionId:
+      invitationRecord?.connectionRecord?.id ??
+      invitationRecord?.outOfBandRecord?.id ??
+      `connection-${activation.invitationId}`,
+  };
 }

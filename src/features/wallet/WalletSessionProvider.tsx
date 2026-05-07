@@ -4,7 +4,8 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import { parseActivationLink } from "./activationLinks";
 import { completeWalletActivation, resolveWalletActivation, type ResolvedWalletActivation } from "./activationResolver";
-import { acceptHolderActivation, type HolderActivationResult } from "./holderAgent";
+import { useHolderAgent } from "./HolderAgentProvider";
+import type { HolderActivationResult } from "./holderAgent";
 import { createPinSalt, hashPin, validateNewPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
@@ -107,16 +108,8 @@ function actionErrorFromUnknown(error: unknown): ActionResult {
   return { ok: false, error: "Wallet activation could not be completed." };
 }
 
-async function tryAcceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationActionResult> {
-  try {
-    return { data: await acceptHolderActivation(activation), ok: true };
-  } catch (error) {
-    const result = actionErrorFromUnknown(error);
-    return result.ok ? { error: "Wallet activation could not be completed.", ok: false } : result;
-  }
-}
-
 export function WalletSessionProvider({ children }: PropsWithChildren) {
+  const { acceptInvitation, resetAgent } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
 
   useEffect(() => {
@@ -194,6 +187,18 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     ],
   );
 
+  const tryAcceptHolderActivation = useCallback(
+    async (activation: ResolvedWalletActivation): Promise<HolderActivationActionResult> => {
+      try {
+        return { data: await acceptInvitation(activation), ok: true };
+      } catch (error) {
+        const result = actionErrorFromUnknown(error);
+        return result.ok ? { error: "Wallet activation could not be completed.", ok: false } : result;
+      }
+    },
+    [acceptInvitation],
+  );
+
   const prepareResolvedActivation = useCallback(
     async (activation: ResolvedWalletActivation): Promise<ActionResult> => {
       if (hasStoredPin(state)) {
@@ -242,7 +247,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       return { ok: true };
     },
-    [persistActivatedState, persistState, state],
+    [persistActivatedState, persistState, state, tryAcceptHolderActivation],
   );
 
   const continueMockSession = useCallback(async () => {
@@ -367,7 +372,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       return { ok: true };
     },
-    [persistState, state],
+    [persistState, state, tryAcceptHolderActivation],
   );
 
   const unlockWithPin = useCallback(
@@ -619,6 +624,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
+    resetAgent();
     setState((current) => ({
       ...current,
       biometricEnabled: false,
@@ -628,7 +634,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinSalt: undefined,
       session: signedOutSession,
     }));
-  }, []);
+  }, [resetAgent]);
 
   const value = useMemo<WalletSessionContextValue>(
     () => ({

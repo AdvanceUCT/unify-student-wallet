@@ -5,12 +5,15 @@ import {
   useWalletSession,
   WalletSessionProvider,
 } from "@/src/features/wallet/WalletSessionProvider";
+import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
 import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 
 const mockSecureValues = new Map<string, string>();
 const originalAdminApiBaseUrl = process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
 const originalFetch = global.fetch;
-const mockAcceptHolderActivation = jest.fn(async (_activation: unknown) => ({
+const mockHolderAgent = { id: "holder-agent-001" };
+const mockInitializeHolderAgent = jest.fn(async (_config: unknown) => mockHolderAgent);
+const mockAcceptCredentialInvitation = jest.fn(async (_agent: unknown, _activation: unknown) => ({
   credentialRecordId: "credential-record-001",
   holderAgentInitialized: true,
   holderConnectionId: "connection-001",
@@ -27,7 +30,8 @@ jest.mock("@/src/lib/storage/secureStore", () => ({
 }));
 
 jest.mock("@/src/features/wallet/holderAgent", () => ({
-  acceptHolderActivation: (activation: unknown) => mockAcceptHolderActivation(activation),
+  acceptCredentialInvitation: (agent: unknown, activation: unknown) => mockAcceptCredentialInvitation(agent, activation),
+  initializeHolderAgent: (config: unknown) => mockInitializeHolderAgent(config),
 }));
 
 jest.mock("expo-local-authentication", () => ({
@@ -66,7 +70,8 @@ function CaptureWalletContext() {
 
 describe("wallet activation flow", () => {
   beforeEach(() => {
-    mockAcceptHolderActivation.mockClear();
+    mockAcceptCredentialInvitation.mockClear();
+    mockInitializeHolderAgent.mockClear();
     mockSecureValues.clear();
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
     global.fetch = jest
@@ -103,9 +108,11 @@ describe("wallet activation flow", () => {
 
   it("resolves activation links, requires PIN setup, and stores only safe activation metadata", async () => {
     render(
-      <WalletSessionProvider>
-        <CaptureWalletContext />
-      </WalletSessionProvider>,
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
     );
 
     await waitFor(() => expect(walletContext).toBeDefined());
@@ -124,7 +131,7 @@ describe("wallet activation flow", () => {
     });
 
     await waitFor(() => expect(walletContext?.session.activationStatus).toBe("activationPending"));
-    expect(mockAcceptHolderActivation).not.toHaveBeenCalled();
+    expect(mockAcceptCredentialInvitation).not.toHaveBeenCalled();
 
     await act(async () => {
       const result = await walletContext?.setPin("1234", "1234");
@@ -134,7 +141,12 @@ describe("wallet activation flow", () => {
     await waitFor(() => expect(walletContext?.session.activationStatus).toBe("activated"));
     expect(walletContext?.session.credentialRecordId).toBe("credential-record-001");
     expect(walletContext?.session.holderConnectionId).toBe("connection-001");
-    expect(mockAcceptHolderActivation).toHaveBeenCalledTimes(1);
+    expect(mockInitializeHolderAgent).toHaveBeenCalledTimes(1);
+    expect(mockAcceptCredentialInvitation).toHaveBeenCalledTimes(1);
+    expect(mockAcceptCredentialInvitation).toHaveBeenCalledWith(
+      mockHolderAgent,
+      expect.objectContaining({ invitationUrl: "https://issuer.advanceuct.test/oob?oob=mock" }),
+    );
 
     const persistedValues = Array.from(mockSecureValues.values()).join("\n");
     expect(persistedValues).not.toContain("raw-secret-token");
