@@ -1,6 +1,6 @@
 import type { WalletSession } from "./sessionTypes";
 
-export type WalletRouteAccess = "signIn" | "activation" | "pinSetup" | "unlock" | "wallet";
+export type WalletRouteAccess = "signIn" | "activation" | "activationSetup" | "pinSetup" | "unlock" | "wallet";
 
 export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): WalletRouteAccess {
   if (session.authStatus === "signedOut") {
@@ -12,7 +12,7 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
   }
 
   if (session.activationStatus === "activationPending") {
-    return "pinSetup";
+    return "activationSetup";
   }
 
   if (session.activationStatus !== "activated") {
@@ -36,6 +36,8 @@ export function getWalletRouteHref(access: WalletRouteAccess) {
       return "/(auth)/sign-in" as const;
     case "activation":
       return "/(auth)/activate" as const;
+    case "activationSetup":
+      return "/(auth)/activation-success" as const;
     case "pinSetup":
       return "/(auth)/set-pin" as const;
     case "unlock":
@@ -53,14 +55,16 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
       return lastSegment === "sign-in";
     case "activation":
       return lastSegment === "activate";
+    case "activationSetup":
+      return lastSegment === "activation-success" || lastSegment === "set-pin";
     case "pinSetup":
       return lastSegment === "set-pin";
     case "unlock":
-      return lastSegment === "unlock";
+      return lastSegment === "unlock" || lastSegment === "activation-success";
     case "wallet":
       return (
         segments.includes("(wallet)") ||
-        ["home", "credential", "scan", "payments", "settings", "change-pin"].includes(lastSegment ?? "")
+        ["home", "credential", "scan", "payments", "settings", "change-pin", "activation-success"].includes(lastSegment ?? "")
       );
   }
 }

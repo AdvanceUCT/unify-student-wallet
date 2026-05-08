@@ -1,5 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 
+import ActivationSuccessScreen from "@/app/(auth)/activation-success";
 import ActivateScreen from "@/app/(auth)/activate";
 import ChangePinScreen from "@/app/(auth)/change-pin";
 import SetPinScreen from "@/app/(auth)/set-pin";
@@ -22,6 +24,16 @@ jest.mock("expo-crypto", () => ({
 }));
 
 let mockWalletSession: {
+  activationSetup?: {
+    activationId: string;
+    activationSource: "token" | "oob";
+    credentialRecordId?: string;
+    holderConnectionId?: string;
+    issuerLabel: string;
+    ledgerName: "BCovrin Test";
+    studentId: string;
+    walletId: string;
+  };
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: jest.Mock;
@@ -40,6 +52,10 @@ let mockWalletSession: {
   unlockWithBiometric: jest.Mock;
   unlockWithPin: jest.Mock;
 };
+let mockHolderAgent: {
+  error?: string;
+  status: "idle" | "initializing" | "ready" | "error";
+};
 let mockSearchParams: { oob?: string | string[]; token?: string | string[] } = {};
 
 jest.mock("expo-router", () => ({
@@ -52,8 +68,22 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   useWalletSession: () => mockWalletSession,
 }));
 
+jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
+  useHolderAgent: () => mockHolderAgent,
+}));
+
 function createMockWalletSession() {
   mockWalletSession = {
+    activationSetup: {
+      activationId: "activation-demo",
+      activationSource: "token",
+      credentialRecordId: "credential-record-001",
+      holderConnectionId: "connection-001",
+      issuerLabel: "UNIFY Issuer Service",
+      ledgerName: "BCovrin Test",
+      studentId: "student-demo-001",
+      walletId: "wallet-demo-001",
+    },
     biometricAvailable: false,
     biometricEnabled: false,
     changePin: jest.fn().mockResolvedValue({ ok: true }),
@@ -66,8 +96,12 @@ function createMockWalletSession() {
     lockWallet: jest.fn(),
     prepareActivationFromLink: jest.fn().mockResolvedValue({ ok: true }),
     session: {
+      activationId: "activation-demo",
+      activationSource: "token",
       authStatus: "signedIn",
       activationStatus: "activated",
+      credentialRecordId: "credential-record-001",
+      holderConnectionId: "connection-001",
       lockStatus: "locked",
       studentId: "student-demo-001",
       walletId: "wallet-demo-001",
@@ -89,7 +123,9 @@ function pressDigits(screen: ReturnType<typeof render>, digits: string[]) {
 describe("auth screens", () => {
   beforeEach(() => {
     createMockWalletSession();
+    mockHolderAgent = { status: "ready" };
     mockSearchParams = {};
+    jest.clearAllMocks();
   });
 
   it("continues the mock session from sign-in", () => {
@@ -115,6 +151,34 @@ describe("auth screens", () => {
     await waitFor(() =>
       expect(mockWalletSession.prepareActivationFromLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
     );
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/(auth)/activation-success"));
+  });
+
+  it("shows activation success before first PIN setup", () => {
+    mockWalletSession.hasPin = false;
+    mockWalletSession.session = {
+      authStatus: "signedIn",
+      activationStatus: "activationPending",
+      lockStatus: "locked",
+      studentId: "student-demo-001",
+      walletId: "wallet-demo-001",
+    };
+
+    const screen = render(<ActivationSuccessScreen />);
+
+    expect(screen.getByText("Activation link accepted")).toBeTruthy();
+    expect(screen.getByText("Create wallet PIN")).toBeTruthy();
+    expect(screen.getByText("UNIFY Issuer Service")).toBeTruthy();
+  });
+
+  it("shows credential storage success after activation completes", () => {
+    mockWalletSession.hasPin = true;
+
+    const screen = render(<ActivationSuccessScreen />);
+
+    expect(screen.getByText("Credential stored")).toBeTruthy();
+    expect(screen.getByText("Unlock wallet")).toBeTruthy();
+    expect(screen.getByText("credential-record-001")).toBeTruthy();
   });
 
   it("submits matching PIN entries via keypad in two steps", async () => {

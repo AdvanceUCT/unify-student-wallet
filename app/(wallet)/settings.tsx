@@ -6,6 +6,7 @@ import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { mockStudentProfile } from "@/src/lib/api/mockStudent";
 import { colors } from "@/src/theme/colors";
@@ -16,6 +17,7 @@ type PinVerificationPhase = "idle" | "verifying" | "error" | "success";
 
 export default function SettingsScreen() {
   const {
+    activationSetup,
     biometricAvailable,
     biometricEnabled,
     confirmPinToDisableBiometric,
@@ -24,6 +26,7 @@ export default function SettingsScreen() {
     setBiometricEnabled,
     signOut,
   } = useWalletSession();
+  const holderAgent = useHolderAgent();
   const [message, setMessage] = useState<string | null>(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pinPhase, setPinPhase] = useState<PinVerificationPhase>("idle");
@@ -89,6 +92,18 @@ export default function SettingsScreen() {
           <InfoRow label="Environment" value="Demo" />
           <InfoRow label="Wallet" value={session.walletId ?? "Not activated"} />
           <InfoRow label="Status" value={session.lockStatus === "locked" ? "Locked" : "Unlocked"} />
+        </View>
+
+        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
+          <Text style={typography.sectionTitle}>Activation and agent diagnostics</Text>
+          <InfoRow label="Activation status" value={session.activationStatus} />
+          <InfoRow label="Activation source" value={session.activationSource ?? activationSetup?.activationSource ?? "Not resolved"} />
+          <InfoRow label="Issuer" value={activationSetup?.issuerLabel ?? "Not resolved"} />
+          <InfoRow label="Ledger" value={activationSetup?.ledgerName ?? "Not resolved"} />
+          <InfoRow label="Holder agent" value={holderAgent.status} tone={holderAgent.status === "error" ? "warning" : "default"} />
+          <InfoRow label="Credential record" value={session.credentialRecordId ?? "Pending"} />
+          <InfoRow label="Connection record" value={session.holderConnectionId ?? "Pending"} />
+          {holderAgent.error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{holderAgent.error}</Text> : null}
         </View>
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>

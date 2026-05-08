@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -58,6 +58,7 @@ export default function ActivateScreen() {
       if (result.ok) {
         setError(null);
         setStatus("Activation link accepted. Set a PIN to store the credential.");
+        router.replace("/(auth)/activation-success");
         return;
       }
 

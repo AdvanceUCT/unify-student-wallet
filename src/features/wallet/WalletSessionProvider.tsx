@@ -29,14 +29,26 @@ type BiometricToggleResult =
 type HolderActivationActionResult =
   | { data: HolderActivationResult; ok: true }
   | { error: string; ok: false };
+export type WalletActivationSetup = {
+  activationId: string;
+  activationSource: ResolvedWalletActivation["activationSource"];
+  credentialRecordId?: string;
+  holderConnectionId?: string;
+  issuerLabel: string;
+  ledgerName: ResolvedWalletActivation["ledgerName"];
+  studentId: string;
+  walletId: string;
+};
 
 type WalletProviderState = PersistedWalletSessionState & {
+  activationSetup?: WalletActivationSetup;
   biometricAvailable: boolean;
   isHydrated: boolean;
   pendingActivation?: ResolvedWalletActivation;
 };
 
 type WalletSessionContextValue = {
+  activationSetup?: WalletActivationSetup;
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: (currentPin: string, newPin: string, confirmation: string) => Promise<ActionResult>;
@@ -108,6 +120,22 @@ function actionErrorFromUnknown(error: unknown): ActionResult {
   return { ok: false, error: "Wallet activation could not be completed." };
 }
 
+function activationSetupFromActivation(
+  activation: ResolvedWalletActivation,
+  identifiers?: Pick<WalletActivationSetup, "credentialRecordId" | "holderConnectionId">,
+): WalletActivationSetup {
+  return {
+    activationId: activation.activationId,
+    activationSource: activation.activationSource,
+    credentialRecordId: identifiers?.credentialRecordId,
+    holderConnectionId: identifiers?.holderConnectionId,
+    issuerLabel: activation.issuerLabel,
+    ledgerName: activation.ledgerName,
+    studentId: activation.studentId,
+    walletId: activation.walletId,
+  };
+}
+
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const { acceptInvitation, resetAgent } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
@@ -175,7 +203,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         },
       });
 
-      setState((current) => ({ ...current, pendingActivation: undefined }));
+      setState((current) => ({
+        ...current,
+        activationSetup: activationSetupFromActivation(activation, { credentialRecordId, holderConnectionId }),
+        pendingActivation: undefined,
+      }));
     },
     [
       persistState,
@@ -243,7 +275,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           walletId: activation.walletId,
         },
       });
-      setState((current) => ({ ...current, pendingActivation: activation }));
+      setState((current) => ({
+        ...current,
+        activationSetup: activationSetupFromActivation(activation),
+        pendingActivation: activation,
+      }));
 
       return { ok: true };
     },
@@ -264,6 +300,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         studentId: DEMO_STUDENT_ID,
       },
     });
+    setState((current) => ({ ...current, activationSetup: undefined, pendingActivation: undefined }));
   }, [persistState, state.biometricEnabled, state.changePinAttempts, state.pinHash, state.pinSalt]);
 
   const prepareActivationFromLink = useCallback(
@@ -356,6 +393,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         setState((current) => ({
           ...current,
           ...activatedState,
+          activationSetup: activationSetupFromActivation(pendingActivation, {
+            credentialRecordId: completion.data.credentialRecordId,
+            holderConnectionId: completion.data.holderConnectionId,
+          }),
           pendingActivation: undefined,
         }));
 
@@ -627,9 +668,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     resetAgent();
     setState((current) => ({
       ...current,
+      activationSetup: undefined,
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      pendingActivation: undefined,
       pinHash: undefined,
       pinSalt: undefined,
       session: signedOutSession,
@@ -638,6 +681,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<WalletSessionContextValue>(
     () => ({
+      activationSetup: state.activationSetup,
       biometricAvailable: state.biometricAvailable,
       biometricEnabled: state.biometricEnabled,
       changePin,

@@ -33,24 +33,27 @@ describe("wallet route guards", () => {
     expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
   });
 
-  it("routes activation-pending users without a PIN to PIN setup", () => {
+  it("routes activation-pending users without a PIN to activation setup", () => {
     const access = getWalletRouteAccess(
       session({ authStatus: "signedIn", activationStatus: "activationPending" }),
       false,
     );
 
-    expect(access).toBe("pinSetup");
-    expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
+    expect(access).toBe("activationSetup");
+    expect(getWalletRouteHref(access)).toBe("/(auth)/activation-success");
+    expect(isRouteAllowedForAccess(["(auth)", "activation-success"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "set-pin"], access)).toBe(true);
   });
 
-  it("keeps activation-pending users on PIN setup while credential storage completes", () => {
+  it("keeps activation-pending users in setup while credential storage completes", () => {
     const access = getWalletRouteAccess(
       session({ authStatus: "signedIn", activationStatus: "activationPending" }),
       true,
     );
 
-    expect(access).toBe("pinSetup");
-    expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
+    expect(access).toBe("activationSetup");
+    expect(getWalletRouteHref(access)).toBe("/(auth)/activation-success");
+    expect(isRouteAllowedForAccess(["(auth)", "set-pin"], access)).toBe(true);
   });
 
   it("routes activated locked users with a PIN to unlock", () => {
@@ -58,6 +61,7 @@ describe("wallet route guards", () => {
 
     expect(access).toBe("unlock");
     expect(getWalletRouteHref(access)).toBe("/(auth)/unlock");
+    expect(isRouteAllowedForAccess(["(auth)", "activation-success"], access)).toBe(true);
   });
 
   it("allows wallet tabs only after activation and unlock", () => {
@@ -68,6 +72,7 @@ describe("wallet route guards", () => {
 
     expect(access).toBe("wallet");
     expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "activation-success"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(auth)", "unlock"], access)).toBe(false);
   });
 

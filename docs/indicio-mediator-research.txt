@@ -1,0 +1,61 @@
+Indicio Mediator Research For UNIFY
+
+Assessment
+
+Using Indicio-tech/aries-mediator-service is a good fit for UNIFY's current DIDComm/Credo direction, but only as the wallet-facing relay. It should not be treated as a shared bus between admin, vendor, issuer, and verifier systems. This summary is based on the markdown docs in this repo, the adjacent AdvanceUCT repos, and the Indicio mediator repo and docs.
+
+What already fits
+
+- The wallet architecture already defines a mediator as part of the platform and says it helps the mobile wallet receive DIDComm messages reliably.
+- The wallet activation contract is already split into resolve and complete, which is where mediated holder setup belongs.
+- The wallet code is already prepared for this: ResolvedWalletActivation includes mediatorInvitationUrl, and the holder agent passes it into Credo mediation config.
+- unify-agent-service is the backend repo that should own issuer-side OOB invitation creation, but today it only has stubs for createInvitation and createOfferInvitation.
+- The admin portal mock activation flow still returns only the issuer invitation URL. Its shared activation types do not include mediatorInvitationUrl yet.
+- The vendor path is currently QR/presentation based, not DIDComm-recipient based, so mediator is not on that critical path yet.
+
+How the mediator should sit in UNIFY
+
+- Admin Portal -> Agent Service: normal HTTPS/REST. No mediator.
+- Vendor Portal -> Verifier Service: normal HTTPS/REST. No mediator.
+- Wallet -> activation resolve/complete API: normal HTTPS/REST. No mediator.
+- Issuer/Verifier agents -> Wallet: DIDComm. This is where the mediator belongs.
+- Ledger access stays direct from issuer/verifier/holder agents via Indy VDR. No mediator.
+
+So the mediator is not "between all systems." It is specifically between server-side DIDComm agents and the mobile wallet when those agents need to reach the wallet.
+
+Research conclusion
+
+- Indicio's docs describe the mediator as a secure fixed endpoint for relaying DIDComm messages to mobile devices, and explicitly note it is not needed for OID4VC-only flows.
+- Credo's mediation docs describe the same pattern: mobile agents without public IPs use a mediator, and a configured mediatorInvitationUrl sets up mediation automatically on startup.
+- Indicio's repo matches the transport model the wallet already expects: HTTPS for invitation/CRUD plus WSS for live delivery, with open mediation and an undelivered queue enabled.
+
+Main gaps to close
+
+- Add mediatorInvitationUrl to the canonical POST /wallet/activation/resolve response across wallet, admin, and agent-service contracts.
+- Decide whether mediator config is per-activation or environment-wide. The current wallet code supports per-activation with the smallest change, but long term a bootstrap or env-level mediator setting is cleaner.
+- Keep vendor verification QR-first for now. Only involve mediator in verifier work if DIDComm proof-request flows are added later.
+- Test version skew early: the wallet is on Credo 0.6.3, while unify-agent-service pins 0.5.13.
+- Clean up docs drift: admin/vendor architecture still say there is no backend repo, but unify-agent-service now exists, and that repo's README points to a missing docs-local/ids-project-context.md.
+
+Key local references
+
+- docs/ARCHITECTURE.md
+- docs/API_CONTRACTS.md
+- src/features/wallet/activationResolver.ts
+- src/features/wallet/holderAgent.ts
+- .research/repos/unify-agent-service/src/services/connectionService.ts
+- .research/repos/unify-agent-service/src/services/credentialService.ts
+- .research/repos/unify-admin-portal/src/lib/api/types.ts
+- .research/repos/unify-admin-portal/src/lib/api/mockActivationStore.ts
+- .research/repos/aries-mediator-service/README.md
+- .research/repos/aries-mediator-service/acapy/start.sh
+- .research/repos/aries-mediator-service/acapy/configs/local.yml
+
+External sources
+
+- https://docs.indicio.tech/knowledge-center/technology/mediator
+- https://github.com/Indicio-tech/aries-mediator-service
+- https://credo.js.org/guides/tutorials/mediation
+- https://github.com/AdvanceUCT/unify-agent-service
+- https://github.com/AdvanceUCT/unify-admin-portal
+- https://github.com/AdvanceUCT/unify-vendor-portal

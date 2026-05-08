@@ -4,12 +4,14 @@ import { Text, View } from "react-native";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { StatusPill } from "@/src/components/StatusPill";
+import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { getStudentCredential } from "@/src/lib/api/client";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function CredentialScreen() {
+  const { activationSetup, session } = useWalletSession();
   const credentialQuery = useQuery({
     queryKey: ["student-credential"],
     queryFn: getStudentCredential,
@@ -25,6 +27,13 @@ export default function CredentialScreen() {
           <Text style={typography.title}>Student status</Text>
           <Text style={typography.body}>Present this credential when a service point needs proof of status.</Text>
         </View>
+
+        {credentialQuery.isLoading ? <Text style={typography.body}>Loading credential...</Text> : null}
+        {credentialQuery.isError ? (
+          <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>
+            Credential details could not be loaded.
+          </Text>
+        ) : null}
 
         {credential ? (
           <View
@@ -50,9 +59,15 @@ export default function CredentialScreen() {
               <InfoRow label="Expires" value={credential.expiresAt} tone="warning" />
             </View>
           </View>
-        ) : (
-          <Text style={typography.body}>Loading credential...</Text>
-        )}
+        ) : null}
+
+        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
+          <Text style={typography.sectionTitle}>Storage records</Text>
+          <InfoRow label="Activation ID" value={session.activationId ?? activationSetup?.activationId ?? "Pending"} />
+          <InfoRow label="Credential record" value={session.credentialRecordId ?? "Pending"} />
+          <InfoRow label="Holder connection" value={session.holderConnectionId ?? "Pending"} />
+          <InfoRow label="Wallet ID" value={session.walletId ?? activationSetup?.walletId ?? "Pending"} />
+        </View>
       </View>
     </AppScreen>
   );

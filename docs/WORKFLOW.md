@@ -189,15 +189,15 @@ Current branch protection status:
 - Workflows still run and should be treated as merge gates by team process.
 - This avoids GitHub blocking merges when expected check names drift from actual workflow job names.
 
-## Security-Sensitive Review Check
+## Security-Sensitive Review
 
-The `security-sensitive-review` job can fail when sensitive paths change. That is intentional.
+Sensitive changes are handled as a human review gate, not a GitHub Actions job.
 
 Current behavior:
 
-- It is advisory because required status checks are not enabled.
-- If it fails, add review attention and get two approvals before merge.
-- Do not bypass it silently for wallet, issuer, verifier, admin, workflow, dependency, or secret-related changes.
+- Get two approvals before merging wallet, issuer, verifier, admin, workflow, dependency, or secret-related changes.
+- Add explicit review attention when sensitive paths change.
+- Do not add a separate security-sensitive workflow job or required check.
 
 ## Local Validation
 
