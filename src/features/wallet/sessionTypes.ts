@@ -8,6 +8,7 @@ export type WalletSession = {
   activationSource?: "token" | "oob";
   authStatus: WalletAuthStatus;
   activationStatus: WalletActivationStatus;
+  credentialExchangeId?: string;
   credentialRecordId?: string;
   holderConnectionId?: string;
   lockStatus: WalletLockStatus;

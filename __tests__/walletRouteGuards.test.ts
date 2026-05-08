@@ -19,8 +19,17 @@ describe("wallet route guards", () => {
     expect(isRouteAllowedForAccess(["(auth)", "sign-in"], access)).toBe(true);
   });
 
-  it("routes signed-in unactivated users to activation", () => {
+  it("routes signed-in unactivated users without a PIN to wallet setup", () => {
     const access = getWalletRouteAccess(session({ authStatus: "signedIn" }), false);
+
+    expect(access).toBe("walletSetup");
+    expect(getWalletRouteHref(access)).toBe("/(auth)/wallet-setup");
+    expect(isRouteAllowedForAccess(["(auth)", "wallet-setup"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "set-pin"], access)).toBe(true);
+  });
+
+  it("routes signed-in unactivated users with a PIN to activation", () => {
+    const access = getWalletRouteAccess(session({ authStatus: "signedIn" }), true);
 
     expect(access).toBe("activation");
     expect(getWalletRouteHref(access)).toBe("/(auth)/activate");

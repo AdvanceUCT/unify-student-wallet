@@ -37,8 +37,8 @@ export default function SignInScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <AppButton disabled={!isHydrated} label="Continue" onPress={continueMockSession} />
-          <Text style={[typography.body, { fontSize: 14 }]}>Continue to credential activation.</Text>
+          <AppButton disabled={!isHydrated} label="Create your student wallet" onPress={continueMockSession} />
+          <Text style={[typography.body, { fontSize: 14 }]}>Start with encrypted wallet setup on this device.</Text>
         </View>
       </View>
     </AppScreen>

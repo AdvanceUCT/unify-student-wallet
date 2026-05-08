@@ -1,6 +1,6 @@
 import type { WalletSession } from "./sessionTypes";
 
-export type WalletRouteAccess = "signIn" | "activation" | "activationSetup" | "pinSetup" | "unlock" | "wallet";
+export type WalletRouteAccess = "signIn" | "walletSetup" | "activation" | "activationSetup" | "pinSetup" | "unlock" | "wallet";
 
 export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): WalletRouteAccess {
   if (session.authStatus === "signedOut") {
@@ -8,6 +8,10 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
   }
 
   if (session.activationStatus === "notActivated") {
+    if (!hasPin) {
+      return "walletSetup";
+    }
+
     return "activation";
   }
 
@@ -34,6 +38,8 @@ export function getWalletRouteHref(access: WalletRouteAccess) {
   switch (access) {
     case "signIn":
       return "/(auth)/sign-in" as const;
+    case "walletSetup":
+      return "/(auth)/wallet-setup" as const;
     case "activation":
       return "/(auth)/activate" as const;
     case "activationSetup":
@@ -53,6 +59,8 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
   switch (access) {
     case "signIn":
       return lastSegment === "sign-in";
+    case "walletSetup":
+      return lastSegment === "wallet-setup" || lastSegment === "set-pin";
     case "activation":
       return lastSegment === "activate";
     case "activationSetup":

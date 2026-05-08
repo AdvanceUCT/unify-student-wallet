@@ -6,6 +6,7 @@ import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "@/src/features/wallet/sessionTy
 
 const originalFetch = global.fetch;
 const originalAdminApiBaseUrl = process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
+const originalAgentApiBaseUrl = process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
 
 function mockResponse(body: object, ok = true, status = 200) {
   return {
@@ -19,10 +20,99 @@ describe("wallet activation resolver", () => {
   afterEach(() => {
     global.fetch = originalFetch;
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = originalAdminApiBaseUrl;
+    process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = originalAgentApiBaseUrl;
     jest.clearAllMocks();
   });
 
-  it("uses the admin mock resolve and complete APIs when configured", async () => {
+  it("uses the agent service resolve and complete APIs when configured", async () => {
+    process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001/";
+    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000/";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(
+        mockResponse({
+          activationId: "activation-7MFK2Q9V",
+          activationSource: "token",
+          createdAt: "2026-04-27T10:00:00.000Z",
+          credentialExchangeId: "issuer-exchange-001",
+          invitationId: "unify-oob-7MFK2Q9V",
+          invitationUrl: "https://issuer.advanceuct.test/oob?oob=real",
+          issuerLabel: "UNIFY Issuer Service",
+          ledgerName: "BCovrin Test",
+          studentId: "student-demo-002",
+          walletId: "wallet-demo-001",
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          activatedAt: "2026-04-27T10:05:00.000Z",
+          activationId: "activation-7MFK2Q9V",
+          credentialExchangeId: "issuer-exchange-001",
+          credentialRecordId: "credential-record-demo",
+          holderConnectionId: "connection-demo",
+        }),
+      );
+
+    const resolved = await resolveWalletActivation({
+      kind: "token",
+      sourceUrl: "unifywallet://activate?token=mock-act-7MFK2Q9V",
+      token: "mock-act-7MFK2Q9V",
+    });
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) {
+      throw new Error(resolved.error);
+    }
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/wallet/activation/resolve",
+      expect.objectContaining({
+        body: JSON.stringify({
+          kind: "token",
+          sourceUrl: "unifywallet://activate?token=mock-act-7MFK2Q9V",
+          token: "mock-act-7MFK2Q9V",
+        }),
+        method: "POST",
+      }),
+    );
+    expect(resolved.data).toMatchObject({
+      activationId: "activation-7MFK2Q9V",
+      credentialExchangeId: "issuer-exchange-001",
+      activationSource: "token",
+      studentId: "student-demo-002",
+    });
+
+    const completed = await completeWalletActivation(
+      resolved.data,
+      "connection-demo",
+      "credential-record-demo",
+    );
+
+    expect(completed).toEqual({
+      ok: true,
+      data: {
+        activationId: "activation-7MFK2Q9V",
+        completedAt: "2026-04-27T10:05:00.000Z",
+        credentialExchangeId: "issuer-exchange-001",
+        credentialRecordId: "credential-record-demo",
+        holderConnectionId: "connection-demo",
+      },
+    });
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      "http://localhost:3001/api/wallet/activation/complete",
+      expect.objectContaining({
+        body: JSON.stringify({
+          activationId: "activation-7MFK2Q9V",
+          credentialRecordId: "credential-record-demo",
+          holderConnectionId: "connection-demo",
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("uses the admin mock resolve and complete APIs only when the agent service is not configured", async () => {
+    delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000/";
     global.fetch = jest
       .fn()
@@ -107,6 +197,7 @@ describe("wallet activation resolver", () => {
 
   it("returns an activation service error when token resolve has no admin API", async () => {
     delete process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
+    delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
     global.fetch = jest.fn();
 
     const resolved = await resolveWalletActivation({
@@ -118,11 +209,12 @@ describe("wallet activation resolver", () => {
     expect(global.fetch).not.toHaveBeenCalled();
     expect(resolved).toEqual({
       ok: false,
-      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+      error: "Activation service is unavailable. Configure EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL and try again.",
     });
   });
 
-  it("returns an activation service error when the configured admin API is unavailable", async () => {
+  it("returns an activation service error when the configured agent API is unavailable", async () => {
+    process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001";
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
     global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
@@ -135,7 +227,7 @@ describe("wallet activation resolver", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(resolved).toEqual({
       ok: false,
-      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+      error: "Activation service is unavailable. Check that the Credo agent service is running and try again.",
     });
   });
 
@@ -178,6 +270,7 @@ describe("wallet activation resolver", () => {
   });
 
   it("surfaces admin API token errors instead of falling back", async () => {
+    delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
     process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
     global.fetch = jest.fn().mockResolvedValue(
       mockResponse(

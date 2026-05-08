@@ -28,6 +28,7 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
         activationSource: parsed.session?.activationSource,
         authStatus: parsed.session?.authStatus ?? "signedOut",
         activationStatus: parsed.session?.activationStatus ?? "notActivated",
+        credentialExchangeId: parsed.session?.credentialExchangeId,
         credentialRecordId: parsed.session?.credentialRecordId,
         holderConnectionId: parsed.session?.holderConnectionId,
         lockStatus: parsed.session?.lockStatus ?? "locked",

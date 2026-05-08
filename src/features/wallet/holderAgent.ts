@@ -34,6 +34,9 @@ export type HolderAgent = {
   initialize: () => Promise<void>;
 };
 
+const CREDENTIAL_RECORD_POLL_ATTEMPTS = 8;
+const CREDENTIAL_RECORD_POLL_INTERVAL_MS = 750;
+
 async function getOrCreateHolderWalletKey(walletId: string, generateRawKey: () => string) {
   const storageKey = `${HOLDER_WALLET_KEY_PREFIX}.${walletId}`;
   const existingKey = await getSecureValue(storageKey);
@@ -73,6 +76,10 @@ function getConstructor<T>(moduleExports: DynamicModule, exportName: string): Co
   }
 
   return exportedValue as Constructor<T>;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function acceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationResult> {
@@ -240,19 +247,41 @@ export async function acceptCredentialInvitation(
   }
 
   const autoAcceptIssuerConnection = activation.activationSource === "oob";
-  const invitationRecord = await agent.didcomm?.oob?.receiveInvitationFromUrl?.(activation.invitationUrl, {
+  const receiveInvitationFromUrl = agent.didcomm?.oob?.receiveInvitationFromUrl;
+  const getCredentialRecords = agent.didcomm?.credentials?.getAll;
+
+  if (!receiveInvitationFromUrl || !getCredentialRecords) {
+    throw new Error("Credo holder agent is missing DIDComm OOB or credential APIs.");
+  }
+
+  const invitationRecord = await receiveInvitationFromUrl(activation.invitationUrl, {
     autoAcceptConnection: autoAcceptIssuerConnection,
     autoAcceptInvitation: autoAcceptIssuerConnection,
     label: "UNIFY Student Wallet",
   });
-  const credentialRecords = (await agent.didcomm?.credentials?.getAll?.()) ?? [];
+  let credentialRecordId: string | undefined;
+
+  for (let attempt = 0; attempt < CREDENTIAL_RECORD_POLL_ATTEMPTS; attempt += 1) {
+    const credentialRecords = await getCredentialRecords();
+    credentialRecordId = credentialRecords[0]?.id;
+
+    if (credentialRecordId) {
+      break;
+    }
+
+    await sleep(CREDENTIAL_RECORD_POLL_INTERVAL_MS);
+  }
+
+  if (!credentialRecordId) {
+    throw new Error("The issuer invitation was accepted, but no credential record was created yet.");
+  }
 
   return {
-    credentialRecordId: credentialRecords[0]?.id ?? `credential-${activation.activationId}`,
+    credentialRecordId,
     holderAgentInitialized: true,
     holderConnectionId:
       invitationRecord?.connectionRecord?.id ??
       invitationRecord?.outOfBandRecord?.id ??
-      `connection-${activation.invitationId}`,
+      activation.invitationId,
   };
 }

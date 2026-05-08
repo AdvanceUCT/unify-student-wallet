@@ -7,6 +7,7 @@ import ChangePinScreen from "@/app/(auth)/change-pin";
 import SetPinScreen from "@/app/(auth)/set-pin";
 import SignInScreen from "@/app/(auth)/sign-in";
 import UnlockScreen from "@/app/(auth)/unlock";
+import WalletSetupScreen from "@/app/(auth)/wallet-setup";
 import SettingsScreen from "@/app/(wallet)/settings";
 import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 
@@ -131,9 +132,26 @@ describe("auth screens", () => {
   it("continues the mock session from sign-in", () => {
     const screen = render(<SignInScreen />);
 
-    fireEvent.press(screen.getByText("Continue"));
+    fireEvent.press(screen.getByText("Create your student wallet"));
 
     expect(mockWalletSession.continueMockSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("prompts students to create the holder wallet before activation", () => {
+    mockWalletSession.hasPin = false;
+    mockWalletSession.session = {
+      authStatus: "signedIn",
+      activationStatus: "notActivated",
+      lockStatus: "locked",
+      studentId: "student-demo-001",
+    };
+    mockHolderAgent = { status: "idle" };
+
+    const screen = render(<WalletSetupScreen />);
+
+    expect(screen.getByText("Create your student wallet")).toBeTruthy();
+    expect(screen.getByText("Create secure wallet")).toBeTruthy();
+    expect(screen.getByText("Activation link required")).toBeTruthy();
   });
 
   it("waits for an activation link when no token is open", () => {

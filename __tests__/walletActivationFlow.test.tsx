@@ -34,6 +34,12 @@ jest.mock("@/src/features/wallet/holderAgent", () => ({
   initializeHolderAgent: (config: unknown) => mockInitializeHolderAgent(config),
 }));
 
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+  digestStringAsync: jest.fn(async (_algorithm: string, value: string) => `hash:${value}`),
+  randomUUID: jest.fn(() => "test-salt"),
+}));
+
 jest.mock("expo-local-authentication", () => ({
   hasHardwareAsync: jest.fn(async () => false),
   isEnrolledAsync: jest.fn(async () => false),
@@ -48,6 +54,8 @@ let walletContext:
   | {
       prepareActivationFromLink: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       continueMockSession: () => Promise<void>;
+      hasPin: boolean;
+      isHydrated: boolean;
       session: WalletSession;
       setPin: (pin: string, confirmation: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     }
@@ -116,6 +124,7 @@ describe("wallet activation flow", () => {
     );
 
     await waitFor(() => expect(walletContext).toBeDefined());
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
     await waitFor(() => expect(walletContext?.session.authStatus).toBe("signedOut"));
 
     await act(async () => {
@@ -152,5 +161,34 @@ describe("wallet activation flow", () => {
     expect(persistedValues).not.toContain("raw-secret-token");
     expect(persistedValues).not.toContain("https://issuer.advanceuct.test/oob");
     expect(persistedValues).not.toContain("credentialSubject");
+  });
+
+  it("creates the holder wallet before credential activation without marking the credential activated", async () => {
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+
+    await waitFor(() => expect(walletContext).toBeDefined());
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+
+    await act(async () => {
+      await walletContext?.continueMockSession();
+    });
+    await waitFor(() => expect(walletContext?.session.authStatus).toBe("signedIn"));
+
+    await act(async () => {
+      const result = await walletContext?.setPin("2468", "2468");
+      expect(result).toEqual({ ok: true });
+    });
+
+    await waitFor(() => expect(walletContext?.session.walletId).toBe("wallet-demo-001"));
+    await waitFor(() => expect(walletContext?.hasPin).toBe(true));
+    expect(walletContext?.session.activationStatus).toBe("notActivated");
+    expect(mockInitializeHolderAgent).toHaveBeenCalledTimes(1);
+    expect(mockAcceptCredentialInvitation).not.toHaveBeenCalled();
   });
 });

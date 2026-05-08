@@ -78,6 +78,7 @@ export default function ActivationSuccessScreen() {
             <InfoRow label="Student ID" value={activationSetup?.studentId ?? session.studentId ?? "Pending"} />
             <InfoRow label="Activation source" value={activationSetup?.activationSource ?? session.activationSource ?? "Pending"} />
             <InfoRow label="Holder agent" value={holderAgent.status} tone={holderAgent.status === "error" ? "warning" : "default"} />
+            <InfoRow label="Issuer exchange" value={activationSetup?.credentialExchangeId ?? session.credentialExchangeId ?? "Pending"} />
             <InfoRow label="Credential record" value={activationSetup?.credentialRecordId ?? session.credentialRecordId ?? "Created after PIN"} />
             <InfoRow label="Connection record" value={activationSetup?.holderConnectionId ?? session.holderConnectionId ?? "Created after PIN"} />
           </View>

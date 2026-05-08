@@ -32,6 +32,7 @@ type HolderActivationActionResult =
 export type WalletActivationSetup = {
   activationId: string;
   activationSource: ResolvedWalletActivation["activationSource"];
+  credentialExchangeId?: string;
   credentialRecordId?: string;
   holderConnectionId?: string;
   issuerLabel: string;
@@ -127,6 +128,7 @@ function activationSetupFromActivation(
   return {
     activationId: activation.activationId,
     activationSource: activation.activationSource,
+    credentialExchangeId: activation.credentialExchangeId,
     credentialRecordId: identifiers?.credentialRecordId,
     holderConnectionId: identifiers?.holderConnectionId,
     issuerLabel: activation.issuerLabel,
@@ -137,7 +139,7 @@ function activationSetupFromActivation(
 }
 
 export function WalletSessionProvider({ children }: PropsWithChildren) {
-  const { acceptInvitation, resetAgent } = useHolderAgent();
+  const { acceptInvitation, ensureInitialized, resetAgent } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
 
   useEffect(() => {
@@ -195,6 +197,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           activationSource: activation.activationSource,
           authStatus: "signedIn",
           activationStatus: "activated",
+          credentialExchangeId: activation.credentialExchangeId,
           credentialRecordId,
           holderConnectionId,
           lockStatus: "locked",
@@ -270,6 +273,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           activationSource: activation.activationSource,
           authStatus: "signedIn",
           activationStatus: "activationPending",
+          credentialExchangeId: activation.credentialExchangeId,
           lockStatus: "locked",
           studentId: activation.studentId,
           walletId: activation.walletId,
@@ -381,6 +385,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
             activationInvitationId: pendingActivation.invitationId,
             activationSource: pendingActivation.activationSource,
             activationStatus: "activated",
+            credentialExchangeId: pendingActivation.credentialExchangeId,
             credentialRecordId: completion.data.credentialRecordId,
             holderConnectionId: completion.data.holderConnectionId,
             lockStatus: "unlocked",
@@ -403,17 +408,27 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: true };
       }
 
+      try {
+        await ensureInitialized({
+          mediatorInvitationUrl: undefined,
+          walletId: nextPinState.session.walletId ?? DEMO_WALLET_ID,
+        });
+      } catch (error) {
+        const result = actionErrorFromUnknown(error);
+        return result.ok ? { ok: false, error: "Wallet could not be created." } : result;
+      }
+
       await persistState({
         ...nextPinState,
         session: {
           ...nextPinState.session,
-          activationStatus: "activated",
+          activationStatus: state.session.activationStatus,
         },
       });
 
       return { ok: true };
     },
-    [persistState, state, tryAcceptHolderActivation],
+    [ensureInitialized, persistState, state, tryAcceptHolderActivation],
   );
 
   const unlockWithPin = useCallback(
