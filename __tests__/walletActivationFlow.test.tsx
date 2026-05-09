@@ -14,7 +14,9 @@ const mockAcceptHolderActivation = jest.fn(async (_activation: unknown) => ({
   credentialRecordId: "credential-record-001",
   holderAgentInitialized: true,
   holderConnectionId: "connection-001",
+  mediatorConnectionId: "mediator-conn-001",
 }));
+const mockResumeHolderAgentSession = jest.fn(async () => undefined);
 
 jest.mock("@/src/lib/storage/secureStore", () => ({
   deleteSecureValue: jest.fn(async (key: string) => {
@@ -28,6 +30,7 @@ jest.mock("@/src/lib/storage/secureStore", () => ({
 
 jest.mock("@/src/features/wallet/holderAgent", () => ({
   acceptHolderActivation: (activation: unknown) => mockAcceptHolderActivation(activation),
+  resumeHolderAgentSession: (...args: unknown[]) => mockResumeHolderAgentSession(...args),
 }));
 
 jest.mock("expo-local-authentication", () => ({

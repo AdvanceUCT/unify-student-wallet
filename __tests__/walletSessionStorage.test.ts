@@ -18,6 +18,7 @@ describe("wallet session storage serialization", () => {
         credentialRecordId: "credential-demo",
         holderConnectionId: "connection-demo",
         lockStatus: "unlocked",
+        mediatorConnectionId: "mediator-conn-demo",
         studentId: "student-demo-001",
         walletId: "wallet-demo-001",
       },

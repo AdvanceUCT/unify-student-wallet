@@ -31,6 +31,7 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
         credentialRecordId: parsed.session?.credentialRecordId,
         holderConnectionId: parsed.session?.holderConnectionId,
         lockStatus: parsed.session?.lockStatus ?? "locked",
+        mediatorConnectionId: parsed.session?.mediatorConnectionId,
         studentId: parsed.session?.studentId,
         walletId: parsed.session?.walletId,
       },

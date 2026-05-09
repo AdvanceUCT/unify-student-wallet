@@ -60,7 +60,9 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
     case "wallet":
       return (
         segments.includes("(wallet)") ||
-        ["home", "credential", "scan", "payments", "settings", "change-pin"].includes(lastSegment ?? "")
+        ["home", "credential", "scan", "connections", "payments", "settings", "change-pin"].includes(
+          lastSegment ?? "",
+        )
       );
   }
 }

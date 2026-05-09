@@ -11,6 +11,7 @@ export type WalletSession = {
   credentialRecordId?: string;
   holderConnectionId?: string;
   lockStatus: WalletLockStatus;
+  mediatorConnectionId?: string;
   studentId?: string;
   walletId?: string;
 };

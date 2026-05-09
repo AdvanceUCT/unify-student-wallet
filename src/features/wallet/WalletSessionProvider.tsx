@@ -4,7 +4,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import { parseActivationLink } from "./activationLinks";
 import { completeWalletActivation, resolveWalletActivation, type ResolvedWalletActivation } from "./activationResolver";
-import { acceptHolderActivation, type HolderActivationResult } from "./holderAgent";
+import { acceptHolderActivation, type HolderActivationResult, resumeHolderAgentSession } from "./holderAgent";
 import { createPinSalt, hashPin, validateNewPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
@@ -161,7 +161,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const persistActivatedState = useCallback(
-    async (activation: ResolvedWalletActivation, credentialRecordId: string, holderConnectionId: string) => {
+    async (
+      activation: ResolvedWalletActivation,
+      credentialRecordId: string,
+      holderConnectionId: string,
+      mediatorConnectionId?: string,
+    ) => {
       await persistState({
         biometricEnabled: state.biometricEnabled,
         changePinAttempts: state.changePinAttempts,
@@ -177,6 +182,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           credentialRecordId,
           holderConnectionId,
           lockStatus: "locked",
+          mediatorConnectionId,
           studentId: activation.studentId,
           walletId: activation.walletId,
         },
@@ -217,6 +223,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           activation,
           completion.data.credentialRecordId,
           completion.data.holderConnectionId,
+          holderResult.data.mediatorConnectionId,
         );
         return { ok: true };
       }
@@ -342,6 +349,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
             credentialRecordId: completion.data.credentialRecordId,
             holderConnectionId: completion.data.holderConnectionId,
             lockStatus: "unlocked",
+            mediatorConnectionId: holderResult.data.mediatorConnectionId,
             studentId: pendingActivation.studentId,
             walletId: pendingActivation.walletId,
           },
@@ -415,6 +423,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         session: { ...state.session, lockStatus: "unlocked" },
       });
 
+      if (state.session.activationStatus === "activated" && state.session.walletId) {
+        void resumeHolderAgentSession(state.session.walletId);
+      }
+
       return { ok: true };
     },
     [persistState, state],
@@ -443,6 +455,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinSalt: state.pinSalt,
       session: { ...state.session, lockStatus: "unlocked" },
     });
+
+    if (state.session.activationStatus === "activated" && state.session.walletId) {
+      void resumeHolderAgentSession(state.session.walletId);
+    }
 
     return { ok: true };
   }, [persistState, state]);

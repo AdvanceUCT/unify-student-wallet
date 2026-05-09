@@ -29,6 +29,7 @@ export default function WalletLayout() {
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon("home-outline") }} />
       <Tabs.Screen name="credential" options={{ title: "Credential", tabBarIcon: tabIcon("id-card-outline") }} />
       <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon("qr-code-outline") }} />
+      <Tabs.Screen name="connections" options={{ title: "Connections", tabBarIcon: tabIcon("link-outline") }} />
       <Tabs.Screen name="payments" options={{ title: "Payments", tabBarIcon: tabIcon("receipt-outline") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon("settings-outline") }} />
     </Tabs>
