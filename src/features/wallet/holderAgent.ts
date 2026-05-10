@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 
 import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
-import { MEDIATOR_INVITATION_URL } from "./mediatorService";
+import { getMediatorInvitationUrl } from "./mediatorService";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
@@ -105,6 +105,7 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
   }
 
   try {
+    const mediatorInvitationUrl = getMediatorInvitationUrl();
     const [
       core,
       didcomm,
@@ -193,7 +194,7 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
             }),
           ],
         },
-        mediationRecipient: { mediatorInvitationUrl: MEDIATOR_INVITATION_URL },
+        mediationRecipient: { mediatorInvitationUrl },
         mediator: false,
         transports: {
           outbound: [new DidCommHttpOutboundTransport(), new DidCommWsOutboundTransport()],
