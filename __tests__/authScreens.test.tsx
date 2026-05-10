@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 
 import ActivateScreen from "@/app/(auth)/activate";
 import ChangePinScreen from "@/app/(auth)/change-pin";
@@ -22,23 +23,30 @@ jest.mock("expo-crypto", () => ({
 }));
 
 let mockWalletSession: {
+  acceptOffer: jest.Mock;
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: jest.Mock;
   confirmPinToDisableBiometric: jest.Mock;
-  continueMockSession: jest.Mock;
+  createWallet: jest.Mock;
+  declineOffer: jest.Mock;
   failedAttempts: number;
   hasPin: boolean;
   isHardLocked: boolean;
   isHydrated: boolean;
   lockWallet: jest.Mock;
-  prepareActivationFromLink: jest.Mock;
+  pendingOfferIds: string[];
+  processIncomingLink: jest.Mock;
   session: WalletSession;
   setBiometricEnabled: jest.Mock;
-  setPin: jest.Mock;
   signOut: jest.Mock;
+  stashedActivationUrl?: string;
   unlockWithBiometric: jest.Mock;
   unlockWithPin: jest.Mock;
+};
+let mockHolderAgent: {
+  error?: string;
+  status: "idle" | "initializing" | "ready" | "error";
 };
 let mockSearchParams: { oob?: string | string[]; token?: string | string[] } = {};
 
@@ -52,28 +60,33 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   useWalletSession: () => mockWalletSession,
 }));
 
+jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
+  useHolderAgent: () => mockHolderAgent,
+}));
+
 function createMockWalletSession() {
   mockWalletSession = {
+    acceptOffer: jest.fn().mockResolvedValue({ ok: true }),
     biometricAvailable: false,
     biometricEnabled: false,
     changePin: jest.fn().mockResolvedValue({ ok: true }),
     confirmPinToDisableBiometric: jest.fn().mockResolvedValue({ ok: true }),
-    continueMockSession: jest.fn(),
+    createWallet: jest.fn().mockResolvedValue({ ok: true }),
+    declineOffer: jest.fn().mockResolvedValue({ ok: true }),
     failedAttempts: 0,
     hasPin: false,
     isHardLocked: false,
     isHydrated: true,
     lockWallet: jest.fn(),
-    prepareActivationFromLink: jest.fn().mockResolvedValue({ ok: true }),
+    pendingOfferIds: [],
+    processIncomingLink: jest.fn().mockResolvedValue({ ok: true }),
     session: {
       authStatus: "signedIn",
-      activationStatus: "activated",
-      lockStatus: "locked",
-      studentId: "student-demo-001",
-      walletId: "wallet-demo-001",
+      lockStatus: "unlocked",
+      pendingOfferIds: [],
+      walletId: "wallet-uuid-001",
     },
     setBiometricEnabled: jest.fn().mockResolvedValue({ ok: true }),
-    setPin: jest.fn().mockResolvedValue({ ok: true }),
     signOut: jest.fn(),
     unlockWithBiometric: jest.fn().mockResolvedValue({ ok: true }),
     unlockWithPin: jest.fn().mockResolvedValue({ ok: true }),
@@ -89,31 +102,33 @@ function pressDigits(screen: ReturnType<typeof render>, digits: string[]) {
 describe("auth screens", () => {
   beforeEach(() => {
     createMockWalletSession();
+    mockHolderAgent = { status: "ready" };
     mockSearchParams = {};
+    jest.clearAllMocks();
   });
 
-  it("continues the mock session from sign-in", () => {
+  it("routes to PIN setup from the welcome screen", () => {
     const screen = render(<SignInScreen />);
 
-    fireEvent.press(screen.getByText("Continue"));
+    fireEvent.press(screen.getByText("Create wallet"));
 
-    expect(mockWalletSession.continueMockSession).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith("/(auth)/set-pin");
   });
 
   it("waits for an activation link when no token is open", () => {
     const screen = render(<ActivateScreen />);
 
-    expect(screen.getByText("Waiting for link")).toBeTruthy();
-    expect(screen.getByText("No activation link is open in this session.")).toBeTruthy();
-    expect(screen.queryByPlaceholderText("Activation code")).toBeNull();
+    expect(
+      screen.getByText("Open the activation link from your university to connect your credential."),
+    ).toBeTruthy();
   });
 
-  it("submits an activation link from route params", async () => {
+  it("processes an activation link from route params", async () => {
     mockSearchParams = { token: "demo-token" };
     render(<ActivateScreen />);
 
     await waitFor(() =>
-      expect(mockWalletSession.prepareActivationFromLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
+      expect(mockWalletSession.processIncomingLink).toHaveBeenCalledWith("unifywallet://activate?token=demo-token"),
     );
   });
 
@@ -122,16 +137,13 @@ describe("auth screens", () => {
 
     expect(screen.getByText("Set your PIN")).toBeTruthy();
 
-    // Step 1 — enter PIN
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
-    // Confirm step appears after auto-advance
     await waitFor(() => expect(screen.getByText("Confirm your PIN")).toBeTruthy());
 
-    // Step 2 — confirm PIN
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
-    await waitFor(() => expect(mockWalletSession.setPin).toHaveBeenCalledWith("123456", "123456"));
+    await waitFor(() => expect(mockWalletSession.createWallet).toHaveBeenCalledWith("123456", "123456"));
   });
 
   it("submits matching 4-digit PIN entries via the keypad submit action", async () => {
@@ -145,7 +157,7 @@ describe("auth screens", () => {
     pressDigits(screen, ["1", "3", "5", "7"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
 
-    await waitFor(() => expect(mockWalletSession.setPin).toHaveBeenCalledWith("1357", "1357"));
+    await waitFor(() => expect(mockWalletSession.createWallet).toHaveBeenCalledWith("1357", "1357"));
   });
 
   it("submits PIN unlock attempts via keypad", async () => {
@@ -190,19 +202,14 @@ describe("auth screens", () => {
 
     expect(screen.getByText("Enter current PIN")).toBeTruthy();
 
-    // Step 1: any valid 6-digit current PIN
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
-    // Step 2 appears
     await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
 
-    // Step 2: non-weak 6-digit PIN
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
-    // Step 3 appears
     await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
 
-    // Step 3: confirmation matches step 2
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
     await waitFor(() =>
@@ -230,14 +237,11 @@ describe("auth screens", () => {
   it("rejects a weak new PIN at step 2 and stays on that step", async () => {
     const screen = render(<ChangePinScreen />);
 
-    // Step 1
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
     await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
 
-    // Step 2: enter a sequential (weak) PIN
     pressDigits(screen, ["9", "8", "7", "6", "5", "4"]);
 
-    // Should not advance to step 3
     await waitFor(() => expect(screen.queryByText("Confirm new PIN")).toBeNull());
     expect(screen.getByText("Enter new PIN")).toBeTruthy();
   });

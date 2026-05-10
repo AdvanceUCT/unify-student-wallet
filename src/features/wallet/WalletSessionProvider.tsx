@@ -1,16 +1,20 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import { router, useSegments } from "expo-router";
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { parseActivationLink } from "./activationLinks";
-import { completeWalletActivation, resolveWalletActivation, type ResolvedWalletActivation } from "./activationResolver";
-import { acceptHolderActivation, type HolderActivationResult } from "./holderAgent";
+import { resolveWalletActivation } from "./activationResolver";
+import {
+  acceptCredentialOffer as agentAcceptCredentialOffer,
+  declineCredentialOffer as agentDeclineCredentialOffer,
+  receiveCredentialOffer as agentReceiveCredentialOffer,
+  subscribeToOfferReceived,
+} from "./holderAgent";
+import { useHolderAgent } from "./HolderAgentProvider";
 import { createPinSalt, hashPin, validateNewPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
 import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState } from "./sessionStorage";
 import {
-  DEMO_STUDENT_ID,
-  DEMO_WALLET_ID,
   hasStoredPin,
   isSessionHardLocked,
   MAX_CHANGE_PIN_ATTEMPTS,
@@ -25,32 +29,32 @@ type BiometricToggleResult =
   | { ok: true }
   | { ok: false; error: string }
   | { ok: false; error: string; requiresPin: true };
-type HolderActivationActionResult =
-  | { data: HolderActivationResult; ok: true }
-  | { error: string; ok: false };
 
 type WalletProviderState = PersistedWalletSessionState & {
   biometricAvailable: boolean;
   isHydrated: boolean;
-  pendingActivation?: ResolvedWalletActivation;
+  stashedActivationUrl?: string;
 };
 
 type WalletSessionContextValue = {
+  acceptOffer: (credentialRecordId: string) => Promise<ActionResult>;
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: (currentPin: string, newPin: string, confirmation: string) => Promise<ActionResult>;
-  continueMockSession: () => Promise<void>;
+  confirmPinToDisableBiometric: (pin: string) => Promise<ActionResult>;
+  createWallet: (pin: string, confirmation: string) => Promise<ActionResult>;
+  declineOffer: (credentialRecordId: string) => Promise<ActionResult>;
   failedAttempts: number;
   hasPin: boolean;
   isHardLocked: boolean;
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
-  prepareActivationFromLink: (url: string) => Promise<ActionResult>;
+  pendingOfferIds: string[];
+  processIncomingLink: (url: string) => Promise<ActionResult>;
   session: WalletSession;
-  confirmPinToDisableBiometric: (pin: string) => Promise<ActionResult>;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
-  setPin: (pin: string, confirmation: string) => Promise<ActionResult>;
   signOut: () => Promise<void>;
+  stashedActivationUrl?: string;
   unlockWithBiometric: () => Promise<ActionResult>;
   unlockWithPin: (pin: string) => Promise<ActionResult>;
 };
@@ -76,64 +80,41 @@ async function canUseBiometricUnlock() {
 }
 
 function lockHydratedSession(state: PersistedWalletSessionState): PersistedWalletSessionState {
-  if (state.session.authStatus === "signedIn" && state.session.activationStatus === "activated" && hasStoredPin(state)) {
+  if (state.session.authStatus === "signedIn" && state.session.walletId && hasStoredPin(state)) {
     return { ...state, session: { ...state.session, lockStatus: "locked" } };
   }
 
   return state;
 }
 
-function clearTransientActivation(state: PersistedWalletSessionState): PersistedWalletSessionState {
-  if (state.session.activationStatus !== "activationPending") {
-    return state;
-  }
-
-  return {
-    ...state,
-    session: {
-      authStatus: "signedIn",
-      activationStatus: "notActivated",
-      lockStatus: "locked",
-      studentId: state.session.studentId,
-    },
-  };
-}
-
-function actionErrorFromUnknown(error: unknown): ActionResult {
+function actionErrorFromUnknown(error: unknown, fallback: string): { ok: false; error: string } {
   if (error instanceof Error) {
     return { ok: false, error: error.message };
   }
 
-  return { ok: false, error: "Wallet activation could not be completed." };
-}
-
-async function tryAcceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationActionResult> {
-  try {
-    return { data: await acceptHolderActivation(activation), ok: true };
-  } catch (error) {
-    const result = actionErrorFromUnknown(error);
-    return result.ok ? { error: "Wallet activation could not be completed.", ok: false } : result;
-  }
+  return { ok: false, error: fallback };
 }
 
 export function WalletSessionProvider({ children }: PropsWithChildren) {
+  const { createWallet: createHolderWallet, resetAgent, resumeWallet } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
+  const stateRef = useRef<WalletProviderState>(initialState);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     let isMounted = true;
 
     async function hydrateSession() {
       const [storedState, biometricAvailable] = await Promise.all([loadWalletSessionState(), canUseBiometricUnlock()]);
-      const lockedState = lockHydratedSession(clearTransientActivation(storedState));
+      const lockedState = lockHydratedSession(storedState);
 
-      // Graceful fallback (User Story 2, req 4):
-      // If biometric was enabled but OS permission was revoked or hardware failed,
-      // silently disable it so the app falls back to PIN on next launch without crashing.
       const biometricStillValid = biometricAvailable && lockedState.biometricEnabled;
       const resolvedBiometricEnabled = biometricStillValid;
 
       if (isMounted) {
-        // If biometric was silently disabled due to revoked permission, persist the corrected state
         if (lockedState.biometricEnabled && !biometricAvailable) {
           const correctedState = { ...lockedState, biometricEnabled: false };
           await saveWalletSessionState(correctedState);
@@ -156,117 +137,85 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const persistState = useCallback(async (nextState: PersistedWalletSessionState) => {
+    stateRef.current = { ...stateRef.current, ...nextState };
     setState((current) => ({ ...current, ...nextState }));
     await saveWalletSessionState(nextState);
   }, []);
 
-  const persistActivatedState = useCallback(
-    async (activation: ResolvedWalletActivation, credentialRecordId: string, holderConnectionId: string) => {
-      await persistState({
-        biometricEnabled: state.biometricEnabled,
-        changePinAttempts: state.changePinAttempts,
-        failedAttempts: state.failedAttempts,
-        pinHash: state.pinHash,
-        pinSalt: state.pinSalt,
-        session: {
-          activationId: activation.activationId,
-          activationInvitationId: activation.invitationId,
-          activationSource: activation.activationSource,
-          authStatus: "signedIn",
-          activationStatus: "activated",
-          credentialRecordId,
-          holderConnectionId,
-          lockStatus: "locked",
-          studentId: activation.studentId,
-          walletId: activation.walletId,
-        },
-      });
+  const addPendingOfferId = useCallback(async (credentialRecordId: string) => {
+    const current = stateRef.current;
 
-      setState((current) => ({ ...current, pendingActivation: undefined }));
-    },
-    [
-      persistState,
-      state.biometricEnabled,
-      state.changePinAttempts,
-      state.failedAttempts,
-      state.pinHash,
-      state.pinSalt,
-    ],
-  );
+    if (current.session.pendingOfferIds.includes(credentialRecordId)) {
+      return;
+    }
 
-  const prepareResolvedActivation = useCallback(
-    async (activation: ResolvedWalletActivation): Promise<ActionResult> => {
-      if (hasStoredPin(state)) {
-        const holderResult = await tryAcceptHolderActivation(activation);
-
-        if (!holderResult.ok) {
-          return holderResult;
-        }
-
-        const completion = await completeWalletActivation(
-          activation,
-          holderResult.data.holderConnectionId,
-          holderResult.data.credentialRecordId,
-        );
-
-        if (!completion.ok) {
-          return completion;
-        }
-
-        await persistActivatedState(
-          activation,
-          completion.data.credentialRecordId,
-          completion.data.holderConnectionId,
-        );
-        return { ok: true };
-      }
-
-      await persistState({
-        biometricEnabled: state.biometricEnabled,
-        changePinAttempts: state.changePinAttempts,
-        failedAttempts: state.failedAttempts,
-        pinHash: state.pinHash,
-        pinSalt: state.pinSalt,
-        session: {
-          activationId: activation.activationId,
-          activationInvitationId: activation.invitationId,
-          activationSource: activation.activationSource,
-          authStatus: "signedIn",
-          activationStatus: "activationPending",
-          lockStatus: "locked",
-          studentId: activation.studentId,
-          walletId: activation.walletId,
-        },
-      });
-      setState((current) => ({ ...current, pendingActivation: activation }));
-
-      return { ok: true };
-    },
-    [persistActivatedState, persistState, state],
-  );
-
-  const continueMockSession = useCallback(async () => {
-    await persistState({
-      biometricEnabled: state.biometricEnabled,
-      changePinAttempts: state.changePinAttempts,
-      failedAttempts: 0,
-      pinHash: state.pinHash,
-      pinSalt: state.pinSalt,
+    const next: PersistedWalletSessionState = {
+      biometricEnabled: current.biometricEnabled,
+      changePinAttempts: current.changePinAttempts,
+      failedAttempts: current.failedAttempts,
+      pinHash: current.pinHash,
+      pinSalt: current.pinSalt,
       session: {
-        authStatus: "signedIn",
-        activationStatus: "notActivated",
-        lockStatus: "locked",
-        studentId: DEMO_STUDENT_ID,
+        ...current.session,
+        pendingOfferIds: [...current.session.pendingOfferIds, credentialRecordId],
       },
-    });
-  }, [persistState, state.biometricEnabled, state.changePinAttempts, state.pinHash, state.pinSalt]);
+    };
 
-  const prepareActivationFromLink = useCallback(
+    stateRef.current = { ...stateRef.current, ...next };
+    setState((curr) => ({ ...curr, ...next }));
+    await saveWalletSessionState(next);
+  }, []);
+
+  const removePendingOfferId = useCallback(async (credentialRecordId: string) => {
+    const current = stateRef.current;
+
+    if (!current.session.pendingOfferIds.includes(credentialRecordId)) {
+      return;
+    }
+
+    const next: PersistedWalletSessionState = {
+      biometricEnabled: current.biometricEnabled,
+      changePinAttempts: current.changePinAttempts,
+      failedAttempts: current.failedAttempts,
+      pinHash: current.pinHash,
+      pinSalt: current.pinSalt,
+      session: {
+        ...current.session,
+        pendingOfferIds: current.session.pendingOfferIds.filter((id) => id !== credentialRecordId),
+      },
+    };
+
+    stateRef.current = { ...stateRef.current, ...next };
+    setState((curr) => ({ ...curr, ...next }));
+    await saveWalletSessionState(next);
+  }, []);
+
+  useEffect(() => {
+    if (!state.session.walletId || state.session.lockStatus !== "unlocked") {
+      return;
+    }
+
+    const unsubscribe = subscribeToOfferReceived((record) => {
+      void addPendingOfferId(record.id);
+    });
+
+    return unsubscribe;
+  }, [addPendingOfferId, state.session.lockStatus, state.session.walletId]);
+
+  const processIncomingLink = useCallback(
     async (url: string): Promise<ActionResult> => {
       const parsed = parseActivationLink(url);
 
       if (!parsed.ok) {
         return parsed;
+      }
+
+      const current = stateRef.current;
+
+      if (!current.session.walletId) {
+        stateRef.current = { ...stateRef.current, stashedActivationUrl: url };
+        setState((curr) => ({ ...curr, stashedActivationUrl: url }));
+        return { ok: true };
       }
 
       const resolved = await resolveWalletActivation(parsed.data);
@@ -275,12 +224,17 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return resolved;
       }
 
-      return prepareResolvedActivation(resolved.data);
+      try {
+        await agentReceiveCredentialOffer(resolved.data.invitationUrl);
+        return { ok: true };
+      } catch (error) {
+        return actionErrorFromUnknown(error, "Credential offer could not be received.");
+      }
     },
-    [prepareResolvedActivation],
+    [],
   );
 
-  const setPin = useCallback(
+  const createWallet = useCallback(
     async (pin: string, confirmation: string): Promise<ActionResult> => {
       const validation = validatePinConfirmation(pin, confirmation);
 
@@ -291,83 +245,68 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       const pinSalt = createPinSalt();
       const pinHash = await hashPin(pin, pinSalt);
 
-      const nextPinState: PersistedWalletSessionState = {
-        biometricEnabled: state.biometricEnabled,
-        changePinAttempts: state.changePinAttempts,
+      let walletId: string;
+      try {
+        const result = await createHolderWallet();
+        walletId = result.walletId;
+      } catch (error) {
+        return actionErrorFromUnknown(error, "Wallet could not be created.");
+      }
+
+      const current = stateRef.current;
+      const nextState: PersistedWalletSessionState = {
+        biometricEnabled: current.biometricEnabled,
+        changePinAttempts: current.changePinAttempts,
         failedAttempts: 0,
         pinHash,
         pinSalt,
         session: {
-          ...state.session,
           authStatus: "signedIn",
           lockStatus: "unlocked",
-          studentId: state.session.studentId ?? DEMO_STUDENT_ID,
-          walletId: state.session.walletId ?? DEMO_WALLET_ID,
+          pendingOfferIds: current.session.pendingOfferIds,
+          walletId,
         },
       };
 
-      if (state.session.activationStatus === "activationPending") {
-        const pendingActivation = state.pendingActivation;
+      await persistState(nextState);
 
-        if (!pendingActivation) {
-          return { ok: false, error: "Open the activation link again to finish credential storage." };
-        }
+      const stashedUrl = current.stashedActivationUrl;
 
-        setState((current) => ({ ...current, ...nextPinState }));
-
-        const holderResult = await tryAcceptHolderActivation(pendingActivation);
-
-        if (!holderResult.ok) {
-          return holderResult;
-        }
-
-        const completion = await completeWalletActivation(
-          pendingActivation,
-          holderResult.data.holderConnectionId,
-          holderResult.data.credentialRecordId,
-        );
-
-        if (!completion.ok) {
-          return completion;
-        }
-
-        const activatedState: PersistedWalletSessionState = {
-          ...nextPinState,
-          session: {
-            ...nextPinState.session,
-            activationId: pendingActivation.activationId,
-            activationInvitationId: pendingActivation.invitationId,
-            activationSource: pendingActivation.activationSource,
-            activationStatus: "activated",
-            credentialRecordId: completion.data.credentialRecordId,
-            holderConnectionId: completion.data.holderConnectionId,
-            lockStatus: "unlocked",
-            studentId: pendingActivation.studentId,
-            walletId: pendingActivation.walletId,
-          },
-        };
-
-        await saveWalletSessionState(activatedState);
-        setState((current) => ({
-          ...current,
-          ...activatedState,
-          pendingActivation: undefined,
-        }));
-
-        return { ok: true };
+      if (stashedUrl) {
+        stateRef.current = { ...stateRef.current, stashedActivationUrl: undefined };
+        setState((curr) => ({ ...curr, stashedActivationUrl: undefined }));
+        void processIncomingLink(stashedUrl);
       }
-
-      await persistState({
-        ...nextPinState,
-        session: {
-          ...nextPinState.session,
-          activationStatus: "activated",
-        },
-      });
 
       return { ok: true };
     },
-    [persistState, state],
+    [createHolderWallet, persistState, processIncomingLink],
+  );
+
+  const acceptOffer = useCallback(
+    async (credentialRecordId: string): Promise<ActionResult> => {
+      try {
+        await agentAcceptCredentialOffer(credentialRecordId);
+        await removePendingOfferId(credentialRecordId);
+        return { ok: true };
+      } catch (error) {
+        return actionErrorFromUnknown(error, "Credential offer could not be accepted.");
+      }
+    },
+    [removePendingOfferId],
+  );
+
+  const declineOffer = useCallback(
+    async (credentialRecordId: string): Promise<ActionResult> => {
+      try {
+        await agentDeclineCredentialOffer(credentialRecordId);
+        await removePendingOfferId(credentialRecordId);
+        return { ok: true };
+      } catch (error) {
+        return actionErrorFromUnknown(error, "Credential offer could not be declined.");
+      }
+    },
+    [removePendingOfferId],
   );
 
   const unlockWithPin = useCallback(
@@ -406,6 +345,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         };
       }
 
+      if (state.session.walletId) {
+        try {
+          await resumeWallet(state.session.walletId);
+        } catch (error) {
+          return actionErrorFromUnknown(error, "Wallet could not be resumed.");
+        }
+      }
+
       await persistState({
         biometricEnabled: state.biometricEnabled,
         changePinAttempts: state.changePinAttempts,
@@ -417,7 +364,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       return { ok: true };
     },
-    [persistState, state],
+    [persistState, resumeWallet, state],
   );
 
   const unlockWithBiometric = useCallback(async (): Promise<ActionResult> => {
@@ -435,6 +382,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       return { ok: false, error: "Biometric unlock was not completed." };
     }
 
+    if (state.session.walletId) {
+      try {
+        await resumeWallet(state.session.walletId);
+      } catch (error) {
+        return actionErrorFromUnknown(error, "Wallet could not be resumed.");
+      }
+    }
+
     await persistState({
       biometricEnabled: state.biometricEnabled,
       changePinAttempts: state.changePinAttempts,
@@ -445,11 +400,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     });
 
     return { ok: true };
-  }, [persistState, state]);
+  }, [persistState, resumeWallet, state]);
 
   const setBiometricEnabled = useCallback(
     async (enabled: boolean): Promise<BiometricToggleResult> => {
-      // Hardware/enrollment check before allowing enable
       if (enabled) {
         const available = await canUseBiometricUnlock();
 
@@ -460,7 +414,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           };
         }
 
-        // Prompt biometric verification before saving the preference
         const result = await LocalAuthentication.authenticateAsync({
           cancelLabel: "Cancel",
           disableDeviceFallback: true,
@@ -468,7 +421,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         });
 
         if (!result.success) {
-          // Handle OS-level denial vs. user cancellation vs. sensor lockout
           const errorCode = (result as { error?: string }).error;
 
           if (errorCode === "lockout" || errorCode === "lockout_permanent") {
@@ -500,7 +452,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: true };
       }
 
-      // Disabling: signal that PIN verification is required — the UI will show the modal
       return { ok: false, error: "PIN required to disable biometric unlock.", requiresPin: true };
     },
     [persistState, state],
@@ -536,7 +487,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: false, error: "No PIN is set. Please set a PIN first." };
       }
 
-      // Enforce brute-force limit for the change-PIN flow (3 attempts)
       if (state.changePinAttempts >= MAX_CHANGE_PIN_ATTEMPTS) {
         return {
           ok: false,
@@ -544,7 +494,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         };
       }
 
-      // Step 1: Verify current PIN
       const isCurrentPinValid = await verifyPin(currentPin, state.pinSalt, state.pinHash);
 
       if (!isCurrentPinValid) {
@@ -571,24 +520,20 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         };
       }
 
-      // Step 2: Validate new PIN structure and weak-PIN check
       const newPinValidation = validateNewPin(newPin);
       if (!newPinValidation.ok) {
         return newPinValidation;
       }
 
-      // Step 3: Confirm new PIN matches
       if (newPin !== confirmation) {
         return { ok: false, error: "New PIN entries do not match." };
       }
 
-      // Step 4: Reject if new PIN is the same as current PIN
       const isSameAsCurrent = await verifyPin(newPin, state.pinSalt, state.pinHash);
       if (isSameAsCurrent) {
         return { ok: false, error: "New PIN must be different from your current PIN." };
       }
 
-      // Step 5: Hash with a fresh salt and overwrite securely
       const newSalt = createPinSalt();
       const newHash = await hashPin(newPin, newSalt);
 
@@ -619,6 +564,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
+    resetAgent();
     setState((current) => ({
       ...current,
       biometricEnabled: false,
@@ -627,37 +573,42 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinHash: undefined,
       pinSalt: undefined,
       session: signedOutSession,
+      stashedActivationUrl: undefined,
     }));
-  }, []);
+  }, [resetAgent]);
 
   const value = useMemo<WalletSessionContextValue>(
     () => ({
+      acceptOffer,
       biometricAvailable: state.biometricAvailable,
       biometricEnabled: state.biometricEnabled,
       changePin,
       confirmPinToDisableBiometric,
-      continueMockSession,
+      createWallet,
+      declineOffer,
       failedAttempts: state.failedAttempts,
       hasPin: hasStoredPin(state),
       isHardLocked: isSessionHardLocked(state.failedAttempts),
       isHydrated: state.isHydrated,
       lockWallet,
-      prepareActivationFromLink,
+      pendingOfferIds: state.session.pendingOfferIds,
+      processIncomingLink,
       session: state.session,
       setBiometricEnabled,
-      setPin,
       signOut,
+      stashedActivationUrl: state.stashedActivationUrl,
       unlockWithBiometric,
       unlockWithPin,
     }),
     [
+      acceptOffer,
       changePin,
       confirmPinToDisableBiometric,
-      continueMockSession,
+      createWallet,
+      declineOffer,
       lockWallet,
-      prepareActivationFromLink,
+      processIncomingLink,
       setBiometricEnabled,
-      setPin,
       signOut,
       state,
       unlockWithBiometric,

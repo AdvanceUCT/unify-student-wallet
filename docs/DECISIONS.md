@@ -94,9 +94,9 @@ Decision: wallet, issuer, verifier, admin, security, workflow, dependency, and e
 
 Current implementation:
 
-- A `security-sensitive-review` workflow job can fail when sensitive paths change.
-- The job is currently advisory because required status checks are not enabled.
-- The team should still require two human approvals before merging sensitive changes.
+- There is no separate GitHub Actions job or required check for this review gate.
+- The team should require two human approvals before merging sensitive changes.
+- Review attention should be added explicitly for wallet, issuer, verifier, admin, security, workflow, dependency, and environment changes.
 
 ## 8. Use GitHub Issues and One Project for Delivery
 

@@ -6,8 +6,8 @@ import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { mockStudentProfile } from "@/src/lib/api/mockStudent";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -24,6 +24,7 @@ export default function SettingsScreen() {
     setBiometricEnabled,
     signOut,
   } = useWalletSession();
+  const holderAgent = useHolderAgent();
   const [message, setMessage] = useState<string | null>(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pinPhase, setPinPhase] = useState<PinVerificationPhase>("idle");
@@ -80,15 +81,24 @@ export default function SettingsScreen() {
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Settings</Text>
           <Text style={typography.title}>Wallet details</Text>
-          <Text style={typography.body}>Manage the demo wallet state and account context.</Text>
+          <Text style={typography.body}>Manage the wallet state and account context.</Text>
         </View>
 
         <View style={{ gap: spacing.md }}>
-          <InfoRow label="Name" value={mockStudentProfile.name} />
-          <InfoRow label="Institution" value={mockStudentProfile.institution} />
-          <InfoRow label="Environment" value="Demo" />
-          <InfoRow label="Wallet" value={session.walletId ?? "Not activated"} />
+          <InfoRow label="Wallet" value={session.walletId ?? "-"} />
           <InfoRow label="Status" value={session.lockStatus === "locked" ? "Locked" : "Unlocked"} />
+        </View>
+
+        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
+          <Text style={typography.sectionTitle}>Holder agent</Text>
+          <InfoRow
+            label="Status"
+            value={holderAgent.status}
+            tone={holderAgent.status === "error" ? "warning" : "default"}
+          />
+          {holderAgent.error ? (
+            <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{holderAgent.error}</Text>
+          ) : null}
         </View>
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>

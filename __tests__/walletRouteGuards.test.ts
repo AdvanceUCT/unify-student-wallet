@@ -4,38 +4,32 @@ import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 function session(overrides: Partial<WalletSession>): WalletSession {
   return {
     authStatus: "signedOut",
-    activationStatus: "notActivated",
     lockStatus: "locked",
+    pendingOfferIds: [],
     ...overrides,
   };
 }
 
 describe("wallet route guards", () => {
-  it("routes signed-out users to sign-in", () => {
+  it("routes users without a wallet to welcome", () => {
     const access = getWalletRouteAccess(session({}), false);
 
-    expect(access).toBe("signIn");
+    expect(access).toBe("welcome");
     expect(getWalletRouteHref(access)).toBe("/(auth)/sign-in");
     expect(isRouteAllowedForAccess(["(auth)", "sign-in"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "activate"], access)).toBe(true);
   });
 
-  it("routes signed-in unactivated users to activation", () => {
-    const access = getWalletRouteAccess(session({ authStatus: "signedIn" }), false);
-
-    expect(access).toBe("activation");
-    expect(getWalletRouteHref(access)).toBe("/(auth)/activate");
-  });
-
-  it("routes activated users without a PIN to PIN setup", () => {
-    const access = getWalletRouteAccess(session({ authStatus: "signedIn", activationStatus: "activated" }), false);
+  it("routes users without a wallet but with a stored PIN to PIN setup", () => {
+    const access = getWalletRouteAccess(session({}), true);
 
     expect(access).toBe("pinSetup");
     expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
   });
 
-  it("routes activation-pending users without a PIN to PIN setup", () => {
+  it("routes users with a wallet but no PIN to PIN setup", () => {
     const access = getWalletRouteAccess(
-      session({ authStatus: "signedIn", activationStatus: "activationPending" }),
+      session({ authStatus: "signedIn", walletId: "wallet-uuid" }),
       false,
     );
 
@@ -43,41 +37,42 @@ describe("wallet route guards", () => {
     expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
   });
 
-  it("keeps activation-pending users on PIN setup while credential storage completes", () => {
+  it("routes users with a wallet and PIN but locked to unlock", () => {
     const access = getWalletRouteAccess(
-      session({ authStatus: "signedIn", activationStatus: "activationPending" }),
+      session({ authStatus: "signedIn", walletId: "wallet-uuid", lockStatus: "locked" }),
       true,
     );
 
-    expect(access).toBe("pinSetup");
-    expect(getWalletRouteHref(access)).toBe("/(auth)/set-pin");
-  });
-
-  it("routes activated locked users with a PIN to unlock", () => {
-    const access = getWalletRouteAccess(session({ authStatus: "signedIn", activationStatus: "activated" }), true);
-
     expect(access).toBe("unlock");
     expect(getWalletRouteHref(access)).toBe("/(auth)/unlock");
+    expect(isRouteAllowedForAccess(["(auth)", "unlock"], access)).toBe(true);
   });
 
-  it("allows wallet tabs only after activation and unlock", () => {
+  it("allows wallet tabs once the wallet is unlocked", () => {
     const access = getWalletRouteAccess(
-      session({ authStatus: "signedIn", activationStatus: "activated", lockStatus: "unlocked" }),
+      session({ authStatus: "signedIn", walletId: "wallet-uuid", lockStatus: "unlocked" }),
       true,
     );
 
     expect(access).toBe("wallet");
     expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(true);
-    expect(isRouteAllowedForAccess(["(auth)", "unlock"], access)).toBe(false);
+    expect(isRouteAllowedForAccess(["(wallet)", "offers"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "change-pin"], access)).toBe(true);
   });
 
-  it("allows the change-pin screen for unlocked wallet access", () => {
-    const access = getWalletRouteAccess(
-      session({ authStatus: "signedIn", activationStatus: "activated", lockStatus: "unlocked" }),
+  it("allows the activate route at every access level so links can route through", () => {
+    const welcome = getWalletRouteAccess(session({}), false);
+    const pinSetup = getWalletRouteAccess(
+      session({ authStatus: "signedIn", walletId: "wallet-uuid" }),
+      false,
+    );
+    const unlocked = getWalletRouteAccess(
+      session({ authStatus: "signedIn", walletId: "wallet-uuid", lockStatus: "locked" }),
       true,
     );
 
-    expect(access).toBe("wallet");
-    expect(isRouteAllowedForAccess(["(auth)", "change-pin"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "activate"], welcome)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "activate"], pinSetup)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "activate"], unlocked)).toBe(true);
   });
 });

@@ -15,13 +15,11 @@ import { typography } from "@/src/theme/typography";
 type Step = "enter" | "confirm";
 
 export default function SetPinScreen() {
-  const { session, setPin } = useWalletSession();
+  const { createWallet } = useWalletSession();
   const [step, setStep] = useState<Step>("enter");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const firstPinRef = useRef("");
-
-  const isActivationPending = session.activationStatus === "activationPending";
 
   const {
     append: appendFirst,
@@ -58,7 +56,7 @@ export default function SetPinScreen() {
 
   async function handleConfirm(confirmation: string) {
     setIsSubmitting(true);
-    const result = await setPin(firstPinRef.current, confirmation);
+    const result = await createWallet(firstPinRef.current, confirmation);
     setIsSubmitting(false);
 
     if (!result.ok) {
@@ -83,9 +81,7 @@ export default function SetPinScreen() {
           <Text style={typography.title}>{isEnterStep ? "Set your PIN" : "Confirm your PIN"}</Text>
           <Text style={typography.body}>
             {isEnterStep
-              ? isActivationPending
-                ? "Set a 4 to 6 digit PIN before the credential is accepted into local wallet storage."
-                : "Create a 4 to 6 digit PIN to protect this wallet."
+              ? "Create a 4 to 6 digit PIN to protect this wallet."
               : "Re-enter your PIN to confirm."}
           </Text>
         </View>

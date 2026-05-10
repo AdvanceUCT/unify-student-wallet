@@ -1,22 +1,13 @@
 import type { WalletSession } from "./sessionTypes";
 
-export type WalletRouteAccess = "signIn" | "activation" | "pinSetup" | "unlock" | "wallet";
+export type WalletRouteAccess = "welcome" | "pinSetup" | "unlock" | "wallet";
 
 export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): WalletRouteAccess {
-  if (session.authStatus === "signedOut") {
-    return "signIn";
-  }
-
-  if (session.activationStatus === "notActivated") {
-    return "activation";
-  }
-
-  if (session.activationStatus === "activationPending") {
-    return "pinSetup";
-  }
-
-  if (session.activationStatus !== "activated") {
-    return "activation";
+  if (!session.walletId) {
+    if (hasPin) {
+      return "pinSetup";
+    }
+    return "welcome";
   }
 
   if (!hasPin) {
@@ -32,10 +23,8 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
 
 export function getWalletRouteHref(access: WalletRouteAccess) {
   switch (access) {
-    case "signIn":
+    case "welcome":
       return "/(auth)/sign-in" as const;
-    case "activation":
-      return "/(auth)/activate" as const;
     case "pinSetup":
       return "/(auth)/set-pin" as const;
     case "unlock":
@@ -49,18 +38,18 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
   const lastSegment = segments.at(-1);
 
   switch (access) {
-    case "signIn":
-      return lastSegment === "sign-in";
-    case "activation":
-      return lastSegment === "activate";
+    case "welcome":
+      return lastSegment === "sign-in" || lastSegment === "activate";
     case "pinSetup":
-      return lastSegment === "set-pin";
+      return lastSegment === "set-pin" || lastSegment === "activate";
     case "unlock":
-      return lastSegment === "unlock";
+      return lastSegment === "unlock" || lastSegment === "activate";
     case "wallet":
       return (
         segments.includes("(wallet)") ||
-        ["home", "credential", "scan", "payments", "settings", "change-pin"].includes(lastSegment ?? "")
+        ["home", "credential", "scan", "payments", "settings", "offers", "change-pin", "activate"].includes(
+          lastSegment ?? "",
+        )
       );
   }
 }

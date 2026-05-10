@@ -22,6 +22,10 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   WalletSessionProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
+jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
+  HolderAgentProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
 jest.mock("@/src/features/wallet/AutoLockProvider", () => ({
   AutoLockProvider: ({ children }: { children: ReactNode }) =>
     mockReact.createElement(

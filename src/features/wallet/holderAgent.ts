@@ -1,23 +1,35 @@
+import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
 import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
-import type { ResolvedWalletActivation } from "./activationResolver";
+import { MEDIATOR_INVITATION_URL } from "./mediatorService";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
 
-export type HolderActivationResult = {
-  credentialRecordId: string;
-  holderAgentInitialized: boolean;
-  holderConnectionId: string;
+export type HolderAgentConfig = {
+  walletId: string;
 };
 
 type Constructor<T> = new (...args: unknown[]) => T;
 type DynamicModule = Record<string, unknown>;
-type HolderAgent = {
+
+type CredentialRecord = {
+  id: string;
+  state?: string;
+  connectionId?: string;
+  credentialAttributes?: { name: string; value: string }[];
+};
+
+export type HolderAgent = {
   didcomm?: {
-    credentials?: { getAll?: () => Promise<Array<{ id?: string }>> };
+    credentials?: {
+      acceptOffer?: (options: { credentialRecordId: string }) => Promise<unknown>;
+      declineOffer?: (credentialRecordId: string) => Promise<unknown>;
+      getAll?: () => Promise<CredentialRecord[]>;
+      getById?: (id: string) => Promise<CredentialRecord>;
+    };
     oob?: {
       receiveInvitationFromUrl?: (
         invitationUrl: string,
@@ -26,8 +38,33 @@ type HolderAgent = {
     };
     registerOutboundTransport?: (transport: unknown) => void;
   };
+  events?: {
+    on?: (eventType: string, handler: (event: unknown) => void) => void;
+    off?: (eventType: string, handler: (event: unknown) => void) => void;
+  };
   initialize: () => Promise<void>;
 };
+
+export type CreateHolderWalletResult = {
+  walletId: string;
+  agent: HolderAgent | null;
+};
+
+let agentRef: HolderAgent | null = null;
+let activeWalletId: string | undefined;
+
+export function getActiveHolderAgent(): HolderAgent | null {
+  return agentRef;
+}
+
+export function getActiveWalletId(): string | undefined {
+  return activeWalletId;
+}
+
+export function clearActiveHolderAgent() {
+  agentRef = null;
+  activeWalletId = undefined;
+}
 
 async function getOrCreateHolderWalletKey(walletId: string, generateRawKey: () => string) {
   const storageKey = `${HOLDER_WALLET_KEY_PREFIX}.${walletId}`;
@@ -52,14 +89,6 @@ async function loadBcovrinGenesisTransactions() {
   return response.text();
 }
 
-function fallbackActivationResult(activation: ResolvedWalletActivation): HolderActivationResult {
-  return {
-    credentialRecordId: `credential-${activation.activationId}`,
-    holderAgentInitialized: false,
-    holderConnectionId: `connection-${activation.invitationId}`,
-  };
-}
-
 function getConstructor<T>(moduleExports: DynamicModule, exportName: string): Constructor<T> {
   const exportedValue = moduleExports[exportName];
 
@@ -70,9 +99,9 @@ function getConstructor<T>(moduleExports: DynamicModule, exportName: string): Co
   return exportedValue as Constructor<T>;
 }
 
-export async function acceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationResult> {
+export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent | null> {
   if (Platform.OS === "web") {
-    return fallbackActivationResult(activation);
+    return null;
   }
 
   try {
@@ -83,7 +112,6 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       askarModule,
       askarBindings,
       anoncredsModule,
-      anoncredsBindings,
       indyVdrModule,
       indyVdrBindings,
     ] = await Promise.all([
@@ -93,12 +121,11 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       import("@credo-ts/askar"),
       import("@openwallet-foundation/askar-react-native"),
       import("@credo-ts/anoncreds"),
-      import("@hyperledger/anoncreds-react-native"),
       import("@credo-ts/indy-vdr"),
       import("@hyperledger/indy-vdr-react-native"),
     ]);
 
-    const walletKey = await getOrCreateHolderWalletKey(activation.walletId, () => {
+    const walletKey = await getOrCreateHolderWalletKey(config.walletId, () => {
       const rawKey = (askarBindings as DynamicModule).askar as { storeGenerateRawKey?: (options: object) => string } | undefined;
       const generatedKey = rawKey?.storeGenerateRawKey?.({});
 
@@ -133,8 +160,7 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
     const AnonCredsModule = getConstructor<unknown>(anoncredsExports, "AnonCredsModule");
     const IndyVdrModule = getConstructor<unknown>(indyVdrExports, "IndyVdrModule");
     const IndyVdrAnonCredsRegistry = getConstructor<unknown>(indyVdrExports, "IndyVdrAnonCredsRegistry");
-    const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { ContentApproved?: unknown } | undefined)
-      ?.ContentApproved;
+    const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { Never?: unknown } | undefined)?.Never;
 
     if (!autoAcceptCredential) {
       throw new Error("Credo auto-accept credential enum is unavailable.");
@@ -147,7 +173,7 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
       askar: new AskarModule({
         askar: askarBindings.askar,
         store: {
-          id: activation.walletId,
+          id: config.walletId,
           key: walletKey,
           keyDerivationMethod: "raw",
         },
@@ -167,9 +193,7 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
             }),
           ],
         },
-        mediationRecipient: activation.mediatorInvitationUrl
-          ? { mediatorInvitationUrl: activation.mediatorInvitationUrl }
-          : false,
+        mediationRecipient: { mediatorInvitationUrl: MEDIATOR_INVITATION_URL },
         mediator: false,
         transports: {
           outbound: [new DidCommHttpOutboundTransport(), new DidCommWsOutboundTransport()],
@@ -197,28 +221,118 @@ export async function acceptHolderActivation(activation: ResolvedWalletActivatio
     });
 
     await agent.initialize();
-
-    const autoAcceptIssuerConnection = activation.activationSource === "oob";
-    const invitationRecord = await agent.didcomm?.oob?.receiveInvitationFromUrl?.(activation.invitationUrl, {
-      autoAcceptConnection: autoAcceptIssuerConnection,
-      autoAcceptInvitation: autoAcceptIssuerConnection,
-      label: "UNIFY Student Wallet",
-    });
-    const credentialRecords = (await agent.didcomm?.credentials?.getAll?.()) ?? [];
-
-    return {
-      credentialRecordId: credentialRecords[0]?.id ?? `credential-${activation.activationId}`,
-      holderAgentInitialized: true,
-      holderConnectionId:
-        invitationRecord?.connectionRecord?.id ??
-        invitationRecord?.outOfBandRecord?.id ??
-        `connection-${activation.invitationId}`,
-    };
+    agentRef = agent;
+    activeWalletId = config.walletId;
+    return agent;
   } catch (error) {
     if (process.env.NODE_ENV === "test") {
-      return fallbackActivationResult(activation);
+      return null;
     }
 
     throw error;
   }
+}
+
+export async function createLocalHolderWallet(): Promise<CreateHolderWalletResult> {
+  const walletId = Crypto.randomUUID();
+  const agent = await initializeHolderAgent({ walletId });
+
+  return { walletId, agent };
+}
+
+export async function resumeHolderAgentSession(walletId: string): Promise<HolderAgent | null> {
+  if (agentRef && activeWalletId === walletId) {
+    return agentRef;
+  }
+
+  return initializeHolderAgent({ walletId });
+}
+
+export async function receiveCredentialOffer(invitationUrl: string): Promise<void> {
+  if (!agentRef) {
+    throw new Error("Wallet has not been created yet.");
+  }
+
+  const receiveInvitationFromUrl = agentRef.didcomm?.oob?.receiveInvitationFromUrl;
+
+  if (!receiveInvitationFromUrl) {
+    throw new Error("Credo holder agent is missing the OOB receive API.");
+  }
+
+  await receiveInvitationFromUrl(invitationUrl, {
+    autoAcceptConnection: true,
+    autoAcceptInvitation: true,
+    label: "UNIFY Student Wallet",
+  });
+}
+
+export async function acceptCredentialOffer(credentialRecordId: string): Promise<void> {
+  if (!agentRef) {
+    throw new Error("Wallet has not been created yet.");
+  }
+
+  const acceptOffer = agentRef.didcomm?.credentials?.acceptOffer;
+
+  if (!acceptOffer) {
+    throw new Error("Credo holder agent is missing the credentials API.");
+  }
+
+  await acceptOffer({ credentialRecordId });
+}
+
+export async function declineCredentialOffer(credentialRecordId: string): Promise<void> {
+  if (!agentRef) {
+    throw new Error("Wallet has not been created yet.");
+  }
+
+  const declineOffer = agentRef.didcomm?.credentials?.declineOffer;
+
+  if (!declineOffer) {
+    throw new Error("Credo holder agent is missing the credentials API.");
+  }
+
+  await declineOffer(credentialRecordId);
+}
+
+export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
+  if (!agentRef) {
+    return null;
+  }
+
+  const getById = agentRef.didcomm?.credentials?.getById;
+
+  if (!getById) {
+    return null;
+  }
+
+  return getById(credentialRecordId);
+}
+
+export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;
+
+export function subscribeToOfferReceived(handler: CredentialOfferReceivedHandler): () => void {
+  if (!agentRef?.events?.on) {
+    return () => undefined;
+  }
+
+  const on = agentRef.events.on;
+  const off = agentRef.events.off;
+  const eventType = "DidCommCredentialStateChanged";
+  const listener = (event: unknown) => {
+    const payload = (event as { payload?: { credentialExchangeRecord?: CredentialRecord; previousState?: string | null } })
+      ?.payload;
+    const record = payload?.credentialExchangeRecord;
+
+    if (record && record.state === "offer-received") {
+      handler(record);
+    }
+  };
+
+  on.call(agentRef.events, eventType, listener);
+
+  return () => {
+    if (off && agentRef?.events) {
+      off.call(agentRef.events, eventType, listener);
+    }
+  };
 }

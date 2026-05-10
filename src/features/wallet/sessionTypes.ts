@@ -1,17 +1,10 @@
 export type WalletAuthStatus = "signedOut" | "signedIn";
-export type WalletActivationStatus = "notActivated" | "activationPending" | "activated";
 export type WalletLockStatus = "locked" | "unlocked";
 
 export type WalletSession = {
-  activationId?: string;
-  activationInvitationId?: string;
-  activationSource?: "token" | "oob";
   authStatus: WalletAuthStatus;
-  activationStatus: WalletActivationStatus;
-  credentialRecordId?: string;
-  holderConnectionId?: string;
   lockStatus: WalletLockStatus;
-  studentId?: string;
+  pendingOfferIds: string[];
   walletId?: string;
 };
 
@@ -29,13 +22,10 @@ export const MAX_CHANGE_PIN_ATTEMPTS = 3;
 export const MIN_PIN_LENGTH = 4;
 export const MAX_PIN_LENGTH = 6;
 
-export const DEMO_STUDENT_ID = "student-demo-001";
-export const DEMO_WALLET_ID = "wallet-demo-001";
-
 export const signedOutSession: WalletSession = {
   authStatus: "signedOut",
-  activationStatus: "notActivated",
   lockStatus: "locked",
+  pendingOfferIds: [],
 };
 
 export function hasStoredPin(state: Pick<PersistedWalletSessionState, "pinHash" | "pinSalt">) {

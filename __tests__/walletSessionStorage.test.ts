@@ -10,16 +10,10 @@ describe("wallet session storage serialization", () => {
       pinHash: "hash",
       pinSalt: "salt",
       session: {
-        activationId: "activation-demo",
-        activationInvitationId: "unify-oob-demo",
-        activationSource: "token",
         authStatus: "signedIn",
-        activationStatus: "activated",
-        credentialRecordId: "credential-demo",
-        holderConnectionId: "connection-demo",
         lockStatus: "unlocked",
-        studentId: "student-demo-001",
-        walletId: "wallet-demo-001",
+        pendingOfferIds: ["offer-1", "offer-2"],
+        walletId: "wallet-uuid-001",
       },
     };
 
@@ -31,22 +25,21 @@ describe("wallet session storage serialization", () => {
     expect(parseWalletSessionState("not-json").session.authStatus).toBe("signedOut");
   });
 
-  it("defaults failedAttempts to 0 when missing from stored data", () => {
+  it("defaults pendingOfferIds and failedAttempts when missing from stored data", () => {
     const legacyState = {
       biometricEnabled: false,
       pinHash: "hash",
       pinSalt: "salt",
       session: {
         authStatus: "signedIn",
-        activationStatus: "activated",
         lockStatus: "locked",
-        studentId: "student-demo-001",
-        walletId: "wallet-demo-001",
+        walletId: "wallet-uuid-001",
       },
     };
 
     const parsed = parseWalletSessionState(JSON.stringify(legacyState));
     expect(parsed.failedAttempts).toBe(0);
+    expect(parsed.session.pendingOfferIds).toEqual([]);
   });
 
   it("preserves non-zero failedAttempts through round-trip", () => {
@@ -58,10 +51,9 @@ describe("wallet session storage serialization", () => {
       pinSalt: "salt",
       session: {
         authStatus: "signedIn",
-        activationStatus: "activated",
         lockStatus: "locked",
-        studentId: "student-demo-001",
-        walletId: "wallet-demo-001",
+        pendingOfferIds: [],
+        walletId: "wallet-uuid-001",
       },
     };
 
@@ -74,14 +66,10 @@ describe("wallet session storage serialization", () => {
       changePinAttempts: 0,
       failedAttempts: 0,
       session: {
-        activationId: "activation-demo",
-        activationInvitationId: "unify-oob-demo",
-        activationSource: "oob",
         authStatus: "signedIn",
-        activationStatus: "activationPending",
         lockStatus: "locked",
-        studentId: "student-demo-001",
-        walletId: "wallet-demo-001",
+        pendingOfferIds: [],
+        walletId: "wallet-uuid-001",
       },
     };
 

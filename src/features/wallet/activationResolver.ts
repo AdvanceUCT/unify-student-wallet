@@ -1,30 +1,14 @@
-import { Platform } from "react-native";
-
-import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
 import type { ActivationLinkRequest } from "./activationLinks";
-
-// Mock adapter boundary for AD-39 until the issuer/activation service exists.
-// Replace these functions with HTTP calls to /wallet/activation/resolve and
-// /wallet/activation/complete without changing the wallet session flow.
 
 export type ResolvedWalletActivation = {
   activationId: string;
   activationSource: ActivationLinkRequest["kind"];
   createdAt: string;
+  credentialExchangeId?: string;
+  expiresAt?: string;
   invitationId: string;
   invitationUrl: string;
   issuerLabel: string;
-  ledgerName: "BCovrin Test";
-  mediatorInvitationUrl?: string;
-  studentId: string;
-  walletId: string;
-};
-
-export type CompletedWalletActivation = {
-  activationId: string;
-  completedAt: string;
-  credentialRecordId: string;
-  holderConnectionId: string;
 };
 
 export type ActivationResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -38,39 +22,41 @@ type RemoteResolveResponse = {
   activationId: string;
   activationSource?: "token";
   createdAt: string;
+  credentialExchangeId?: string;
   expiresAt?: string;
   invitationId: string;
   invitationUrl: string;
   issuerLabel: string;
-  ledger?: { name?: string };
-  ledgerName?: "BCovrin Test";
-  mediatorInvitationUrl?: string;
-  studentId: string;
-  walletId: string;
 };
 
-type RemoteCompleteResponse = {
-  activatedAt?: string;
-  activationId: string;
-  completedAt?: string;
-  credentialRecordId: string;
-  holderConnectionId: string;
+type ActivationApi = {
+  resolvePath: string;
+  serviceName: string;
+  unavailableMessage: string;
+  url: string;
 };
 
-const DEFAULT_WEB_ADMIN_API_BASE_URL = "http://localhost:3000";
+function trimmedBaseUrl(value: string | undefined) {
+  const configuredBaseUrl = value?.trim();
 
-function getAdminActivationApiBaseUrl() {
-  const configuredBaseUrl = process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL?.trim();
-
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/+$/, "");
+  if (!configuredBaseUrl) {
+    return null;
   }
 
-  if (Platform.OS === "web" && process.env.NODE_ENV !== "test") {
-    return DEFAULT_WEB_ADMIN_API_BASE_URL;
-  }
+  return configuredBaseUrl.replace(/\/+$/, "");
+}
 
-  return null;
+function getActivationApi(): ActivationApi {
+  const agentBaseUrl =
+    trimmedBaseUrl(process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL) ?? "http://localhost:3002";
+
+  return {
+    resolvePath: "/api/wallet/activation/resolve",
+    serviceName: "agent service",
+    unavailableMessage:
+      "Activation service is unavailable. Check that the Credo agent service is running and try again.",
+    url: agentBaseUrl,
+  };
 }
 
 function apiErrorMessage(value: unknown, fallback: string) {
@@ -89,8 +75,8 @@ function apiErrorMessage(value: unknown, fallback: string) {
   return fallback;
 }
 
-async function postAdminMock<T>(path: string, body: object): Promise<RemotePostResult<T>> {
-  const baseUrl = getAdminActivationApiBaseUrl();
+async function postActivationApi<T>(api: ActivationApi, path: string, body: object): Promise<RemotePostResult<T>> {
+  const baseUrl = api.url;
 
   if (!baseUrl || typeof fetch !== "function") {
     return { status: "unavailable" };
@@ -106,7 +92,7 @@ async function postAdminMock<T>(path: string, body: object): Promise<RemotePostR
 
     if (!response.ok) {
       return {
-        error: apiErrorMessage(responseBody, `Admin mock activation request failed with status ${response.status}.`),
+        error: apiErrorMessage(responseBody, `${api.serviceName} activation request failed with status ${response.status}.`),
         status: "error",
       };
     }
@@ -151,7 +137,9 @@ function mockInvitationUrl(invitationId: string) {
 
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
   if (request.kind === "token") {
-    const remoteResult = await postAdminMock<RemoteResolveResponse>("/api/mock/wallet/activation/resolve", {
+    const activationApi = getActivationApi();
+
+    const remoteResult = await postActivationApi<RemoteResolveResponse>(activationApi, activationApi.resolvePath, {
       kind: "token",
       sourceUrl: request.sourceUrl,
       token: request.token,
@@ -164,13 +152,11 @@ export async function resolveWalletActivation(request: ActivationLinkRequest): P
           activationId: remoteResult.data.activationId,
           activationSource: "token",
           createdAt: remoteResult.data.createdAt,
+          credentialExchangeId: remoteResult.data.credentialExchangeId,
+          expiresAt: remoteResult.data.expiresAt,
           invitationId: remoteResult.data.invitationId,
           invitationUrl: remoteResult.data.invitationUrl,
           issuerLabel: remoteResult.data.issuerLabel,
-          ledgerName: remoteResult.data.ledgerName ?? "BCovrin Test",
-          mediatorInvitationUrl: remoteResult.data.mediatorInvitationUrl,
-          studentId: remoteResult.data.studentId,
-          walletId: remoteResult.data.walletId,
         },
       };
     }
@@ -181,7 +167,7 @@ export async function resolveWalletActivation(request: ActivationLinkRequest): P
 
     return {
       ok: false,
-      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
+      error: activationApi.unavailableMessage,
     };
   }
 
@@ -204,54 +190,6 @@ async function resolveLocalWalletActivation(
       invitationId,
       invitationUrl: request.kind === "oob" ? request.invitationUrl : mockInvitationUrl(invitationId),
       issuerLabel: "UNIFY Issuer Service",
-      ledgerName: "BCovrin Test",
-      studentId: DEMO_STUDENT_ID,
-      walletId: DEMO_WALLET_ID,
-    },
-  };
-}
-
-export async function completeWalletActivation(
-  activation: ResolvedWalletActivation,
-  holderConnectionId: string,
-  credentialRecordId: string,
-): Promise<ActivationResult<CompletedWalletActivation>> {
-  if (activation.activationSource === "token") {
-    const remoteResult = await postAdminMock<RemoteCompleteResponse>("/api/mock/wallet/activation/complete", {
-      activationId: activation.activationId,
-      credentialRecordId,
-      holderConnectionId,
-    });
-
-    if (remoteResult.status === "ok") {
-      return {
-        ok: true,
-        data: {
-          activationId: remoteResult.data.activationId,
-          completedAt: remoteResult.data.completedAt ?? remoteResult.data.activatedAt ?? new Date().toISOString(),
-          credentialRecordId: remoteResult.data.credentialRecordId,
-          holderConnectionId: remoteResult.data.holderConnectionId,
-        },
-      };
-    }
-
-    if (remoteResult.status === "error") {
-      return { ok: false, error: remoteResult.error };
-    }
-
-    return {
-      ok: false,
-      error: "Activation service is unavailable. Check that the admin portal is running and try again.",
-    };
-  }
-
-  return {
-    ok: true,
-    data: {
-      activationId: activation.activationId,
-      completedAt: new Date().toISOString(),
-      credentialRecordId,
-      holderConnectionId,
     },
   };
 }

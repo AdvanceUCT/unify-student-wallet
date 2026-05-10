@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
+import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 
 type TabIconName = keyof typeof Ionicons.glyphMap;
@@ -12,6 +13,9 @@ function tabIcon(name: TabIconName) {
 }
 
 export default function WalletLayout() {
+  const { pendingOfferIds } = useWalletSession();
+  const offersBadge = pendingOfferIds.length > 0 ? String(pendingOfferIds.length) : undefined;
+
   return (
     <Tabs
       screenOptions={{
@@ -29,6 +33,10 @@ export default function WalletLayout() {
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon("home-outline") }} />
       <Tabs.Screen name="credential" options={{ title: "Credential", tabBarIcon: tabIcon("id-card-outline") }} />
       <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon("qr-code-outline") }} />
+      <Tabs.Screen
+        name="offers"
+        options={{ title: "Offers", tabBarIcon: tabIcon("mail-outline"), tabBarBadge: offersBadge }}
+      />
       <Tabs.Screen name="payments" options={{ title: "Payments", tabBarIcon: tabIcon("receipt-outline") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon("settings-outline") }} />
     </Tabs>
