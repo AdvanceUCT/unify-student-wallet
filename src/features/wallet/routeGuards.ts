@@ -39,7 +39,7 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
 
   switch (access) {
     case "welcome":
-      return lastSegment === "sign-in" || lastSegment === "activate";
+      return lastSegment === "sign-in" || lastSegment === "set-pin" || lastSegment === "activate";
     case "pinSetup":
       return lastSegment === "set-pin" || lastSegment === "activate";
     case "unlock":

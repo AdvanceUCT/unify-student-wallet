@@ -17,6 +17,7 @@ describe("wallet route guards", () => {
     expect(access).toBe("welcome");
     expect(getWalletRouteHref(access)).toBe("/(auth)/sign-in");
     expect(isRouteAllowedForAccess(["(auth)", "sign-in"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "set-pin"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(auth)", "activate"], access)).toBe(true);
   });
 
