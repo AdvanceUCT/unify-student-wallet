@@ -1,11 +1,9 @@
-import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
-import { InfoRow } from "@/src/components/InfoRow";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { mockStudentProfile } from "@/src/lib/api/mockStudent";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -36,37 +34,11 @@ function activationUrlFromParams(params: { oob?: string | string[]; token?: stri
 }
 
 export default function ActivateScreen() {
-  const { isHydrated, prepareActivationFromLink } = useWalletSession();
+  const { isHydrated, processIncomingLink } = useWalletSession();
   const params = useLocalSearchParams<{ oob?: string | string[]; token?: string | string[] }>();
   const routeActivationUrl = useMemo(() => activationUrlFromParams(params), [params]);
   const processedActivationUrlRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const invitationStatus = error
-    ? "Needs attention"
-    : status
-      ? "Accepted"
-      : routeActivationUrl
-        ? "Checking link"
-        : "Waiting for link";
-  const invitationTone = error ? "warning" : status ? "success" : "default";
-
-  const handleActivationLink = useCallback(
-    async (url: string) => {
-      const result = await prepareActivationFromLink(url);
-
-      if (result.ok) {
-        setError(null);
-        setStatus("Activation link accepted. Set a PIN to store the credential.");
-        router.replace("/(auth)/activation-success");
-        return;
-      }
-
-      setStatus(null);
-      setError(result.error);
-    },
-    [prepareActivationFromLink],
-  );
 
   useEffect(() => {
     if (!isHydrated || !routeActivationUrl || processedActivationUrlRef.current === routeActivationUrl) {
@@ -74,42 +46,32 @@ export default function ActivateScreen() {
     }
 
     processedActivationUrlRef.current = routeActivationUrl;
-    void handleActivationLink(routeActivationUrl);
-  }, [handleActivationLink, isHydrated, routeActivationUrl]);
+    void (async () => {
+      const result = await processIncomingLink(routeActivationUrl);
+      if (!result.ok) {
+        setError(result.error);
+      }
+    })();
+  }, [isHydrated, processIncomingLink, routeActivationUrl]);
 
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Activation</Text>
-          <Text style={typography.title}>Connect your student credential</Text>
+          <Text style={typography.title}>Connecting your credential</Text>
           <Text style={typography.body}>
-            Open the activation link from your university to connect your student credential.
+            {routeActivationUrl
+              ? "Reviewing the activation link…"
+              : "Open the activation link from your university to connect your credential."}
           </Text>
         </View>
 
-        <View
-          style={{
-            borderColor: colors.border,
-            borderRadius: 8,
-            borderWidth: 1,
-            padding: spacing.lg,
-            gap: spacing.md,
-          }}
-        >
-          <InfoRow label="Student" value={mockStudentProfile.name} />
-          <InfoRow label="Institution" value={mockStudentProfile.institution} />
-          <InfoRow label="Activation link" value={invitationStatus} tone={invitationTone} />
-        </View>
+        {error ? (
+          <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text>
+        ) : null}
 
-        <View style={{ gap: spacing.sm }}>
-          {error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text> : null}
-          {status ? <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700" }}>{status}</Text> : null}
-          {!routeActivationUrl ? (
-            <Text style={typography.body}>No activation link is open in this session.</Text>
-          ) : null}
-          {!isHydrated ? <Text style={typography.body}>Loading wallet session...</Text> : null}
-        </View>
+        {!isHydrated ? <Text style={typography.body}>Loading wallet session…</Text> : null}
       </View>
     </AppScreen>
   );

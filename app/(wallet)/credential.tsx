@@ -11,7 +11,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function CredentialScreen() {
-  const { activationSetup, session } = useWalletSession();
+  const { session } = useWalletSession();
   const credentialQuery = useQuery({
     queryKey: ["student-credential"],
     queryFn: getStudentCredential,
@@ -63,10 +63,7 @@ export default function CredentialScreen() {
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
           <Text style={typography.sectionTitle}>Storage records</Text>
-          <InfoRow label="Activation ID" value={session.activationId ?? activationSetup?.activationId ?? "Pending"} />
-          <InfoRow label="Credential record" value={session.credentialRecordId ?? "Pending"} />
-          <InfoRow label="Holder connection" value={session.holderConnectionId ?? "Pending"} />
-          <InfoRow label="Wallet ID" value={session.walletId ?? activationSetup?.walletId ?? "Pending"} />
+          <InfoRow label="Wallet ID" value={session.walletId ?? "-"} />
         </View>
       </View>
     </AppScreen>

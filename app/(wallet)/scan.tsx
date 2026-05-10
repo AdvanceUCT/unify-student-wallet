@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { router } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
@@ -30,17 +31,36 @@ type ScanResult = {
   rawPayload: string;
 };
 
+function looksLikeActivationLink(value: string) {
+  return value.startsWith("unifywallet://");
+}
+
 export default function ScanScreen() {
-  const { session } = useWalletSession();
+  const { processIncomingLink, session } = useWalletSession();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
 
-  function handleRawPayload(rawPayload: string) {
-    const result = parseQrPayload(rawPayload);
-
+  async function handleRawPayload(rawPayload: string) {
     setActionResult(null);
+
+    if (looksLikeActivationLink(rawPayload)) {
+      setScanError(null);
+      setScanResult(null);
+      const result = await processIncomingLink(rawPayload);
+
+      if (!result.ok) {
+        setScanError(result.error);
+        return;
+      }
+
+      setActionResult("Reviewing offer…");
+      router.push("/(wallet)/offers");
+      return;
+    }
+
+    const result = parseQrPayload(rawPayload);
 
     if (!result.ok) {
       setScanResult(null);
@@ -70,7 +90,7 @@ export default function ScanScreen() {
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Scan</Text>
           <Text style={typography.title}>Service QR</Text>
-          <Text style={typography.body}>Scan payment and verification requests, inspect the payload, then approve the wallet action.</Text>
+          <Text style={typography.body}>Scan payment, verification, and activation QRs. The wallet picks the right action.</Text>
         </View>
 
         <View
@@ -87,7 +107,7 @@ export default function ScanScreen() {
         >
           {permission?.granted ? (
             <CameraView
-              onBarcodeScanned={({ data }: { data: string }) => handleRawPayload(data)}
+              onBarcodeScanned={({ data }: { data: string }) => void handleRawPayload(data)}
               style={{ height: "100%", width: "100%" }}
             />
           ) : (
@@ -99,8 +119,12 @@ export default function ScanScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <AppButton label="Use demo payment QR" onPress={() => handleRawPayload(demoPayload)} variant="secondary" />
-          <AppButton label="Use demo verification QR" onPress={() => handleRawPayload(demoVerificationPayload)} variant="secondary" />
+          <AppButton label="Use demo payment QR" onPress={() => void handleRawPayload(demoPayload)} variant="secondary" />
+          <AppButton
+            label="Use demo verification QR"
+            onPress={() => void handleRawPayload(demoVerificationPayload)}
+            variant="secondary"
+          />
         </View>
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.lg, gap: spacing.md }}>
@@ -112,7 +136,7 @@ export default function ScanScreen() {
               <InfoRow label="Service point" value={scanResult.payload.servicePointId} />
               <InfoRow label="Amount" value={scanResult.payload.type === "payment" ? `R ${scanResult.payload.amount.toFixed(2)}` : "Not required"} />
               <InfoRow label="Nonce" value={scanResult.payload.nonce} />
-              <InfoRow label="Wallet record" value={session.credentialRecordId ?? "Demo credential"} />
+              <InfoRow label="Wallet" value={session.walletId ?? "-"} />
               <AppButton
                 label={scanResult.payload.type === "payment" ? "Approve payment" : "Present credential"}
                 onPress={handleServiceAction}

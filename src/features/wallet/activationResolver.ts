@@ -1,4 +1,3 @@
-import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "./sessionTypes";
 import type { ActivationLinkRequest } from "./activationLinks";
 
 export type ResolvedWalletActivation = {
@@ -6,21 +5,10 @@ export type ResolvedWalletActivation = {
   activationSource: ActivationLinkRequest["kind"];
   createdAt: string;
   credentialExchangeId?: string;
+  expiresAt?: string;
   invitationId: string;
   invitationUrl: string;
   issuerLabel: string;
-  ledgerName: "BCovrin Test";
-  mediatorInvitationUrl?: string;
-  studentId: string;
-  walletId: string;
-};
-
-export type CompletedWalletActivation = {
-  activationId: string;
-  completedAt: string;
-  credentialExchangeId?: string;
-  credentialRecordId: string;
-  holderConnectionId: string;
 };
 
 export type ActivationResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -39,24 +27,9 @@ type RemoteResolveResponse = {
   invitationId: string;
   invitationUrl: string;
   issuerLabel: string;
-  ledger?: { name?: string };
-  ledgerName?: "BCovrin Test";
-  mediatorInvitationUrl?: string;
-  studentId: string;
-  walletId: string;
-};
-
-type RemoteCompleteResponse = {
-  activatedAt?: string;
-  activationId: string;
-  completedAt?: string;
-  credentialExchangeId?: string;
-  credentialRecordId: string;
-  holderConnectionId: string;
 };
 
 type ActivationApi = {
-  completePath: string;
   resolvePath: string;
   serviceName: string;
   unavailableMessage: string;
@@ -73,32 +46,17 @@ function trimmedBaseUrl(value: string | undefined) {
   return configuredBaseUrl.replace(/\/+$/, "");
 }
 
-function getActivationApi(): ActivationApi | null {
-  const agentBaseUrl = trimmedBaseUrl(process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL);
+function getActivationApi(): ActivationApi {
+  const agentBaseUrl =
+    trimmedBaseUrl(process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL) ?? "http://localhost:3002";
 
-  if (agentBaseUrl) {
-    return {
-      completePath: "/api/wallet/activation/complete",
-      resolvePath: "/api/wallet/activation/resolve",
-      serviceName: "agent service",
-      unavailableMessage: "Activation service is unavailable. Check that the Credo agent service is running and try again.",
-      url: agentBaseUrl,
-    };
-  }
-
-  const adminBaseUrl = trimmedBaseUrl(process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL);
-
-  if (adminBaseUrl) {
-    return {
-      completePath: "/api/mock/wallet/activation/complete",
-      resolvePath: "/api/mock/wallet/activation/resolve",
-      serviceName: "admin mock",
-      unavailableMessage: "Activation service is unavailable. Check that the admin portal is running and try again.",
-      url: adminBaseUrl,
-    };
-  }
-
-  return null;
+  return {
+    resolvePath: "/api/wallet/activation/resolve",
+    serviceName: "agent service",
+    unavailableMessage:
+      "Activation service is unavailable. Check that the Credo agent service is running and try again.",
+    url: agentBaseUrl,
+  };
 }
 
 function apiErrorMessage(value: unknown, fallback: string) {
@@ -181,13 +139,6 @@ export async function resolveWalletActivation(request: ActivationLinkRequest): P
   if (request.kind === "token") {
     const activationApi = getActivationApi();
 
-    if (!activationApi) {
-      return {
-        ok: false,
-        error: "Activation service is unavailable. Configure EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL and try again.",
-      };
-    }
-
     const remoteResult = await postActivationApi<RemoteResolveResponse>(activationApi, activationApi.resolvePath, {
       kind: "token",
       sourceUrl: request.sourceUrl,
@@ -202,13 +153,10 @@ export async function resolveWalletActivation(request: ActivationLinkRequest): P
           activationSource: "token",
           createdAt: remoteResult.data.createdAt,
           credentialExchangeId: remoteResult.data.credentialExchangeId,
+          expiresAt: remoteResult.data.expiresAt,
           invitationId: remoteResult.data.invitationId,
           invitationUrl: remoteResult.data.invitationUrl,
           issuerLabel: remoteResult.data.issuerLabel,
-          ledgerName: remoteResult.data.ledgerName ?? "BCovrin Test",
-          mediatorInvitationUrl: remoteResult.data.mediatorInvitationUrl,
-          studentId: remoteResult.data.studentId,
-          walletId: remoteResult.data.walletId,
         },
       };
     }
@@ -242,65 +190,6 @@ async function resolveLocalWalletActivation(
       invitationId,
       invitationUrl: request.kind === "oob" ? request.invitationUrl : mockInvitationUrl(invitationId),
       issuerLabel: "UNIFY Issuer Service",
-      ledgerName: "BCovrin Test",
-      studentId: DEMO_STUDENT_ID,
-      walletId: DEMO_WALLET_ID,
-    },
-  };
-}
-
-export async function completeWalletActivation(
-  activation: ResolvedWalletActivation,
-  holderConnectionId: string,
-  credentialRecordId: string,
-): Promise<ActivationResult<CompletedWalletActivation>> {
-  if (activation.activationSource === "token") {
-    const activationApi = getActivationApi();
-
-    if (!activationApi) {
-      return {
-        ok: false,
-        error: "Activation service is unavailable. Configure EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL and try again.",
-      };
-    }
-
-    const remoteResult = await postActivationApi<RemoteCompleteResponse>(activationApi, activationApi.completePath, {
-      activationId: activation.activationId,
-      credentialRecordId,
-      holderConnectionId,
-    });
-
-    if (remoteResult.status === "ok") {
-      return {
-        ok: true,
-        data: {
-          activationId: remoteResult.data.activationId,
-          completedAt: remoteResult.data.completedAt ?? remoteResult.data.activatedAt ?? new Date().toISOString(),
-          credentialExchangeId: remoteResult.data.credentialExchangeId,
-          credentialRecordId: remoteResult.data.credentialRecordId,
-          holderConnectionId: remoteResult.data.holderConnectionId,
-        },
-      };
-    }
-
-    if (remoteResult.status === "error") {
-      return { ok: false, error: remoteResult.error };
-    }
-
-    return {
-      ok: false,
-      error: activationApi.unavailableMessage,
-    };
-  }
-
-  return {
-    ok: true,
-    data: {
-      activationId: activation.activationId,
-      completedAt: new Date().toISOString(),
-      credentialExchangeId: activation.credentialExchangeId,
-      credentialRecordId,
-      holderConnectionId,
     },
   };
 }

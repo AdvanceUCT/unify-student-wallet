@@ -1,37 +1,72 @@
-import type { ResolvedWalletActivation } from "./activationResolver";
-
-export type HolderActivationResult = {
-  credentialRecordId: string;
-  holderAgentInitialized: boolean;
-  holderConnectionId: string;
-};
+import * as Crypto from "expo-crypto";
 
 export type HolderAgentConfig = {
-  mediatorInvitationUrl?: string;
   walletId: string;
 };
 
 export type HolderAgent = null;
 
-function fallbackActivationResult(activation: ResolvedWalletActivation): HolderActivationResult {
-  return {
-    credentialRecordId: `credential-${activation.activationId}`,
-    holderAgentInitialized: false,
-    holderConnectionId: `connection-${activation.invitationId}`,
-  };
-}
+export type CreateHolderWalletResult = {
+  walletId: string;
+  agent: HolderAgent;
+};
 
-export async function initializeHolderAgent(_config: HolderAgentConfig): Promise<HolderAgent> {
+type CredentialRecord = {
+  id: string;
+  state?: string;
+  connectionId?: string;
+  credentialAttributes?: { name: string; value: string }[];
+};
+
+let activeWalletId: string | undefined;
+
+export function getActiveHolderAgent(): HolderAgent {
   return null;
 }
 
-export async function acceptCredentialInvitation(
-  _agent: HolderAgent,
-  activation: ResolvedWalletActivation,
-): Promise<HolderActivationResult> {
-  return fallbackActivationResult(activation);
+export function getActiveWalletId(): string | undefined {
+  return activeWalletId;
 }
 
-export async function acceptHolderActivation(activation: ResolvedWalletActivation): Promise<HolderActivationResult> {
-  return fallbackActivationResult(activation);
+export function clearActiveHolderAgent() {
+  activeWalletId = undefined;
+}
+
+export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent> {
+  activeWalletId = config.walletId;
+  return null;
+}
+
+export async function createLocalHolderWallet(): Promise<CreateHolderWalletResult> {
+  const walletId = Crypto.randomUUID();
+  await initializeHolderAgent({ walletId });
+
+  return { walletId, agent: null };
+}
+
+export async function resumeHolderAgentSession(walletId: string): Promise<HolderAgent> {
+  activeWalletId = walletId;
+  return null;
+}
+
+export async function receiveCredentialOffer(_invitationUrl: string): Promise<void> {
+  return;
+}
+
+export async function acceptCredentialOffer(_credentialRecordId: string): Promise<void> {
+  return;
+}
+
+export async function declineCredentialOffer(_credentialRecordId: string): Promise<void> {
+  return;
+}
+
+export async function getCredentialRecord(_credentialRecordId: string): Promise<CredentialRecord | null> {
+  return null;
+}
+
+export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;
+
+export function subscribeToOfferReceived(_handler: CredentialOfferReceivedHandler): () => void {
+  return () => undefined;
 }

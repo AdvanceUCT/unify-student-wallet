@@ -8,7 +8,6 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { mockStudentProfile } from "@/src/lib/api/mockStudent";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -17,7 +16,6 @@ type PinVerificationPhase = "idle" | "verifying" | "error" | "success";
 
 export default function SettingsScreen() {
   const {
-    activationSetup,
     biometricAvailable,
     biometricEnabled,
     confirmPinToDisableBiometric,
@@ -83,27 +81,24 @@ export default function SettingsScreen() {
         <View style={{ gap: spacing.sm }}>
           <Text style={typography.eyebrow}>Settings</Text>
           <Text style={typography.title}>Wallet details</Text>
-          <Text style={typography.body}>Manage the demo wallet state and account context.</Text>
+          <Text style={typography.body}>Manage the wallet state and account context.</Text>
         </View>
 
         <View style={{ gap: spacing.md }}>
-          <InfoRow label="Name" value={mockStudentProfile.name} />
-          <InfoRow label="Institution" value={mockStudentProfile.institution} />
-          <InfoRow label="Environment" value="Demo" />
-          <InfoRow label="Wallet" value={session.walletId ?? "Not activated"} />
+          <InfoRow label="Wallet" value={session.walletId ?? "-"} />
           <InfoRow label="Status" value={session.lockStatus === "locked" ? "Locked" : "Unlocked"} />
         </View>
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
-          <Text style={typography.sectionTitle}>Activation and agent diagnostics</Text>
-          <InfoRow label="Activation status" value={session.activationStatus} />
-          <InfoRow label="Activation source" value={session.activationSource ?? activationSetup?.activationSource ?? "Not resolved"} />
-          <InfoRow label="Issuer" value={activationSetup?.issuerLabel ?? "Not resolved"} />
-          <InfoRow label="Ledger" value={activationSetup?.ledgerName ?? "Not resolved"} />
-          <InfoRow label="Holder agent" value={holderAgent.status} tone={holderAgent.status === "error" ? "warning" : "default"} />
-          <InfoRow label="Credential record" value={session.credentialRecordId ?? "Pending"} />
-          <InfoRow label="Connection record" value={session.holderConnectionId ?? "Pending"} />
-          {holderAgent.error ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{holderAgent.error}</Text> : null}
+          <Text style={typography.sectionTitle}>Holder agent</Text>
+          <InfoRow
+            label="Status"
+            value={holderAgent.status}
+            tone={holderAgent.status === "error" ? "warning" : "default"}
+          />
+          {holderAgent.error ? (
+            <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{holderAgent.error}</Text>
+          ) : null}
         </View>
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>

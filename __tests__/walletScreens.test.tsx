@@ -22,31 +22,22 @@ const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
   return { data: undefined, isError: false, isLoading: false };
 });
 
+const mockProcessIncomingLink = jest.fn().mockResolvedValue({ ok: true });
+
 const mockWalletSession = {
-  activationSetup: {
-    activationId: "activation-demo",
-    activationSource: "token" as const,
-    credentialRecordId: "credential-record-001",
-    holderConnectionId: "connection-001",
-    issuerLabel: "UNIFY Issuer Service",
-    ledgerName: "BCovrin Test" as const,
-    studentId: "student-demo-001",
-    walletId: "wallet-demo-001",
-  },
+  acceptOffer: jest.fn().mockResolvedValue({ ok: true }),
   biometricAvailable: true,
   biometricEnabled: false,
   confirmPinToDisableBiometric: jest.fn(),
+  declineOffer: jest.fn().mockResolvedValue({ ok: true }),
   lockWallet: jest.fn(),
+  pendingOfferIds: [] as string[],
+  processIncomingLink: mockProcessIncomingLink,
   session: {
-    activationId: "activation-demo",
-    activationSource: "token" as const,
     authStatus: "signedIn" as const,
-    activationStatus: "activated" as const,
-    credentialRecordId: "credential-record-001",
-    holderConnectionId: "connection-001",
     lockStatus: "unlocked" as const,
-    studentId: "student-demo-001",
-    walletId: "wallet-demo-001",
+    pendingOfferIds: [] as string[],
+    walletId: "wallet-uuid-001",
   },
   setBiometricEnabled: jest.fn().mockResolvedValue({ ok: true }),
   signOut: jest.fn(),
@@ -77,23 +68,32 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
 describe("wallet screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWalletSession.pendingOfferIds = [];
   });
 
-  it("shows wallet backend state on the home screen", () => {
+  it("shows wallet diagnostics on the home screen", () => {
     const screen = render(<HomeScreen />);
 
     expect(screen.getByText("Campus wallet control center")).toBeTruthy();
-    expect(screen.getByText("wallet-demo-001")).toBeTruthy();
-    expect(screen.getByText("credential-record-001")).toBeTruthy();
+    expect(screen.getByText("wallet-uuid-001")).toBeTruthy();
     expect(screen.getByText("Scan service QR")).toBeTruthy();
   });
 
-  it("parses a demo verification QR and exposes the presentation action", () => {
+  it("shows the pending offers banner when offers are queued", () => {
+    mockWalletSession.pendingOfferIds = ["offer-1", "offer-2"];
+
+    const screen = render(<HomeScreen />);
+
+    expect(screen.getByText("You have 2 pending credential offers.")).toBeTruthy();
+    expect(screen.getByText("Review offers")).toBeTruthy();
+  });
+
+  it("parses a demo verification QR and exposes the presentation action", async () => {
     const screen = render(<ScanScreen />);
 
     fireEvent.press(screen.getByText("Use demo verification QR"));
 
-    expect(screen.getByText("main-library")).toBeTruthy();
+    expect(await screen.findByText("main-library")).toBeTruthy();
     expect(screen.getByText("Present credential")).toBeTruthy();
 
     fireEvent.press(screen.getByText("Present credential"));
@@ -101,11 +101,10 @@ describe("wallet screens", () => {
     expect(screen.getByText("Credential presentation approved for main-library.")).toBeTruthy();
   });
 
-  it("shows activation and holder-agent diagnostics in settings", () => {
+  it("shows the wallet status in settings", () => {
     const screen = render(<SettingsScreen />);
 
-    expect(screen.getByText("Activation and agent diagnostics")).toBeTruthy();
-    expect(screen.getByText("UNIFY Issuer Service")).toBeTruthy();
-    expect(screen.getByText("connection-001")).toBeTruthy();
+    expect(screen.getByText("Holder agent")).toBeTruthy();
+    expect(screen.getByText("wallet-uuid-001")).toBeTruthy();
   });
 });

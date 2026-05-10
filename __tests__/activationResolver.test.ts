@@ -1,11 +1,6 @@
-import {
-  completeWalletActivation,
-  resolveWalletActivation,
-} from "@/src/features/wallet/activationResolver";
-import { DEMO_STUDENT_ID, DEMO_WALLET_ID } from "@/src/features/wallet/sessionTypes";
+import { resolveWalletActivation } from "@/src/features/wallet/activationResolver";
 
 const originalFetch = global.fetch;
-const originalAdminApiBaseUrl = process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
 const originalAgentApiBaseUrl = process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
 
 function mockResponse(body: object, ok = true, status = 200) {
@@ -19,39 +14,24 @@ function mockResponse(body: object, ok = true, status = 200) {
 describe("wallet activation resolver", () => {
   afterEach(() => {
     global.fetch = originalFetch;
-    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = originalAdminApiBaseUrl;
     process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = originalAgentApiBaseUrl;
     jest.clearAllMocks();
   });
 
-  it("uses the agent service resolve and complete APIs when configured", async () => {
+  it("uses the agent service resolve API with the configured base URL", async () => {
     process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001/";
-    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000/";
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(
-        mockResponse({
-          activationId: "activation-7MFK2Q9V",
-          activationSource: "token",
-          createdAt: "2026-04-27T10:00:00.000Z",
-          credentialExchangeId: "issuer-exchange-001",
-          invitationId: "unify-oob-7MFK2Q9V",
-          invitationUrl: "https://issuer.advanceuct.test/oob?oob=real",
-          issuerLabel: "UNIFY Issuer Service",
-          ledgerName: "BCovrin Test",
-          studentId: "student-demo-002",
-          walletId: "wallet-demo-001",
-        }),
-      )
-      .mockResolvedValueOnce(
-        mockResponse({
-          activatedAt: "2026-04-27T10:05:00.000Z",
-          activationId: "activation-7MFK2Q9V",
-          credentialExchangeId: "issuer-exchange-001",
-          credentialRecordId: "credential-record-demo",
-          holderConnectionId: "connection-demo",
-        }),
-      );
+    global.fetch = jest.fn().mockResolvedValueOnce(
+      mockResponse({
+        activationId: "activation-7MFK2Q9V",
+        activationSource: "token",
+        createdAt: "2026-04-27T10:00:00.000Z",
+        credentialExchangeId: "issuer-exchange-001",
+        expiresAt: "2026-04-28T10:00:00.000Z",
+        invitationId: "unify-oob-7MFK2Q9V",
+        invitationUrl: "https://issuer.advanceuct.test/oob?oob=real",
+        issuerLabel: "UNIFY Issuer Service",
+      }),
+    );
 
     const resolved = await resolveWalletActivation({
       kind: "token",
@@ -75,147 +55,45 @@ describe("wallet activation resolver", () => {
         method: "POST",
       }),
     );
-    expect(resolved.data).toMatchObject({
+    expect(resolved.data).toEqual({
       activationId: "activation-7MFK2Q9V",
-      credentialExchangeId: "issuer-exchange-001",
       activationSource: "token",
-      studentId: "student-demo-002",
+      createdAt: "2026-04-27T10:00:00.000Z",
+      credentialExchangeId: "issuer-exchange-001",
+      expiresAt: "2026-04-28T10:00:00.000Z",
+      invitationId: "unify-oob-7MFK2Q9V",
+      invitationUrl: "https://issuer.advanceuct.test/oob?oob=real",
+      issuerLabel: "UNIFY Issuer Service",
     });
-
-    const completed = await completeWalletActivation(
-      resolved.data,
-      "connection-demo",
-      "credential-record-demo",
-    );
-
-    expect(completed).toEqual({
-      ok: true,
-      data: {
-        activationId: "activation-7MFK2Q9V",
-        completedAt: "2026-04-27T10:05:00.000Z",
-        credentialExchangeId: "issuer-exchange-001",
-        credentialRecordId: "credential-record-demo",
-        holderConnectionId: "connection-demo",
-      },
-    });
-    expect(global.fetch).toHaveBeenLastCalledWith(
-      "http://localhost:3001/api/wallet/activation/complete",
-      expect.objectContaining({
-        body: JSON.stringify({
-          activationId: "activation-7MFK2Q9V",
-          credentialRecordId: "credential-record-demo",
-          holderConnectionId: "connection-demo",
-        }),
-        method: "POST",
-      }),
-    );
   });
 
-  it("uses the admin mock resolve and complete APIs only when the agent service is not configured", async () => {
+  it("falls back to localhost:3002 when no env override is set", async () => {
     delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
-    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000/";
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(
-        mockResponse({
-          activationId: "activation-7MFK2Q9V",
-          activationSource: "token",
-          createdAt: "2026-04-27T10:00:00.000Z",
-          expiresAt: "2026-04-28T10:00:00.000Z",
-          invitationId: "unify-oob-7MFK2Q9V",
-          invitationUrl: "https://issuer.advanceuct.test/oob?oob=mock",
-          issuerLabel: "UNIFY Issuer Service",
-          ledgerName: "BCovrin Test",
-          studentId: "student-demo-002",
-          walletId: "wallet-demo-001",
-        }),
-      )
-      .mockResolvedValueOnce(
-        mockResponse({
-          activatedAt: "2026-04-27T10:05:00.000Z",
-          activationId: "activation-7MFK2Q9V",
-          credentialRecordId: "credential-record-demo",
-          holderConnectionId: "connection-demo",
-        }),
-      );
+    global.fetch = jest.fn().mockResolvedValueOnce(
+      mockResponse({
+        activationId: "activation-default",
+        activationSource: "token",
+        createdAt: "2026-04-27T10:00:00.000Z",
+        invitationId: "unify-oob-default",
+        invitationUrl: "https://issuer.advanceuct.test/oob?oob=real",
+        issuerLabel: "UNIFY Issuer Service",
+      }),
+    );
 
-    const resolved = await resolveWalletActivation({
+    await resolveWalletActivation({
       kind: "token",
-      sourceUrl: "unifywallet://activate?token=mock-act-7MFK2Q9V",
-      token: "mock-act-7MFK2Q9V",
+      sourceUrl: "unifywallet://activate?token=tok",
+      token: "tok",
     });
-
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) {
-      throw new Error(resolved.error);
-    }
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:3000/api/mock/wallet/activation/resolve",
-      expect.objectContaining({
-        body: JSON.stringify({
-          kind: "token",
-          sourceUrl: "unifywallet://activate?token=mock-act-7MFK2Q9V",
-          token: "mock-act-7MFK2Q9V",
-        }),
-        method: "POST",
-      }),
+      "http://localhost:3002/api/wallet/activation/resolve",
+      expect.any(Object),
     );
-    expect(resolved.data).toMatchObject({
-      activationId: "activation-7MFK2Q9V",
-      activationSource: "token",
-      studentId: "student-demo-002",
-    });
-
-    const completed = await completeWalletActivation(
-      resolved.data,
-      "connection-demo",
-      "credential-record-demo",
-    );
-
-    expect(completed).toEqual({
-      ok: true,
-      data: {
-        activationId: "activation-7MFK2Q9V",
-        completedAt: "2026-04-27T10:05:00.000Z",
-        credentialRecordId: "credential-record-demo",
-        holderConnectionId: "connection-demo",
-      },
-    });
-    expect(global.fetch).toHaveBeenLastCalledWith(
-      "http://localhost:3000/api/mock/wallet/activation/complete",
-      expect.objectContaining({
-        body: JSON.stringify({
-          activationId: "activation-7MFK2Q9V",
-          credentialRecordId: "credential-record-demo",
-          holderConnectionId: "connection-demo",
-        }),
-        method: "POST",
-      }),
-    );
-  });
-
-  it("returns an activation service error when token resolve has no admin API", async () => {
-    delete process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
-    delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
-    global.fetch = jest.fn();
-
-    const resolved = await resolveWalletActivation({
-      kind: "token",
-      sourceUrl: "unifywallet://activate?token=local-token",
-      token: "local-token",
-    });
-
-    expect(global.fetch).not.toHaveBeenCalled();
-    expect(resolved).toEqual({
-      ok: false,
-      error: "Activation service is unavailable. Configure EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL and try again.",
-    });
   });
 
   it("returns an activation service error when the configured agent API is unavailable", async () => {
     process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001";
-    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
     global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
     const resolved = await resolveWalletActivation({
@@ -232,7 +110,6 @@ describe("wallet activation resolver", () => {
   });
 
   it("keeps local OOB resolution for issuer development", async () => {
-    delete process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL;
     global.fetch = jest.fn();
     const invitationUrl = "https://issuer.advanceuct.test/oob?oob=abc";
 
@@ -248,37 +125,19 @@ describe("wallet activation resolver", () => {
       data: {
         activationSource: "oob",
         invitationUrl,
-        studentId: DEMO_STUDENT_ID,
-        walletId: DEMO_WALLET_ID,
-      },
-    });
-
-    if (!resolved.ok) {
-      throw new Error(resolved.error);
-    }
-
-    const completed = await completeWalletActivation(resolved.data, "connection-oob", "credential-record-oob");
-
-    expect(completed).toMatchObject({
-      ok: true,
-      data: {
-        activationId: resolved.data.activationId,
-        credentialRecordId: "credential-record-oob",
-        holderConnectionId: "connection-oob",
       },
     });
   });
 
-  it("surfaces admin API token errors instead of falling back", async () => {
-    delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
-    process.env.EXPO_PUBLIC_UNIFY_ADMIN_API_BASE_URL = "http://localhost:3000";
+  it("surfaces agent API token errors instead of unavailable messaging", async () => {
+    process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001";
     global.fetch = jest.fn().mockResolvedValue(
       mockResponse(
         {
           error: {
             code: "ActivationTokenNotFound",
             message: "Activation token was not found.",
-            requestId: "mock-wallet-activation-resolve",
+            requestId: "agent-wallet-activation-resolve",
           },
         },
         false,

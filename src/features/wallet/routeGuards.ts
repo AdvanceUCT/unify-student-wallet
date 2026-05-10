@@ -1,26 +1,13 @@
 import type { WalletSession } from "./sessionTypes";
 
-export type WalletRouteAccess = "signIn" | "walletSetup" | "activation" | "activationSetup" | "pinSetup" | "unlock" | "wallet";
+export type WalletRouteAccess = "welcome" | "pinSetup" | "unlock" | "wallet";
 
 export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): WalletRouteAccess {
-  if (session.authStatus === "signedOut") {
-    return "signIn";
-  }
-
-  if (session.activationStatus === "notActivated") {
-    if (!hasPin) {
-      return "walletSetup";
+  if (!session.walletId) {
+    if (hasPin) {
+      return "pinSetup";
     }
-
-    return "activation";
-  }
-
-  if (session.activationStatus === "activationPending") {
-    return "activationSetup";
-  }
-
-  if (session.activationStatus !== "activated") {
-    return "activation";
+    return "welcome";
   }
 
   if (!hasPin) {
@@ -36,14 +23,8 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
 
 export function getWalletRouteHref(access: WalletRouteAccess) {
   switch (access) {
-    case "signIn":
+    case "welcome":
       return "/(auth)/sign-in" as const;
-    case "walletSetup":
-      return "/(auth)/wallet-setup" as const;
-    case "activation":
-      return "/(auth)/activate" as const;
-    case "activationSetup":
-      return "/(auth)/activation-success" as const;
     case "pinSetup":
       return "/(auth)/set-pin" as const;
     case "unlock":
@@ -57,22 +38,18 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
   const lastSegment = segments.at(-1);
 
   switch (access) {
-    case "signIn":
-      return lastSegment === "sign-in";
-    case "walletSetup":
-      return lastSegment === "wallet-setup" || lastSegment === "set-pin";
-    case "activation":
-      return lastSegment === "activate";
-    case "activationSetup":
-      return lastSegment === "activation-success" || lastSegment === "set-pin";
+    case "welcome":
+      return lastSegment === "sign-in" || lastSegment === "activate";
     case "pinSetup":
-      return lastSegment === "set-pin";
+      return lastSegment === "set-pin" || lastSegment === "activate";
     case "unlock":
-      return lastSegment === "unlock" || lastSegment === "activation-success";
+      return lastSegment === "unlock" || lastSegment === "activate";
     case "wallet":
       return (
         segments.includes("(wallet)") ||
-        ["home", "credential", "scan", "payments", "settings", "change-pin", "activation-success"].includes(lastSegment ?? "")
+        ["home", "credential", "scan", "payments", "settings", "offers", "change-pin", "activate"].includes(
+          lastSegment ?? "",
+        )
       );
   }
 }

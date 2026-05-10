@@ -30,13 +30,12 @@ export default function PaymentsScreen() {
 
         <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.lg, gap: spacing.md }}>
           <Text style={typography.sectionTitle}>Wallet balance backend</Text>
-          <InfoRow label="Wallet ID" value={session.walletId ?? "Demo wallet"} />
-          <InfoRow label="Credential record" value={session.credentialRecordId ?? "Demo credential"} />
+          <InfoRow label="Wallet ID" value={session.walletId ?? "-"} />
           <InfoRow label="Top-up link" value={topUpLink ?? "Not generated"} />
           <View style={{ gap: spacing.sm }}>
             <AppButton
               label="Generate demo top-up link"
-              onPress={() => setTopUpLink(`https://example.test/top-up/${session.walletId ?? "wallet-demo-001"}`)}
+              onPress={() => setTopUpLink(`https://example.test/top-up/${session.walletId ?? "wallet"}`)}
             />
             <AppButton label="Scan payment QR" href="/(wallet)/scan" variant="secondary" />
           </View>
