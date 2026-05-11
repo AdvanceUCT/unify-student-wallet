@@ -288,6 +288,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       try {
         await agentAcceptCredentialOffer(credentialRecordId);
         await removePendingOfferId(credentialRecordId);
+        router.replace("/(wallet)/credential");
         return { ok: true };
       } catch (error) {
         return actionErrorFromUnknown(error, "Credential offer could not be accepted.");

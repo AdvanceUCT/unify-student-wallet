@@ -265,6 +265,7 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
       askarModule,
       askarBindings,
       anoncredsModule,
+      anoncredsBindings,
       indyVdrModule,
       indyVdrBindings,
     ] = await Promise.all([
@@ -274,6 +275,7 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
       import("@credo-ts/askar"),
       import("@openwallet-foundation/askar-react-native"),
       import("@credo-ts/anoncreds"),
+      import("@hyperledger/anoncreds-react-native"),
       import("@credo-ts/indy-vdr"),
       import("@hyperledger/indy-vdr-react-native"),
     ]);
@@ -343,6 +345,8 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
 
     const modules: Record<string, unknown> = {
       anoncreds: new AnonCredsModule({
+        anoncreds: (anoncredsBindings as DynamicModule).anoncreds,
+        autoCreateLinkSecret: true,
         registries: [new IndyVdrAnonCredsRegistry()],
       }),
       askar: new AskarModule({
@@ -489,6 +493,15 @@ export async function getCredentialRecord(credentialRecordId: string): Promise<C
   }
 
   return credentials.getById(credentialRecordId);
+}
+
+export async function getStoredCredentials(): Promise<CredentialRecord[]> {
+  if (!agentRef) {
+    return [];
+  }
+
+  const all = (await agentRef.didcomm?.credentials?.getAll?.()) ?? [];
+  return all.filter((record) => record.state === "done");
 }
 
 export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;

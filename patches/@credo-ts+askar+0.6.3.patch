@@ -1,0 +1,18 @@
+diff --git a/node_modules/@credo-ts/askar/build/storage/utils.mjs b/node_modules/@credo-ts/askar/build/storage/utils.mjs
+index 63c2f02..f7b8a0d 100644
+--- a/node_modules/@credo-ts/askar/build/storage/utils.mjs
++++ b/node_modules/@credo-ts/askar/build/storage/utils.mjs
+@@ -23,11 +23,12 @@ function transformToRecordTagValues(tags) {
+ }
+ function transformFromRecordTagValues(tags) {
+ 	const transformedTags = {};
+-	for (const [key, value] of Object.entries(tags)) if (value === null) transformedTags[key] = void 0;
++	for (const [key, value] of Object.entries(tags)) if (value === null || value === void 0) continue;
+ 	else if (typeof value === "boolean") transformedTags[key] = value ? "1" : "0";
+ 	else if (value === "1" || value === "0") transformedTags[key] = `n__${value}`;
+ 	else if (Array.isArray(value)) for (const item of value) {
++		if (item === null || item === void 0) continue;
+ 		const tagName = `${key}:${item}`;
+ 		transformedTags[tagName] = "1";
+ 	}
+ 	else transformedTags[key] = value;
