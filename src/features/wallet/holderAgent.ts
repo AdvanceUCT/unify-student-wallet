@@ -435,13 +435,14 @@ export async function receiveCredentialOffer(invitationUrl: string): Promise<voi
     throw new Error("Wallet has not been created yet.");
   }
 
-  const receiveInvitationFromUrl = agentRef.didcomm?.oob?.receiveInvitationFromUrl;
+  const oob = agentRef.didcomm?.oob;
 
-  if (!receiveInvitationFromUrl) {
+  if (!oob?.receiveInvitationFromUrl) {
     throw new Error("Credo holder agent is missing the OOB receive API.");
   }
 
-  await receiveInvitationFromUrl(invitationUrl, {
+  // Invoke through the chain so Credo's internal this binding is preserved.
+  await oob.receiveInvitationFromUrl(invitationUrl, {
     autoAcceptConnection: true,
     autoAcceptInvitation: true,
     label: "UNIFY Student Wallet",
@@ -453,13 +454,13 @@ export async function acceptCredentialOffer(credentialRecordId: string): Promise
     throw new Error("Wallet has not been created yet.");
   }
 
-  const acceptOffer = agentRef.didcomm?.credentials?.acceptOffer;
+  const credentials = agentRef.didcomm?.credentials;
 
-  if (!acceptOffer) {
+  if (!credentials?.acceptOffer) {
     throw new Error("Credo holder agent is missing the credentials API.");
   }
 
-  await acceptOffer({ credentialRecordId });
+  await credentials.acceptOffer({ credentialRecordId });
 }
 
 export async function declineCredentialOffer(credentialRecordId: string): Promise<void> {
@@ -467,13 +468,13 @@ export async function declineCredentialOffer(credentialRecordId: string): Promis
     throw new Error("Wallet has not been created yet.");
   }
 
-  const declineOffer = agentRef.didcomm?.credentials?.declineOffer;
+  const credentials = agentRef.didcomm?.credentials;
 
-  if (!declineOffer) {
+  if (!credentials?.declineOffer) {
     throw new Error("Credo holder agent is missing the credentials API.");
   }
 
-  await declineOffer(credentialRecordId);
+  await credentials.declineOffer(credentialRecordId);
 }
 
 export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
@@ -481,13 +482,13 @@ export async function getCredentialRecord(credentialRecordId: string): Promise<C
     return null;
   }
 
-  const getById = agentRef.didcomm?.credentials?.getById;
+  const credentials = agentRef.didcomm?.credentials;
 
-  if (!getById) {
+  if (!credentials?.getById) {
     return null;
   }
 
-  return getById(credentialRecordId);
+  return credentials.getById(credentialRecordId);
 }
 
 export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;
