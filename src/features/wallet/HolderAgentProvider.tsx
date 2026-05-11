@@ -25,7 +25,19 @@ type HolderAgentContextValue = HolderAgentState & {
 const HolderAgentContext = createContext<HolderAgentContextValue | null>(null);
 
 function errorMessageFromUnknown(error: unknown) {
-  return error instanceof Error ? error.message : "Credo holder agent could not be initialized.";
+  if (!(error instanceof Error)) {
+    return "Credo holder agent could not be initialized.";
+  }
+
+  const messages = [error.message];
+  let cause = error.cause;
+
+  while (cause instanceof Error && messages.length < 4) {
+    messages.push(cause.message);
+    cause = cause.cause;
+  }
+
+  return messages.join(" Caused by: ");
 }
 
 export function HolderAgentProvider({ children }: PropsWithChildren) {

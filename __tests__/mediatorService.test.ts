@@ -1,7 +1,11 @@
 import {
+  DEFAULT_MEDIATOR_PICKUP_STRATEGY,
   getMediatorInvitationUrl,
+  getMediatorPickupStrategy,
   INDICIO_MEDIATOR_LANDING_PAGE_URL,
   MEDIATOR_INVITATION_URL_ENV,
+  MEDIATOR_PICKUP_STRATEGY_ENV,
+  validateMediatorPickupStrategy,
   validateMediatorInvitationUrl,
 } from "@/src/features/wallet/mediatorService";
 
@@ -17,6 +21,16 @@ describe("mediator service", () => {
   it("accepts OOB invitation query parameters", () => {
     expect(validateMediatorInvitationUrl("https://mediator.example/oob?oob=eyJAdHlwZSI")).toBe(
       "https://mediator.example/oob?oob=eyJAdHlwZSI",
+    );
+  });
+
+  it("defaults mediator pickup to implicit websocket mode", () => {
+    expect(getMediatorPickupStrategy({})).toBe(DEFAULT_MEDIATOR_PICKUP_STRATEGY);
+  });
+
+  it("allows overriding the mediator pickup strategy", () => {
+    expect(getMediatorPickupStrategy({ EXPO_PUBLIC_MEDIATOR_PICKUP_STRATEGY: "PickUpV2LiveMode" })).toBe(
+      "PickUpV2LiveMode",
     );
   });
 
@@ -41,6 +55,12 @@ describe("mediator service", () => {
   it("rejects URLs without DIDComm invitation query parameters", () => {
     expect(() => validateMediatorInvitationUrl("https://mediator2.indiciotech.io")).toThrow(
       `${MEDIATOR_INVITATION_URL_ENV} must include a DIDComm invitation query parameter.`,
+    );
+  });
+
+  it("rejects unsupported mediator pickup strategies", () => {
+    expect(() => validateMediatorPickupStrategy("Auto")).toThrow(
+      `${MEDIATOR_PICKUP_STRATEGY_ENV} must be one of: Implicit, PickUpV1, PickUpV2, PickUpV2LiveMode, None.`,
     );
   });
 });
