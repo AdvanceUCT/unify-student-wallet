@@ -1433,24 +1433,17 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/retry/-/retry-0.4.3.tgz#c2b9d2e374ee62c586d3adbea87199b1d7a7a6ba"
   integrity sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==
 
-"@hyperledger/anoncreds-react-native@0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@hyperledger/anoncreds-react-native/-/anoncreds-react-native-0.4.0.tgz#6e6dd36312a6327c4395b614ed8f200157c1fb62"
-  integrity sha512-4/YCgh805ZBqVmAGcFoa+E08w0ypKqyxc6NHKi0bWANrOwC3byz7G4PV4x8JLBfpWs7IDZ+XR+LzxLOwnnBIZw==
+"@hyperledger/anoncreds-react-native@0.3.4":
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/@hyperledger/anoncreds-react-native/-/anoncreds-react-native-0.3.4.tgz#e754e07fb2f44440e0fca1a03ca1e4506c29374b"
+  integrity sha512-GF6vpV8UZk4FTPSuQeE8chW7yBnCZlBUO7mtWqG/DiQlDsP3iSSnE5tYOp51iwA10r9tN6qD24WVkIe4xMd1sw==
   dependencies:
-    "@hyperledger/anoncreds-shared" "0.4.0"
+    "@hyperledger/anoncreds-shared" "0.3.4"
 
 "@hyperledger/anoncreds-shared@0.3.4":
   version "0.3.4"
   resolved "https://registry.yarnpkg.com/@hyperledger/anoncreds-shared/-/anoncreds-shared-0.3.4.tgz#d6b62aa2720f3da8a8f7e79bd8cc167aeb5009cb"
   integrity sha512-XRyX39yWjn+ymUxy+4BvE0gdRIkfTmHtj1A19aOE8gALaDIAMiBbe0HxO8dkM+iAUXntBtqRJEL87Kwcx6xd8g==
-  dependencies:
-    tar "^7.4.3"
-
-"@hyperledger/anoncreds-shared@0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@hyperledger/anoncreds-shared/-/anoncreds-shared-0.4.0.tgz#3274a190f1982669dc67dbd1687b0ec489f8d907"
-  integrity sha512-iQM0Ok6tiuN8r1bjHzkUIUMZUlQt93yD812D0mMK2cBxAqzeccAy285G8iP/kra96/ptZe1mGxAcfoOESKPHzA==
   dependencies:
     tar "^7.4.3"
 
@@ -1461,17 +1454,10 @@
   dependencies:
     "@hyperledger/indy-vdr-shared" "0.3.0"
 
-"@hyperledger/indy-vdr-shared@0.2.3":
+"@hyperledger/indy-vdr-shared@0.2.3", "@hyperledger/indy-vdr-shared@0.3.0":
   version "0.2.3"
   resolved "https://registry.yarnpkg.com/@hyperledger/indy-vdr-shared/-/indy-vdr-shared-0.2.3.tgz#c12956ad4d9448e76c490588634b12c209f79916"
   integrity sha512-5sZ1WO+cL7v6bLBqN4YnVEZVq5yXVBD18e1B2eWW/jwvQh+3R4XTVpQttYI2tf2fe1CrN+UztU4uuxSAWDPAng==
-  dependencies:
-    tar "^7.4.3"
-
-"@hyperledger/indy-vdr-shared@0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@hyperledger/indy-vdr-shared/-/indy-vdr-shared-0.3.0.tgz#f322e953c7f7547e6c6833a30193fc24c534ec96"
-  integrity sha512-MMH/PwmjfKSH9X7nplYPgu8oMNHsbMZSaP6F+6xFzJDJKsJ15v/y9zwi4eiTDcMVmmRcDHfSep2uBR4FWkXxzQ==
   dependencies:
     tar "^7.4.3"
 

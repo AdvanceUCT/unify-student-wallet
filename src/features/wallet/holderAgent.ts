@@ -44,12 +44,15 @@ export type HolderAgent = {
         options?: { timeoutMs: number },
       ) => Promise<DidCommConnectionRecord>;
     };
-    credentials?: {
-      acceptOffer?: (options: { credentialRecordId: string }) => Promise<unknown>;
-      declineOffer?: (credentialRecordId: string) => Promise<unknown>;
-      getAll?: () => Promise<CredentialRecord[]>;
-      getById?: (id: string) => Promise<CredentialRecord>;
-    };
+ credentials?: {
+  acceptOffer?: (options: {
+    credentialRecordId?: string;
+    credentialExchangeRecordId?: string;
+  }) => Promise<unknown>;
+  declineOffer?: (credentialRecordId: string) => Promise<unknown>;
+  getAll?: () => Promise<CredentialRecord[]>;
+  getById?: (id: string) => Promise<CredentialRecord>;
+};
     mediationRecipient?: {
       findByConnectionId?: (connectionId: string) => Promise<DidCommMediationRecord | null>;
       findDefaultMediator?: () => Promise<DidCommMediationRecord | null>;
@@ -171,30 +174,30 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   const connections = agent.didcomm?.connections;
   const mediationRecipient = agent.didcomm?.mediationRecipient;
 
-  if (
-    !oob?.parseInvitation ||
-    !oob.findByReceivedInvitationId ||
-    !oob.receiveInvitationFromUrl ||
-    !connections?.findAllByOutOfBandId ||
-    !connections.returnWhenIsConnected ||
-    !mediationRecipient?.findByConnectionId ||
-    !mediationRecipient.findDefaultMediator ||
-    !mediationRecipient.initiateMessagePickup ||
-    !mediationRecipient.provision
-  ) {
-    throw new Error("Credo holder agent is missing the mediator recipient APIs.");
-  }
+if (
+  !oob?.parseInvitation ||
+  !oob.findByReceivedInvitationId ||
+  !oob.receiveInvitationFromUrl ||
+  !connections?.findAllByOutOfBandId ||
+  !connections.returnWhenIsConnected ||
+  !mediationRecipient?.findByConnectionId ||
+  !mediationRecipient.findDefaultMediator ||
+  !mediationRecipient.initiateMessagePickup ||
+  !mediationRecipient.provision
+) {
+  throw new Error("Credo holder agent is missing the mediator recipient APIs.");
+}
 
   const existingDefaultMediator = await loggedStep("check default mediator", () =>
     mediationRecipient.findDefaultMediator!(),
   );
 
-  if (existingDefaultMediator?.isReady) {
-    await loggedStep(`start mediator pickup ${existingDefaultMediator.id}`, () =>
-      mediationRecipient.initiateMessagePickup!(existingDefaultMediator, mediatorPickupStrategy),
-    );
-    return;
-  }
+if (existingDefaultMediator?.isReady) {
+  console.log(
+    `[holder-agent] default mediator ${existingDefaultMediator.id} is ready; skipping manual pickup start`,
+  );
+  return;
+}
 
   const invitation = await loggedStep("parse mediator invitation", () => oob.parseInvitation!(mediatorInvitationUrl));
   const existingOutOfBandRecord = await loggedStep("check existing mediator invitation record", () =>
@@ -246,9 +249,9 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
     );
   }
 
-  await loggedStep(`start mediator pickup ${mediation.id}`, () =>
-    mediationRecipient.initiateMessagePickup!(mediation, mediatorPickupStrategy),
-  );
+await loggedStep(`start newly provisioned mediator pickup ${mediation.id}`, () =>
+  mediationRecipient.initiateMessagePickup!(mediation, mediatorPickupStrategy),
+);
 }
 
 export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent | null> {
@@ -292,109 +295,134 @@ export async function initializeHolderAgent(config: HolderAgentConfig): Promise<
     });
     const genesisTransactions = await loadBcovrinGenesisTransactions();
 
-    const coreExports = core as DynamicModule;
-    const didcommExports = didcomm as DynamicModule;
-    const anoncredsExports = anoncredsModule as DynamicModule;
-    const askarExports = askarModule as DynamicModule;
-    const indyVdrExports = indyVdrModule as DynamicModule;
-    const Agent = getConstructor<HolderAgent>(coreExports, "Agent");
-    const ConsoleLogger = getConstructor<unknown>(coreExports, "ConsoleLogger");
-    const PeerDidNumAlgo = coreExports.PeerDidNumAlgo as Record<string, unknown> | undefined;
-    const DidCommModule = getConstructor<unknown>(didcommExports, "DidCommModule");
-    const DidCommHttpOutboundTransport = getConstructor<unknown>(didcommExports, "DidCommHttpOutboundTransport");
-    const DidCommWsOutboundTransport = getConstructor<unknown>(didcommExports, "DidCommWsOutboundTransport");
-    const DidCommMediatorPickupStrategy = didcommExports.DidCommMediatorPickupStrategy as
-      | Record<string, unknown>
-      | undefined;
-    const DidCommCredentialV1Protocol = getConstructor<unknown>(anoncredsExports, "DidCommCredentialV1Protocol");
-    const DidCommCredentialV2Protocol = getConstructor<unknown>(didcommExports, "DidCommCredentialV2Protocol");
-    const LegacyIndyDidCommCredentialFormatService = getConstructor<unknown>(
-      anoncredsExports,
-      "LegacyIndyDidCommCredentialFormatService",
-    );
-    const AnonCredsDidCommCredentialFormatService = getConstructor<unknown>(
-      anoncredsExports,
-      "AnonCredsDidCommCredentialFormatService",
-    );
-    const AskarModule = getConstructor<unknown>(askarExports, "AskarModule");
-    const AnonCredsModule = getConstructor<unknown>(anoncredsExports, "AnonCredsModule");
-    const IndyVdrModule = getConstructor<unknown>(indyVdrExports, "IndyVdrModule");
-    const IndyVdrAnonCredsRegistry = getConstructor<unknown>(indyVdrExports, "IndyVdrAnonCredsRegistry");
-    const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { Never?: unknown } | undefined)?.Never;
-    const logLevel = (coreExports.LogLevel as { debug?: unknown; info?: unknown } | undefined)?.debug;
-    const peerDidGenesisDoc = PeerDidNumAlgo?.GenesisDoc;
+   const coreExports = core as DynamicModule;
+const didcommExports = didcomm as DynamicModule;
+const anoncredsExports = anoncredsModule as DynamicModule;
+const askarExports = askarModule as DynamicModule;
+const indyVdrExports = indyVdrModule as DynamicModule;
 
-    if (!autoAcceptCredential) {
-      throw new Error("Credo auto-accept credential enum is unavailable.");
-    }
+console.log("[holder-agent] indy-vdr-react-native exports:", Object.keys(indyVdrBindings as DynamicModule));
 
-    if (!logLevel) {
-      throw new Error("Credo debug log level is unavailable.");
-    }
+const indyVdrBinding =
+  (indyVdrBindings as DynamicModule).indyVdr ??
+  ((indyVdrBindings as DynamicModule).default as DynamicModule | undefined)?.indyVdr ??
+  (indyVdrBindings as DynamicModule).default;
 
-    if (!peerDidGenesisDoc) {
-      throw new Error("Credo peer DID GenesisDoc algorithm is unavailable.");
-    }
+console.log(
+  "[holder-agent] indyVdrBinding.buildGetCredDefRequest:",
+  typeof (indyVdrBinding as { buildGetCredDefRequest?: unknown }).buildGetCredDefRequest,
+);
 
-    const mediatorPickupStrategyName = getMediatorPickupStrategy();
-    const mediatorPickupStrategy = DidCommMediatorPickupStrategy?.[mediatorPickupStrategyName];
+if (
+  !indyVdrBinding ||
+  typeof (indyVdrBinding as { buildGetCredDefRequest?: unknown }).buildGetCredDefRequest !== "function"
+) {
+  throw new Error(
+    `Indy VDR native binding is unavailable. Exports: ${Object.keys(indyVdrBindings as DynamicModule).join(", ")}`,
+  );
+}
 
-    if (!mediatorPickupStrategy) {
-      throw new Error(`Credo mediator pickup strategy ${mediatorPickupStrategyName} is unavailable.`);
-    }
+const Agent = getConstructor<HolderAgent>(coreExports, "Agent");
+const ConsoleLogger = getConstructor<unknown>(coreExports, "ConsoleLogger");
+const PeerDidNumAlgo = coreExports.PeerDidNumAlgo as Record<string, unknown> | undefined;
+const DidCommModule = getConstructor<unknown>(didcommExports, "DidCommModule");
+const DidCommHttpOutboundTransport = getConstructor<unknown>(didcommExports, "DidCommHttpOutboundTransport");
+const DidCommWsOutboundTransport = getConstructor<unknown>(didcommExports, "DidCommWsOutboundTransport");
+const DidCommMediatorPickupStrategy = didcommExports.DidCommMediatorPickupStrategy as
+  | Record<string, unknown>
+  | undefined;
+const DidCommCredentialV1Protocol = getConstructor<unknown>(anoncredsExports, "DidCommCredentialV1Protocol");
+const DidCommCredentialV2Protocol = getConstructor<unknown>(didcommExports, "DidCommCredentialV2Protocol");
+const LegacyIndyDidCommCredentialFormatService = getConstructor<unknown>(
+  anoncredsExports,
+  "LegacyIndyDidCommCredentialFormatService",
+);
+const AnonCredsDidCommCredentialFormatService = getConstructor<unknown>(
+  anoncredsExports,
+  "AnonCredsDidCommCredentialFormatService",
+);
+const AskarModule = getConstructor<unknown>(askarExports, "AskarModule");
+const AnonCredsModule = getConstructor<unknown>(anoncredsExports, "AnonCredsModule");
+const IndyVdrModule = getConstructor<unknown>(indyVdrExports, "IndyVdrModule");
+const IndyVdrAnonCredsRegistry = getConstructor<unknown>(indyVdrExports, "IndyVdrAnonCredsRegistry");
+const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { ContentApproved?: unknown } | undefined)?.ContentApproved;
+const logLevel = (coreExports.LogLevel as { debug?: unknown; info?: unknown } | undefined)?.debug;
+const peerDidGenesisDoc = PeerDidNumAlgo?.GenesisDoc;
 
-    const modules: Record<string, unknown> = {
-      anoncreds: new AnonCredsModule({
-        anoncreds: (anoncredsBindings as DynamicModule).anoncreds,
-        autoCreateLinkSecret: true,
-        registries: [new IndyVdrAnonCredsRegistry()],
-      }),
-      askar: new AskarModule({
-        askar: askarBindings.askar,
-        store: {
-          id: config.walletId,
-          key: walletKey,
-          keyDerivationMethod: "raw",
-        },
-      }),
-      didcomm: new DidCommModule({
-        connections: {
-          peerNumAlgoForDidExchangeRequests: peerDidGenesisDoc,
-        },
-        credentials: {
-          autoAcceptCredentials: autoAcceptCredential,
-          credentialProtocols: [
-            new DidCommCredentialV1Protocol({
-              indyCredentialFormat: new LegacyIndyDidCommCredentialFormatService(),
-            }),
-            new DidCommCredentialV2Protocol({
-              credentialFormats: [
-                new AnonCredsDidCommCredentialFormatService(),
-                new LegacyIndyDidCommCredentialFormatService(),
-              ],
-            }),
+if (!autoAcceptCredential) {
+  throw new Error("Credo auto-accept credential enum is unavailable.");
+}
+
+if (!logLevel) {
+  throw new Error("Credo debug log level is unavailable.");
+}
+
+if (!peerDidGenesisDoc) {
+  throw new Error("Credo peer DID GenesisDoc algorithm is unavailable.");
+}
+
+const mediatorPickupStrategyName = getMediatorPickupStrategy();
+const mediatorPickupStrategy = DidCommMediatorPickupStrategy?.[mediatorPickupStrategyName];
+
+if (!mediatorPickupStrategy) {
+  throw new Error(`Credo mediator pickup strategy ${mediatorPickupStrategyName} is unavailable.`);
+}
+
+const modules: Record<string, unknown> = {
+  anoncreds: new AnonCredsModule({
+    anoncreds: (anoncredsBindings as DynamicModule).anoncreds,
+    autoCreateLinkSecret: true,
+    registries: [new IndyVdrAnonCredsRegistry()],
+  }),
+
+  askar: new AskarModule({
+    askar: askarBindings.askar,
+    store: {
+      id: config.walletId,
+      key: walletKey,
+      keyDerivationMethod: "raw",
+    },
+  }),
+
+  didcomm: new DidCommModule({
+    connections: {
+      peerNumAlgoForDidExchangeRequests: peerDidGenesisDoc,
+    },
+    credentials: {
+      autoAcceptCredentials: autoAcceptCredential,
+      credentialProtocols: [
+        new DidCommCredentialV1Protocol({
+          indyCredentialFormat: new LegacyIndyDidCommCredentialFormatService(),
+        }),
+        new DidCommCredentialV2Protocol({
+          credentialFormats: [
+            new AnonCredsDidCommCredentialFormatService(),
+            new LegacyIndyDidCommCredentialFormatService(),
           ],
-        },
-        mediationRecipient: {
-          mediatorPickupStrategy,
-        },
-        mediator: false,
-        transports: {
-          outbound: [new DidCommHttpOutboundTransport(), new DidCommWsOutboundTransport()],
-        },
-      }),
-      indyVdr: new IndyVdrModule({
-        indyVdr: indyVdrBindings.indyVdr,
-        networks: [
-          {
-            connectOnStartup: false,
-            genesisTransactions,
-            indyNamespace: "bcovrin:test",
-            isProduction: false,
-          },
-        ],
-      }),
-    };
+        }),
+      ],
+    },
+    mediationRecipient: {
+      mediatorPickupStrategy,
+    },
+    mediator: false,
+    transports: {
+      outbound: [new DidCommHttpOutboundTransport(), new DidCommWsOutboundTransport()],
+    },
+  }),
+
+  indyVdr: new IndyVdrModule({
+    indyVdr: indyVdrBinding,
+    networks: [
+      {
+        connectOnStartup: false,
+        genesisTransactions,
+        indyNamespace: "bcovrin:test",
+        isProduction: false,
+      },
+    ],
+  }),
+};
 
     const agent = new Agent({
       config: {
@@ -464,7 +492,12 @@ export async function acceptCredentialOffer(credentialRecordId: string): Promise
     throw new Error("Credo holder agent is missing the credentials API.");
   }
 
-  await credentials.acceptOffer({ credentialRecordId });
+ await loggedStep(`accept credential offer ${credentialRecordId}`, () =>
+  credentials.acceptOffer!({
+    credentialExchangeRecordId: credentialRecordId,
+    credentialRecordId,
+  }),
+);
 }
 
 export async function declineCredentialOffer(credentialRecordId: string): Promise<void> {
@@ -500,8 +533,16 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
     return [];
   }
 
-  const all = (await agentRef.didcomm?.credentials?.getAll?.()) ?? [];
-  return all.filter((record) => record.state === "done");
+  const all = await loggedStep("load stored credentials", async () => {
+    return (await agentRef?.didcomm?.credentials?.getAll?.()) ?? [];
+  });
+
+  console.log(
+    "[holder-agent] credential states:",
+    all.map((record) => ({ id: record.id, state: record.state })),
+  );
+
+  return all.filter((record) => record.state === "done" || record.state === "credential-received");
 }
 
 export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;
