@@ -6,6 +6,7 @@ import { Text, View } from "react-native";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
+import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
@@ -32,7 +33,7 @@ type ScanResult = {
 };
 
 function looksLikeActivationLink(value: string) {
-  return value.startsWith("unifywallet://");
+  return parseActivationLink(value).ok;
 }
 
 export default function ScanScreen() {
