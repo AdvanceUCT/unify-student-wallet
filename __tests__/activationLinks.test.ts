@@ -12,6 +12,28 @@ describe("activation link parsing", () => {
     });
   });
 
+  it("accepts public admin activation links", () => {
+    expect(parseActivationLink("https://localhost/activate?token=opaque-token")).toEqual({
+      ok: true,
+      data: {
+        kind: "token",
+        sourceUrl: "https://localhost/activate?token=opaque-token",
+        token: "opaque-token",
+      },
+    });
+  });
+
+  it("accepts emulator localhost activation links during development", () => {
+    expect(parseActivationLink("http://10.0.2.2:3000/activate?token=opaque-token")).toEqual({
+      ok: true,
+      data: {
+        kind: "token",
+        sourceUrl: "http://10.0.2.2:3000/activate?token=opaque-token",
+        token: "opaque-token",
+      },
+    });
+  });
+
   it("accepts out-of-band activation links", () => {
     const invitationUrl = "https://issuer.advanceuct.test/oob?oob=abc";
     const link = `unifywallet://activate?oob=${encodeURIComponent(invitationUrl)}`;
@@ -30,7 +52,7 @@ describe("activation link parsing", () => {
     expect(parseActivationLink("not-a-url")).toEqual({ ok: false, error: "Activation link is not a valid URL." });
     expect(parseActivationLink("https://example.test/activate?token=x")).toEqual({
       ok: false,
-      error: "Activation link must use the unifywallet scheme.",
+      error: "Activation link must use the wallet scheme or an allowed admin activation URL.",
     });
     expect(parseActivationLink("unifywallet://activate")).toEqual({
       ok: false,

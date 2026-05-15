@@ -12,10 +12,45 @@ export type ActivationLinkRequest =
 
 export type ActivationLinkParseResult = { ok: true; data: ActivationLinkRequest } | { ok: false; error: string };
 
-function isActivationRoute(url: URL) {
-  const hostOrPath = `${url.host}${url.pathname}`.replace(/^\/+/, "").toLowerCase();
-  return hostOrPath === "activate";
+const customActivationScheme = "unifywallet:";
+const devActivationHosts = new Set(["localhost", "127.0.0.1", "10.0.2.2"]);
+
+function allowedActivationHosts() {
+  const configured: string =
+    process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS ?? process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOST ?? "localhost,10.0.2.2";
+
+  return new Set(
+    configured
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
+
+function isActivationRoute(url: URL) {
+  if (url.protocol === customActivationScheme) {
+    const hostOrPath = `${url.host}${url.pathname}`.replace(/^\/+/, "").toLowerCase();
+    return hostOrPath === "activate";
+  }
+
+  return url.pathname.replace(/\/+$/, "").toLowerCase() === "/activate";
+}
+
+function isSupportedActivationUrl(url: URL) {
+  if (url.protocol === customActivationScheme) {
+    return true;
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  const allowedHosts = allowedActivationHosts();
+
+  if (url.protocol === "https:" && allowedHosts.has(hostname)) {
+    return true;
+  }
+
+  return url.protocol === "http:" && devActivationHosts.has(hostname) && allowedHosts.has(hostname);
+}
+
 function nonEmptyParam(url: URL, name: string) {
   const value = url.searchParams.get(name)?.trim();
   return value ? value : null;
@@ -30,8 +65,8 @@ export function parseActivationLink(rawUrl: string): ActivationLinkParseResult {
     return { ok: false, error: "Activation link is not a valid URL." };
   }
 
-  if (url.protocol !== "unifywallet:") {
-    return { ok: false, error: "Activation link must use the unifywallet scheme." };
+  if (!isSupportedActivationUrl(url)) {
+    return { ok: false, error: "Activation link must use the wallet scheme or an allowed admin activation URL." };
   }
 
   if (!isActivationRoute(url)) {
