@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinDots } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
@@ -17,21 +18,21 @@ import { typography } from "@/src/theme/typography";
 type ChangePinStep = "verify-current" | "enter-new" | "confirm-new";
 type ChangePinPhase = "idle" | "verifying" | "error" | "success";
 
-const STEP_CONFIG: Record<ChangePinStep, { eyebrow: string; title: string; body: string }> = {
+const STEP_CONFIG: Record<ChangePinStep, { eyebrow: string; title: string; meta: string }> = {
   "verify-current": {
-    eyebrow: "Step 1 of 3",
-    title: "Enter current PIN",
-    body: "Confirm your identity before changing your wallet PIN.",
+    eyebrow: "Step 1 of 3 · Verify",
+    title: "Current PIN.",
+    meta: "Confirm your identity before changing the wallet PIN.",
   },
   "enter-new": {
-    eyebrow: "Step 2 of 3",
-    title: "Enter new PIN",
-    body: "Choose a new 4 to 6 digit PIN. Avoid sequences like 1234 or repeated digits like 1111.",
+    eyebrow: "Step 2 of 3 · New PIN",
+    title: "Choose a new PIN.",
+    meta: "Avoid sequences like 1234 or repeated digits like 1111.",
   },
   "confirm-new": {
-    eyebrow: "Step 3 of 3",
-    title: "Confirm new PIN",
-    body: "Re-enter your new PIN to prevent typos.",
+    eyebrow: "Step 3 of 3 · Confirm",
+    title: "Re-enter new PIN.",
+    meta: "Both entries must match.",
   },
 };
 
@@ -105,7 +106,6 @@ export default function ChangePinScreen() {
     },
   });
 
-  // After 600 ms of error display, clear the active entry's pin and reset phase.
   useEffect(() => {
     if (phase !== "error") return;
     const clearFn =
@@ -121,15 +121,13 @@ export default function ChangePinScreen() {
   if (isLocked) {
     return (
       <AppScreen>
-        <View style={{ alignItems: "center", flex: 1, gap: spacing.xl, justifyContent: "center" }}>
-          <View style={{ alignItems: "center", gap: spacing.sm }}>
-            <Text style={typography.eyebrow}>Change PIN locked</Text>
-            <Text style={typography.title}>Too many attempts</Text>
-            <Text style={[typography.body, { textAlign: "center" }]}>
-              {`You have reached the maximum of ${MAX_CHANGE_PIN_ATTEMPTS} failed attempts. Sign out and sign back in to try again.`}
-            </Text>
-          </View>
-          <AppButton label="Go back" variant="secondary" onPress={() => router.back()} />
+        <View style={{ flex: 1, justifyContent: "space-between" }}>
+          <ScreenHeader
+            eyebrow="Change PIN · Locked"
+            title="Too many attempts."
+            meta={`Reached maximum of ${MAX_CHANGE_PIN_ATTEMPTS} failed attempts. Sign out and back in to try again.`}
+          />
+          <AppButton label="Go back" variant="outline" size="lg" onPress={() => router.back()} />
         </View>
       </AppScreen>
     );
@@ -144,41 +142,39 @@ export default function ChangePinScreen() {
 
   return (
     <AppScreen>
-      <View style={{ alignItems: "center", flex: 1, gap: spacing.xl, justifyContent: "center" }}>
-        <View style={{ alignItems: "center", gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>{config.eyebrow}</Text>
-          <Text style={typography.title}>{config.title}</Text>
-          <Text style={[typography.body, { textAlign: "center" }]}>{config.body}</Text>
+      <View style={{ flex: 1, justifyContent: "space-between", paddingBottom: spacing.xl }}>
+        <ScreenHeader eyebrow={config.eyebrow} title={config.title} meta={config.meta} />
+
+        <View style={{ alignItems: "center", gap: spacing.xl }}>
+          <PinDots filled={activeEntry.pin.length} length={MAX_PIN_LENGTH} status={dotStatus} />
+
+          <View style={{ height: 20, justifyContent: "center" }}>
+            {phase === "error" && error ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[typography.eyebrow, { color: colors.error, textAlign: "center" }]}
+              >
+                {error}
+              </Text>
+            ) : null}
+          </View>
+
+          <PinKeypad
+            canSubmit={activeEntry.canSubmit}
+            disabled={isInteractionDisabled}
+            onBackspace={activeEntry.backspace}
+            onDigit={activeEntry.append}
+            onSubmit={activeEntry.submit}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, paddingVertical: spacing.sm })}
+          >
+            <Text style={[typography.eyebrow, { color: colors.inkMuted }]}>Cancel</Text>
+          </Pressable>
         </View>
-
-        <PinDots filled={activeEntry.pin.length} length={MAX_PIN_LENGTH} status={dotStatus} />
-
-        <View style={{ height: 20, justifyContent: "center" }}>
-          {phase === "error" && error ? (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={{ color: colors.warning, fontSize: 14, fontWeight: "700", textAlign: "center" }}
-            >
-              {error}
-            </Text>
-          ) : null}
-        </View>
-
-        <PinKeypad
-          canSubmit={activeEntry.canSubmit}
-          disabled={isInteractionDisabled}
-          onBackspace={activeEntry.backspace}
-          onDigit={activeEntry.append}
-          onSubmit={activeEntry.submit}
-        />
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingVertical: spacing.sm })}
-        >
-          <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
-        </Pressable>
       </View>
     </AppScreen>
   );

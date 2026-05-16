@@ -13,7 +13,7 @@ const mockAcceptCredentialOffer = jest.fn(async (_id: string) => undefined);
 const mockDeclineCredentialOffer = jest.fn(async (_id: string) => undefined);
 const mockReceiveCredentialOffer = jest.fn(async (_url: string) => undefined);
 
-let storedOfferReceivedHandler: ((record: { id: string }) => void) | null = null;
+let storedOfferReceivedHandler: ((record: { id: string; state?: string }) => void) | null = null;
 
 jest.mock("@/src/lib/storage/secureStore", () => ({
   deleteSecureValue: jest.fn(async (key: string) => {
@@ -36,7 +36,7 @@ jest.mock("@/src/features/wallet/holderAgent", () => ({
   initializeHolderAgent: jest.fn(async () => mockHolderAgent),
   receiveCredentialOffer: (url: string) => mockReceiveCredentialOffer(url),
   resumeHolderAgentSession: jest.fn(async () => mockHolderAgent),
-  subscribeToOfferReceived: jest.fn((handler: (record: { id: string }) => void) => {
+  subscribeToOfferReceived: jest.fn((handler: (record: { id: string; state?: string }) => void) => {
     storedOfferReceivedHandler = handler;
     return () => {
       storedOfferReceivedHandler = null;
@@ -103,7 +103,7 @@ describe("offer review flow", () => {
     await waitFor(() => expect(storedOfferReceivedHandler).not.toBeNull());
 
     await act(async () => {
-      storedOfferReceivedHandler?.({ id: "offer-1" });
+    storedOfferReceivedHandler?.({ id: "offer-1", state: "offer-received" });
     });
 
     await waitFor(() => expect(walletContext?.pendingOfferIds).toEqual(["offer-1"]));
@@ -133,7 +133,7 @@ describe("offer review flow", () => {
     });
 
     await act(async () => {
-      storedOfferReceivedHandler?.({ id: "offer-2" });
+      storedOfferReceivedHandler?.({ id: "offer-2", state: "offer-received" });
     });
 
     await waitFor(() => expect(walletContext?.pendingOfferIds).toEqual(["offer-2"]));

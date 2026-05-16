@@ -119,7 +119,7 @@ describe("auth screens", () => {
     const screen = render(<ActivateScreen />);
 
     expect(
-      screen.getByText("Open the activation link from your university to connect your credential."),
+      screen.getByText("Open the activation link from your university to receive your credential."),
     ).toBeTruthy();
   });
 
@@ -135,11 +135,11 @@ describe("auth screens", () => {
   it("submits matching PIN entries via keypad in two steps", async () => {
     const screen = render(<SetPinScreen />);
 
-    expect(screen.getByText("Set your PIN")).toBeTruthy();
+    expect(screen.getByText("Choose a PIN.")).toBeTruthy();
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
-    await waitFor(() => expect(screen.getByText("Confirm your PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter the PIN.")).toBeTruthy());
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
@@ -152,7 +152,7 @@ describe("auth screens", () => {
     pressDigits(screen, ["1", "3", "5", "7"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
 
-    await waitFor(() => expect(screen.getByText("Confirm your PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter the PIN.")).toBeTruthy());
 
     pressDigits(screen, ["1", "3", "5", "7"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
@@ -183,7 +183,7 @@ describe("auth screens", () => {
 
     const screen = render(<UnlockScreen />);
 
-    expect(screen.getByText("Wallet locked")).toBeTruthy();
+    expect(screen.getByText("Wallet locked.")).toBeTruthy();
     expect(screen.getByText("Sign out")).toBeTruthy();
   });
 
@@ -200,15 +200,15 @@ describe("auth screens", () => {
   it("advances through all three change-PIN steps and calls changePin", async () => {
     const screen = render(<ChangePinScreen />);
 
-    expect(screen.getByText("Enter current PIN")).toBeTruthy();
+    expect(screen.getByText("Current PIN.")).toBeTruthy();
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
 
-    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Choose a new PIN.")).toBeTruthy());
 
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
-    await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter new PIN.")).toBeTruthy());
 
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
@@ -222,11 +222,11 @@ describe("auth screens", () => {
 
     pressDigits(screen, ["1", "3", "5", "7"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
-    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Choose a new PIN.")).toBeTruthy());
 
     pressDigits(screen, ["2", "5", "8", "0"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
-    await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter new PIN.")).toBeTruthy());
 
     pressDigits(screen, ["2", "5", "8", "0"]);
     fireEvent.press(screen.getByLabelText("Submit PIN"));
@@ -238,12 +238,12 @@ describe("auth screens", () => {
     const screen = render(<ChangePinScreen />);
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
-    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Choose a new PIN.")).toBeTruthy());
 
     pressDigits(screen, ["9", "8", "7", "6", "5", "4"]);
 
-    await waitFor(() => expect(screen.queryByText("Confirm new PIN")).toBeNull());
-    expect(screen.getByText("Enter new PIN")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Re-enter new PIN.")).toBeNull());
+    expect(screen.getByText("Choose a new PIN.")).toBeTruthy();
   });
 
   it("returns to step 1 when the current PIN is wrong", async () => {
@@ -255,12 +255,12 @@ describe("auth screens", () => {
     const screen = render(<ChangePinScreen />);
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
-    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Choose a new PIN.")).toBeTruthy());
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
-    await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter new PIN.")).toBeTruthy());
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
-    await waitFor(() => expect(screen.getByText("Enter current PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Current PIN.")).toBeTruthy());
   });
 
   it("shows the locked-out screen after too many change-PIN attempts", async () => {
@@ -272,12 +272,12 @@ describe("auth screens", () => {
     const screen = render(<ChangePinScreen />);
 
     pressDigits(screen, ["1", "2", "3", "4", "5", "6"]);
-    await waitFor(() => expect(screen.getByText("Enter new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Choose a new PIN.")).toBeTruthy());
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
-    await waitFor(() => expect(screen.getByText("Confirm new PIN")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Re-enter new PIN.")).toBeTruthy());
     pressDigits(screen, ["2", "4", "6", "8", "1", "3"]);
 
-    await waitFor(() => expect(screen.getByText("Too many attempts")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Too many attempts.")).toBeTruthy());
   });
 
   it("requires PIN confirmation before disabling biometric unlock", async () => {

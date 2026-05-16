@@ -1,22 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
-import { FlatList, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Text, View } from "react-native";
 
+import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { StudentCard } from "@/src/components/StudentCard";
+import { EmptyState } from "@/src/components/EmptyState";
+import { ListItem } from "@/src/components/ListItem";
+import { Rule } from "@/src/components/Rule";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
-import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-const MAX_CARD_WIDTH = 360;
+type CredentialAttribute = { name: string; value: string };
+
+function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: string[]) {
+  if (!attributes) return undefined;
+  for (const name of names) {
+    const match = attributes.find((a) => a.name === name)?.value;
+    if (match) return match;
+  }
+  return undefined;
+}
 
 export default function CredentialIndexScreen() {
   const { session } = useWalletSession();
-  const { width: screenWidth } = useWindowDimensions();
-  const [currentIndex, setCurrentIndex] = useState(0);
 
   const credentialsQuery = useQuery({
     queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
@@ -25,89 +34,65 @@ export default function CredentialIndexScreen() {
   });
 
   const credentials = credentialsQuery.data ?? [];
-  const cardWidth = Math.min(screenWidth - spacing.lg * 2, MAX_CARD_WIDTH);
-  const gap = spacing.md;
-  const sidePadding = Math.max((screenWidth - cardWidth) / 2, spacing.lg);
-
-  const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (cardWidth + gap));
-    if (index !== currentIndex) {
-      setCurrentIndex(Math.max(0, Math.min(index, credentials.length - 1)));
-    }
-  };
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Credential</Text>
-          <Text style={typography.title}>Your wallet</Text>
-          <Text style={typography.body}>Swipe to browse the credentials stored in your wallet. Tap a card for full details.</Text>
-        </View>
+      <ScreenHeader eyebrow="Wallet · Credentials" title="Your credentials." />
 
-        {credentialsQuery.isLoading ? <Text style={typography.body}>Loading credentials…</Text> : null}
+      {credentialsQuery.isLoading ? (
+        <Text style={typography.body}>Loading credentials…</Text>
+      ) : credentialsQuery.isError ? (
+        <Text style={[typography.eyebrow, { color: colors.error }]}>
+          Credentials could not be loaded.
+        </Text>
+      ) : credentials.length === 0 ? (
+        <EmptyState
+          eyebrow="No credentials yet"
+          heading="Your wallet is empty."
+          body="Open an activation link from your university to receive your first credential."
+          action={<AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />}
+        />
+      ) : (
+        <View>
+          <Rule />
+          {credentials.map((credential) => {
+            const attributes = credential.credentialAttributes;
+            const issuer =
+              findAttribute(attributes, "issuerName", "issuer", "institution", "university") ??
+              "Issuer";
+            const firstName = findAttribute(attributes, "firstName", "first_name", "givenName");
+            const lastName = findAttribute(attributes, "lastName", "last_name", "familyName", "surname");
+            const programme = findAttribute(
+              attributes,
+              "programme",
+              "program",
+              "faculty",
+              "school",
+              "department",
+            );
+            const subtitle = [
+              [firstName, lastName].filter(Boolean).join(" ").trim() || "Holder pending",
+              programme,
+            ]
+              .filter(Boolean)
+              .join(" · ");
 
-        {credentialsQuery.isError ? (
-          <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>
-            Credential details could not be loaded.
-          </Text>
-        ) : null}
-
-        {!credentialsQuery.isLoading && credentials.length === 0 ? (
-          <View
-            style={{
-              borderColor: colors.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              gap: spacing.sm,
-              padding: spacing.lg,
-            }}
-          >
-            <Text style={typography.sectionTitle}>No credentials stored yet</Text>
-            <Text style={typography.body}>
-              Open an activation link from your university to receive your student credential.
-            </Text>
-          </View>
-        ) : null}
-
-        {credentials.length > 0 ? (
-          <View style={{ marginHorizontal: -spacing.lg, gap: spacing.md }}>
-            <FlatList
-              data={credentials}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={cardWidth + gap}
-              decelerationRate="fast"
-              contentContainerStyle={{ paddingHorizontal: sidePadding, gap }}
-              onMomentumScrollEnd={handleScrollEnd}
-              renderItem={({ item }) => (
-                <StudentCard
-                  credential={item}
-                  width={cardWidth}
-                  onPress={() => router.push(`/(wallet)/credential/${item.id}`)}
+            return (
+              <View key={credential.id}>
+                <ListItem
+                  eyebrow={issuer.toUpperCase()}
+                  title={programme ?? "Student credential"}
+                  subtitle={subtitle}
+                  meta={credential.state ?? "—"}
+                  showChevron
+                  onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
                 />
-              )}
-            />
-            {credentials.length > 1 ? (
-              <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xs }}>
-                {credentials.map((c, i) => (
-                  <View
-                    key={c.id}
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: i === currentIndex ? colors.primary : colors.border,
-                    }}
-                  />
-                ))}
+                <Rule variant="hairline" />
               </View>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+            );
+          })}
+        </View>
+      )}
     </AppScreen>
   );
 }

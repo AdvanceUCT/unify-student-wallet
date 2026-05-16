@@ -1,9 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { Check as CheckIcon } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Rule } from "@/src/components/Rule";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -12,6 +15,12 @@ import { typography } from "@/src/theme/typography";
 type Stage = "idle" | "resolving" | "awaitingOffer" | "redirecting" | "error";
 
 const AWAIT_OFFER_TIMEOUT_MS = 30_000;
+
+const STAGE_STEPS: { key: Exclude<Stage, "idle" | "error">; label: string }[] = [
+  { key: "resolving", label: "Resolving activation link" },
+  { key: "awaitingOffer", label: "Receiving credential offer" },
+  { key: "redirecting", label: "Opening credential" },
+];
 
 function firstParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
@@ -65,6 +74,25 @@ export default function ActivateScreen() {
         setStage("error");
         return;
       }
+
+      if (result.activationTarget === "credential") {
+        setStage("redirecting");
+        router.replace("/(wallet)/credential");
+        return;
+      }
+
+      if (result.activationTarget === "offers") {
+        setStage("redirecting");
+        router.replace("/(wallet)/offers");
+        return;
+      }
+
+      if (result.activationTarget === "stashed") {
+        setStage("redirecting");
+        router.replace("/(auth)/set-pin");
+        return;
+      }
+
       setStage("awaitingOffer");
     })();
   }, [isHydrated, pendingOfferIds.length, processIncomingLink, retryToken, routeActivationUrl]);
@@ -100,55 +128,99 @@ export default function ActivateScreen() {
     setRetryToken((value) => value + 1);
   }
 
+  const stageIndex = STAGE_STEPS.findIndex((s) => s.key === stage);
+
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Activation</Text>
-          <Text style={typography.title}>Connecting your credential</Text>
-        </View>
+        <ScreenHeader
+          eyebrow="Activation"
+          title="Connecting credential."
+          meta={routeActivationUrl ? "Hold on — this only takes a moment." : "Open an activation link to begin."}
+        />
 
-        {!isHydrated ? <Text style={typography.body}>Loading wallet session…</Text> : null}
+        {!isHydrated ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={typography.body}>Loading wallet session…</Text>
+          </View>
+        ) : null}
 
         {isHydrated && !routeActivationUrl ? (
-          <Text style={typography.body}>
-            Open the activation link from your university to connect your credential.
+          <Text style={typography.bodyLg}>
+            Open the activation link from your university to receive your credential.
           </Text>
         ) : null}
 
         {isHydrated && routeActivationUrl && stage !== "error" ? (
-          <View
-            style={{
-              alignItems: "center",
-              borderColor: colors.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              flexDirection: "row",
-              gap: spacing.md,
-              padding: spacing.lg,
-            }}
-          >
-            {stage === "redirecting" ? (
-              <Text style={{ color: colors.success, fontSize: 20, fontWeight: "700" }}>✓</Text>
-            ) : (
-              <ActivityIndicator color={colors.primary} />
-            )}
-            <Text style={[typography.body, { flex: 1 }]}>
-              {stage === "resolving"
-                ? "Verifying activation link…"
-                : stage === "awaitingOffer"
-                  ? "Receiving your credential offer…"
-                  : stage === "redirecting"
-                    ? "Offer ready — opening…"
-                    : "Preparing…"}
-            </Text>
+          <View style={{ gap: 0 }}>
+            <Rule variant="hairline" />
+            {STAGE_STEPS.map((entry, index) => {
+              const isActive = index === stageIndex;
+              const isDone = stageIndex > index;
+              const isPending = stageIndex < index;
+
+              return (
+                <View key={entry.key}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: spacing.md,
+                      paddingVertical: spacing.lg,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {isDone ? (
+                        <CheckIcon color={colors.primary} size={16} strokeWidth={2} />
+                      ) : isActive ? (
+                        <ActivityIndicator color={colors.primary} size="small" />
+                      ) : (
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderColor: colors.ruleSoft,
+                            borderWidth: 1,
+                          }}
+                        />
+                      )}
+                    </View>
+                    <Text
+                      style={[
+                        typography.body,
+                        {
+                          color: isPending ? colors.inkSubtle : colors.ink,
+                          fontFamily: isActive ? "IBMPlexSans_500Medium" : "IBMPlexSans_400Regular",
+                          flex: 1,
+                        },
+                      ]}
+                    >
+                      {entry.label}
+                    </Text>
+                    <Text style={[typography.eyebrow, { color: isPending ? colors.inkSubtle : colors.primary }]}>
+                      {isDone ? "Done" : isActive ? "…" : "Wait"}
+                    </Text>
+                  </View>
+                  <Rule variant="hairline" />
+                </View>
+              );
+            })}
           </View>
         ) : null}
 
         {stage === "error" && error ? (
           <View style={{ gap: spacing.md }}>
-            <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{error}</Text>
-            <AppButton label="Try again" onPress={handleRetry} />
+            <Text style={[typography.eyebrow, { color: colors.error }]}>Activation failed</Text>
+            <Text style={typography.bodyLg}>{error}</Text>
+            <AppButton label="Try again" onPress={handleRetry} size="lg" />
           </View>
         ) : null}
       </View>

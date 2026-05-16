@@ -7,6 +7,11 @@ import { getMediatorInvitationUrl, getMediatorPickupStrategy } from "./mediatorS
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
+const CREDENTIAL_OFFER_STATE = "offer-received";
+const CREDENTIAL_STORED_STATES = new Set(["credential-received", "done"]);
+const CREDENTIAL_OFFER_WAIT_MS = 45_000;
+const CREDENTIAL_OFFER_GRACE_MS = 5_000;
+const CREDENTIAL_OFFER_POLL_MS = 1_000;
 
 export type HolderAgentConfig = {
   walletId: string;
@@ -34,6 +39,8 @@ type DidCommMediationRecord = {
   isReady?: boolean;
   state?: string;
 };
+
+type DidCommMediationRecipient = NonNullable<NonNullable<HolderAgent["didcomm"]>["mediationRecipient"]>;
 
 export type HolderAgent = {
   didcomm?: {
@@ -156,6 +163,41 @@ function errorMessageFromUnknown(error: unknown) {
   return messages.join(" Caused by: ");
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isCredentialOffer(record: CredentialRecord) {
+  return record.state === CREDENTIAL_OFFER_STATE;
+}
+
+function isStoredCredential(record: CredentialRecord) {
+  return Boolean(record.state && CREDENTIAL_STORED_STATES.has(record.state));
+}
+
+function findCredentialOffer(records: CredentialRecord[], ignoredIds = new Set<string>()) {
+  return records.find((record) => isCredentialOffer(record) && !ignoredIds.has(record.id));
+}
+
+function findStoredCredential(records: CredentialRecord[], ignoredIds = new Set<string>()) {
+  return records.find((record) => isStoredCredential(record) && !ignoredIds.has(record.id));
+}
+
+function findCredentialRecord(records: CredentialRecord[], ignoredIds = new Set<string>()) {
+  const candidates = records.filter((record) => !ignoredIds.has(record.id));
+  return candidates.find(isStoredCredential) ?? candidates.find(isCredentialOffer);
+}
+
+async function startMediatorPickup(
+  mediationRecipient: DidCommMediationRecipient,
+  mediation: DidCommMediationRecord,
+  mediatorPickupStrategy: unknown,
+) {
+  await loggedStep(`start mediator pickup ${mediation.id}`, () =>
+    mediationRecipient.initiateMessagePickup!(mediation, mediatorPickupStrategy),
+  );
+}
+
 async function loggedStep<T>(label: string, action: () => Promise<T>): Promise<T> {
   console.log(`[holder-agent] ${label}...`);
 
@@ -174,30 +216,28 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   const connections = agent.didcomm?.connections;
   const mediationRecipient = agent.didcomm?.mediationRecipient;
 
-if (
-  !oob?.parseInvitation ||
-  !oob.findByReceivedInvitationId ||
-  !oob.receiveInvitationFromUrl ||
-  !connections?.findAllByOutOfBandId ||
-  !connections.returnWhenIsConnected ||
-  !mediationRecipient?.findByConnectionId ||
-  !mediationRecipient.findDefaultMediator ||
-  !mediationRecipient.initiateMessagePickup ||
-  !mediationRecipient.provision
-) {
-  throw new Error("Credo holder agent is missing the mediator recipient APIs.");
-}
+  if (
+    !oob?.parseInvitation ||
+    !oob.findByReceivedInvitationId ||
+    !oob.receiveInvitationFromUrl ||
+    !connections?.findAllByOutOfBandId ||
+    !connections.returnWhenIsConnected ||
+    !mediationRecipient?.findByConnectionId ||
+    !mediationRecipient.findDefaultMediator ||
+    !mediationRecipient.initiateMessagePickup ||
+    !mediationRecipient.provision
+  ) {
+    throw new Error("Credo holder agent is missing the mediator recipient APIs.");
+  }
 
   const existingDefaultMediator = await loggedStep("check default mediator", () =>
     mediationRecipient.findDefaultMediator!(),
   );
 
-if (existingDefaultMediator?.isReady) {
-  console.log(
-    `[holder-agent] default mediator ${existingDefaultMediator.id} is ready; skipping manual pickup start`,
-  );
-  return;
-}
+  if (existingDefaultMediator?.isReady) {
+    await startMediatorPickup(mediationRecipient, existingDefaultMediator, mediatorPickupStrategy);
+    return;
+  }
 
   const invitation = await loggedStep("parse mediator invitation", () => oob.parseInvitation!(mediatorInvitationUrl));
   const existingOutOfBandRecord = await loggedStep("check existing mediator invitation record", () =>
@@ -249,9 +289,7 @@ if (existingDefaultMediator?.isReady) {
     );
   }
 
-await loggedStep(`start newly provisioned mediator pickup ${mediation.id}`, () =>
-  mediationRecipient.initiateMessagePickup!(mediation, mediatorPickupStrategy),
-);
+  await startMediatorPickup(mediationRecipient, mediation, mediatorPickupStrategy);
 }
 
 export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent | null> {
@@ -345,7 +383,8 @@ const AskarModule = getConstructor<unknown>(askarExports, "AskarModule");
 const AnonCredsModule = getConstructor<unknown>(anoncredsExports, "AnonCredsModule");
 const IndyVdrModule = getConstructor<unknown>(indyVdrExports, "IndyVdrModule");
 const IndyVdrAnonCredsRegistry = getConstructor<unknown>(indyVdrExports, "IndyVdrAnonCredsRegistry");
-const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { ContentApproved?: unknown } | undefined)?.ContentApproved;
+const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { ContentApproved?: unknown } | undefined)
+  ?.ContentApproved;
 const logLevel = (coreExports.LogLevel as { debug?: unknown; info?: unknown } | undefined)?.debug;
 const peerDidGenesisDoc = PeerDidNumAlgo?.GenesisDoc;
 
@@ -462,16 +501,24 @@ export async function resumeHolderAgentSession(walletId: string): Promise<Holder
   return initializeHolderAgent({ walletId });
 }
 
-export async function receiveCredentialOffer(invitationUrl: string): Promise<void> {
+export async function receiveCredentialOffer(invitationUrl: string): Promise<CredentialRecord> {
   if (!agentRef) {
     throw new Error("Wallet has not been created yet.");
   }
 
   const oob = agentRef.didcomm?.oob;
+  const credentials = agentRef.didcomm?.credentials;
 
   if (!oob?.receiveInvitationFromUrl) {
     throw new Error("Credo holder agent is missing the OOB receive API.");
   }
+
+  if (!credentials?.getAll) {
+    throw new Error("Credo holder agent is missing the credentials query API.");
+  }
+
+  const existingCredentials = await credentials.getAll();
+  const existingCredentialIds = new Set(existingCredentials.map((record) => record.id));
 
   // Invoke through the chain so Credo's internal this binding is preserved.
   await oob.receiveInvitationFromUrl(invitationUrl, {
@@ -479,6 +526,40 @@ export async function receiveCredentialOffer(invitationUrl: string): Promise<voi
     autoAcceptInvitation: true,
     label: "UNIFY Student Wallet",
   });
+
+  const deadline = Date.now() + CREDENTIAL_OFFER_WAIT_MS;
+  let fallbackOffer: CredentialRecord | undefined;
+  let fallbackOfferFirstSeenAt: number | undefined;
+
+  while (Date.now() < deadline) {
+    const records = await credentials.getAll();
+    const storedCredential = findStoredCredential(records, existingCredentialIds);
+
+    if (storedCredential) {
+      return storedCredential;
+    }
+
+    const offer = findCredentialOffer(records, existingCredentialIds);
+
+    if (offer && !fallbackOffer) {
+      fallbackOffer = offer;
+      fallbackOfferFirstSeenAt = Date.now();
+    }
+
+    if (
+      fallbackOffer &&
+      fallbackOfferFirstSeenAt &&
+      Date.now() - fallbackOfferFirstSeenAt >= CREDENTIAL_OFFER_GRACE_MS
+    ) {
+      return fallbackOffer;
+    }
+
+    await sleep(CREDENTIAL_OFFER_POLL_MS);
+  }
+
+  throw new Error(
+    "The credential invitation was received, but no credential offer or stored credential was found in the wallet. Ask the issuer to create a new activation link and try again.",
+  );
 }
 
 export async function acceptCredentialOffer(credentialRecordId: string): Promise<void> {
@@ -560,7 +641,7 @@ export function subscribeToOfferReceived(handler: CredentialOfferReceivedHandler
       ?.payload;
     const record = payload?.credentialExchangeRecord;
 
-    if (record && record.state === "offer-received") {
+    if (record) {
       handler(record);
     }
   };
@@ -573,3 +654,14 @@ export function subscribeToOfferReceived(handler: CredentialOfferReceivedHandler
     }
   };
 }
+
+export const __holderAgentTestInternals = {
+  findCredentialOffer,
+  findCredentialRecord,
+  findStoredCredential,
+  setActiveHolderAgentForTest(agent: HolderAgent | null, walletId = "test-wallet") {
+    agentRef = agent;
+    activeWalletId = agent ? walletId : undefined;
+  },
+  startMediatorPickup,
+};

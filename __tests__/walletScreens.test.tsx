@@ -3,20 +3,19 @@ import { fireEvent, render } from "@testing-library/react-native";
 import HomeScreen from "@/app/(wallet)/home";
 import ScanScreen from "@/app/(wallet)/scan";
 import SettingsScreen from "@/app/(wallet)/settings";
-import { mockPaymentHistory, mockStudentCredential, mockWalletSummary } from "@/src/lib/api/mockStudent";
 
 const mockRequestPermission = jest.fn();
 const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
   if (queryKey[0] === "student-credential") {
-    return { data: mockStudentCredential, isError: false, isLoading: false };
+    return { data: null, isError: false, isLoading: false };
   }
 
   if (queryKey[0] === "wallet-summary") {
-    return { data: mockWalletSummary, isError: false, isLoading: false };
+    return { data: null, isError: false, isLoading: false };
   }
 
   if (queryKey[0] === "payment-history") {
-    return { data: mockPaymentHistory, isError: false, isLoading: false };
+    return { data: [], isError: false, isLoading: false };
   }
 
   return { data: undefined, isError: false, isLoading: false };
@@ -54,7 +53,7 @@ jest.mock("expo-camera", () => ({
 
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
-  router: { push: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
 }));
 
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
@@ -71,40 +70,37 @@ describe("wallet screens", () => {
     mockWalletSession.pendingOfferIds = [];
   });
 
-  it("shows wallet diagnostics on the home screen", () => {
+  it("shows the wallet masthead on the home screen", () => {
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("Campus wallet control center")).toBeTruthy();
-    expect(screen.getByText("wallet-uuid-001")).toBeTruthy();
-    expect(screen.getByText("Scan service QR")).toBeTruthy();
+    expect(screen.getByText("Wallet.")).toBeTruthy();
+    expect(screen.getByText("Open scanner")).toBeTruthy();
+    expect(mockUseQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["student-credential", "wallet-uuid-001"] }),
+    );
   });
 
-  it("shows the pending offers banner when offers are queued", () => {
+  it("shows the pending offers card when offers are queued", () => {
     mockWalletSession.pendingOfferIds = ["offer-1", "offer-2"];
 
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("You have 2 pending credential offers.")).toBeTruthy();
+    expect(screen.getByText("2 credential offers are waiting.")).toBeTruthy();
     expect(screen.getByText("Review offers")).toBeTruthy();
   });
 
-  it("parses a demo verification QR and exposes the presentation action", async () => {
+  it("prompts the user to enable camera permission on the scan screen", () => {
     const screen = render(<ScanScreen />);
 
-    fireEvent.press(screen.getByText("Use demo verification QR"));
-
-    expect(await screen.findByText("main-library")).toBeTruthy();
-    expect(screen.getByText("Present credential")).toBeTruthy();
-
-    fireEvent.press(screen.getByText("Present credential"));
-
-    expect(screen.getByText("Credential presentation approved for main-library.")).toBeTruthy();
+    expect(screen.getByText("Camera blocked")).toBeTruthy();
+    fireEvent.press(screen.getByText("Allow camera"));
+    expect(mockRequestPermission).toHaveBeenCalled();
   });
 
-  it("shows the wallet status in settings", () => {
+  it("shows the agent status in settings", () => {
     const screen = render(<SettingsScreen />);
 
     expect(screen.getByText("Holder agent")).toBeTruthy();
-    expect(screen.getByText("wallet-uuid-001")).toBeTruthy();
+    expect(screen.getByText("Sign out")).toBeTruthy();
   });
 });

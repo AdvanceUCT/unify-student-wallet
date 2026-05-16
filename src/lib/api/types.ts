@@ -1,36 +1,20 @@
-export type StudentProfile = {
-  id: string;
+export type CredentialAttribute = {
   name: string;
-  institution: string;
+  value: string;
 };
 
-export type CredentialLifecycleState =
-  | "Pending"
-  | "Issuing"
-  | "Offered"
-  | "Active"
-  | "Suspended"
-  | "Revoked"
-  | "Expired"
-  | "Renewed";
-
-export type StudentCredential = {
+export type StoredCredential = {
   id: string;
-  holderName: string;
-  issuer: string;
-  faculty: string;
-  programme: string;
-  enrolmentStatus: "Registered" | "Suspended" | "Withdrawn" | "Graduated";
-  lifecycleState: CredentialLifecycleState;
-  studentNumber: string;
-  validFrom: string;
-  expiresAt: string;
+  state?: string;
+  connectionId?: string;
+  connectionLabel?: string;
+  credentialAttributes?: CredentialAttribute[];
 };
 
 export type WalletSummary = {
   availableBalance: string;
   lastVerification: string;
-};
+} | null;
 
 export type PaymentRecord = {
   id: string;

@@ -2,7 +2,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { parseActivationLink } from "./activationLinks";
+import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
 import {
   acceptCredentialOffer as agentAcceptCredentialOffer,
@@ -24,7 +24,7 @@ import {
   type WalletSession,
 } from "./sessionTypes";
 
-type ActionResult = { ok: true } | { ok: false; error: string };
+type ActionResult = { ok: true; activationTarget?: "credential" | "offers" | "stashed" } | { ok: false; error: string };
 type BiometricToggleResult =
   | { ok: true }
   | { ok: false; error: string }
@@ -95,10 +95,23 @@ function actionErrorFromUnknown(error: unknown, fallback: string): { ok: false; 
   return { ok: false, error: fallback };
 }
 
+function activationRequestKey(request: ActivationLinkRequest) {
+  return request.kind === "token" ? `token:${request.token}` : `oob:${request.invitationUrl}`;
+}
+
+function isPendingCredentialOffer(record: { state?: string }) {
+  return record.state === "offer-received";
+}
+
+function isStoredCredential(record: { state?: string }) {
+  return record.state === "credential-received" || record.state === "done";
+}
+
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const { createWallet: createHolderWallet, resetAgent, resumeWallet } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
+  const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
 
   useEffect(() => {
     stateRef.current = state;
@@ -196,11 +209,18 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     }
 
     const unsubscribe = subscribeToOfferReceived((record) => {
-      void addPendingOfferId(record.id);
+      if (isPendingCredentialOffer(record)) {
+        void addPendingOfferId(record.id);
+        return;
+      }
+
+      if (isStoredCredential(record)) {
+        void removePendingOfferId(record.id);
+      }
     });
 
     return unsubscribe;
-  }, [addPendingOfferId, state.session.lockStatus, state.session.walletId]);
+  }, [addPendingOfferId, removePendingOfferId, state.session.lockStatus, state.session.walletId]);
 
   const processIncomingLink = useCallback(
     async (url: string): Promise<ActionResult> => {
@@ -210,28 +230,52 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return parsed;
       }
 
-      const current = stateRef.current;
+      const key = activationRequestKey(parsed.data);
+      const existingProcess = activationProcessingRef.current.get(key);
 
-      if (!current.session.walletId) {
-        stateRef.current = { ...stateRef.current, stashedActivationUrl: url };
-        setState((curr) => ({ ...curr, stashedActivationUrl: url }));
-        return { ok: true };
+      if (existingProcess) {
+        return existingProcess;
       }
 
-      const resolved = await resolveWalletActivation(parsed.data);
+      const processActivation = (async (): Promise<ActionResult> => {
+        const current = stateRef.current;
 
-      if (!resolved.ok) {
-        return resolved;
-      }
+        if (!current.session.walletId) {
+          stateRef.current = { ...stateRef.current, stashedActivationUrl: url };
+          setState((curr) => ({ ...curr, stashedActivationUrl: url }));
+          return { ok: true, activationTarget: "stashed" };
+        }
+
+        const resolved = await resolveWalletActivation(parsed.data);
+
+        if (!resolved.ok) {
+          return resolved;
+        }
+
+        try {
+          const credentialRecord = await agentReceiveCredentialOffer(resolved.data.invitationUrl);
+
+          if (isPendingCredentialOffer(credentialRecord)) {
+            await addPendingOfferId(credentialRecord.id);
+            return { ok: true, activationTarget: "offers" };
+          }
+
+          await removePendingOfferId(credentialRecord.id);
+          return { ok: true, activationTarget: "credential" };
+        } catch (error) {
+          return actionErrorFromUnknown(error, "Credential offer could not be received.");
+        }
+      })();
+
+      activationProcessingRef.current.set(key, processActivation);
 
       try {
-        await agentReceiveCredentialOffer(resolved.data.invitationUrl);
-        return { ok: true };
-      } catch (error) {
-        return actionErrorFromUnknown(error, "Credential offer could not be received.");
+        return await processActivation;
+      } finally {
+        activationProcessingRef.current.delete(key);
       }
     },
-    [],
+    [addPendingOfferId, removePendingOfferId],
   );
 
   const createWallet = useCallback(
