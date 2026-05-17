@@ -18,19 +18,6 @@ export default function SignInScreen() {
     <AppScreen>
       <View style={{ flex: 1, justifyContent: "space-between" }}>
         <View style={{ gap: spacing.xl }}>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: radii.md,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: colors.surface, fontSize: 18, fontWeight: "800" }}>U</Text>
-          </View>
-
           <View style={{ gap: spacing.md }}>
             <Text style={typography.caption}>Unify · Student Wallet</Text>
             <Text style={typography.display}>Welcome.</Text>

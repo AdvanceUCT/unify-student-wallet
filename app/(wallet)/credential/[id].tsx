@@ -9,7 +9,6 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
 import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
-import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -62,7 +61,6 @@ function humanize(name: string) {
 
 export default function CredentialDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session } = useWalletSession();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
 
@@ -159,16 +157,6 @@ export default function CredentialDetailScreen() {
               </Card>
             ) : null}
 
-            <Card heading="Technical">
-              <InfoRow label="Record" value={credential.id} divider />
-              {credential.connectionId ? (
-                <InfoRow label="Connection" value={credential.connectionId} divider />
-              ) : null}
-              {credential.state ? (
-                <InfoRow label="State" value={credential.state} tone="success" divider />
-              ) : null}
-              <InfoRow label="Wallet" value={session.walletId ?? "—"} />
-            </Card>
           </>
         ) : null}
 
