@@ -12,7 +12,6 @@ import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { MAX_PIN_ATTEMPTS, MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type ScreenPhase = "idle" | "authenticating" | "error" | "success";
 
@@ -111,12 +110,12 @@ export default function UnlockScreen() {
           {phase === "error" && errorMessage !== null ? (
             <Text
               accessibilityLiveRegion="polite"
-              style={[typography.eyebrow, { color: colors.error, textAlign: "center" }]}
+              style={{ color: colors.error, fontSize: 13, fontWeight: "600", textAlign: "center" }}
             >
               {errorMessage}
             </Text>
           ) : showAttemptWarning ? (
-            <Text style={[typography.eyebrow, { color: colors.warning, textAlign: "center" }]}>
+            <Text style={{ color: colors.warning, fontSize: 13, fontWeight: "600", textAlign: "center" }}>
               {attemptsRemaining} attempt{attemptsRemaining === 1 ? "" : "s"} remaining
             </Text>
           ) : (

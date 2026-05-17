@@ -1,18 +1,20 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
+import { Camera as CameraIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
-import { Rule } from "@/src/components/Rule";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
-import { rules } from "@/src/theme/rules";
+import { radii } from "@/src/theme/radii";
+import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -76,23 +78,23 @@ export default function ScanScreen() {
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing["2xl"] }}>
+      <View style={{ gap: spacing.xl }}>
         <ScreenHeader
           eyebrow="Scan"
           title="Service QR."
           meta="Activation, payment, or verification — the wallet picks the right action."
         />
 
-        <View style={{ gap: spacing.md }}>
+        <View style={{ gap: spacing.sm }}>
           <View
             style={{
               aspectRatio: 1,
               backgroundColor: colors.ink,
-              borderColor: colors.ink,
-              borderWidth: rules.ink,
+              borderRadius: radii.xl,
               alignItems: "center",
               justifyContent: "center",
               overflow: "hidden",
+              ...shadows.md,
             }}
           >
             {permission?.granted ? (
@@ -105,45 +107,51 @@ export default function ScanScreen() {
                   pointerEvents="none"
                   style={{
                     position: "absolute",
-                    top: "12%",
-                    left: "12%",
-                    right: "12%",
-                    bottom: "12%",
+                    top: "14%",
+                    left: "14%",
+                    right: "14%",
+                    bottom: "14%",
+                    borderRadius: radii.lg,
                     borderColor: colors.surface,
-                    borderWidth: rules.ink,
+                    borderWidth: 2,
                   }}
                 />
               </>
             ) : (
               <View style={{ alignItems: "center", gap: spacing.md, padding: spacing.xl }}>
-                <Text style={[typography.eyebrow, { color: colors.surface }]}>Camera blocked</Text>
-                <Text style={[typography.body, { color: colors.surface, textAlign: "center" }]}>
-                  Camera permission is needed to scan service QR codes.
+                <CameraIcon color={colors.surface} size={28} strokeWidth={1.6} />
+                <Text style={[typography.bodyStrong, { color: colors.surface, textAlign: "center" }]}>
+                  Camera access needed
+                </Text>
+                <Text style={[typography.body, { color: colors.surface, textAlign: "center", opacity: 0.85 }]}>
+                  Allow camera permission to scan service QR codes.
                 </Text>
                 <AppButton label="Allow camera" onPress={requestPermission} />
               </View>
             )}
           </View>
-          <Text style={[typography.eyebrow, { textAlign: "center" }]}>
-            Align QR within frame · Activation, payment, or verification
+          <Text style={[typography.caption, { textAlign: "center" }]}>
+            Align QR within the frame — activation, payment, or verification.
           </Text>
         </View>
 
         {scanError ? (
-          <Text style={[typography.eyebrow, { color: colors.error }]}>{scanError}</Text>
+          <Card>
+            <Text style={[typography.bodyStrong, { color: colors.error }]}>{scanError}</Text>
+          </Card>
         ) : null}
 
         {actionResult ? (
-          <Text style={[typography.eyebrow, { color: colors.primary }]}>{actionResult}</Text>
+          <Card>
+            <Text style={[typography.bodyStrong, { color: colors.primary }]}>{actionResult}</Text>
+          </Card>
         ) : null}
 
         {scanResult ? (
-          <View style={{ gap: spacing.md }}>
-            <Text style={typography.eyebrow}>Parsed service request</Text>
-            <Rule />
-            <InfoRow label="Type" value={scanResult.payload.type} tone="success" />
-            <InfoRow label="Vendor" value={scanResult.payload.vendorId} />
-            <InfoRow label="Service point" value={scanResult.payload.servicePointId} />
+          <Card heading="Parsed service request">
+            <InfoRow label="Type" value={scanResult.payload.type} tone="success" divider />
+            <InfoRow label="Vendor" value={scanResult.payload.vendorId} divider />
+            <InfoRow label="Service point" value={scanResult.payload.servicePointId} divider />
             <InfoRow
               label="Amount"
               value={
@@ -151,10 +159,11 @@ export default function ScanScreen() {
                   ? `R ${scanResult.payload.amount.toFixed(2)}`
                   : "Not required"
               }
+              divider
             />
-            <InfoRow label="Nonce" value={scanResult.payload.nonce} />
-            <InfoRow label="Wallet" value={session.walletId ?? "—"} divider={false} />
-            <View style={{ paddingTop: spacing.md }}>
+            <InfoRow label="Nonce" value={scanResult.payload.nonce} divider />
+            <InfoRow label="Wallet" value={session.walletId ?? "—"} />
+            <View style={{ paddingTop: spacing.lg }}>
               <AppButton
                 label={
                   scanResult.payload.type === "payment" ? "Approve payment" : "Present credential"
@@ -163,7 +172,7 @@ export default function ScanScreen() {
                 size="lg"
               />
             </View>
-          </View>
+          </Card>
         ) : null}
       </View>
     </AppScreen>

@@ -1,14 +1,15 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Check as CheckIcon } from "lucide-react-native";
+import { Check as CheckIcon, AlertCircle as AlertIcon } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Rule } from "@/src/components/Rule";
+import { Card } from "@/src/components/Card";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
+import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -140,88 +141,88 @@ export default function ActivateScreen() {
         />
 
         {!isHydrated ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={typography.body}>Loading wallet session…</Text>
-          </View>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={typography.body}>Loading wallet session…</Text>
+            </View>
+          </Card>
         ) : null}
 
         {isHydrated && !routeActivationUrl ? (
-          <Text style={typography.bodyLg}>
-            Open the activation link from your university to receive your credential.
-          </Text>
+          <Card>
+            <Text style={typography.bodyLg}>
+              Open the activation link from your university to receive your credential.
+            </Text>
+          </Card>
         ) : null}
 
         {isHydrated && routeActivationUrl && stage !== "error" ? (
-          <View style={{ gap: 0 }}>
-            <Rule variant="hairline" />
-            {STAGE_STEPS.map((entry, index) => {
-              const isActive = index === stageIndex;
-              const isDone = stageIndex > index;
-              const isPending = stageIndex < index;
+          <Card>
+            <View style={{ gap: spacing.md }}>
+              {STAGE_STEPS.map((entry, index) => {
+                const isActive = index === stageIndex;
+                const isDone = stageIndex > index;
+                const isPending = stageIndex < index;
 
-              return (
-                <View key={entry.key}>
+                return (
                   <View
+                    key={entry.key}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
                       gap: spacing.md,
-                      paddingVertical: spacing.lg,
                     }}
                   >
                     <View
                       style={{
-                        width: 20,
-                        height: 20,
+                        width: 28,
+                        height: 28,
+                        borderRadius: radii.pill,
+                        backgroundColor: isDone
+                          ? colors.primary
+                          : isActive
+                            ? colors.primarySoft
+                            : colors.surfaceAlt,
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
                       {isDone ? (
-                        <CheckIcon color={colors.primary} size={16} strokeWidth={2} />
+                        <CheckIcon color={colors.surface} size={16} strokeWidth={2.5} />
                       ) : isActive ? (
                         <ActivityIndicator color={colors.primary} size="small" />
-                      ) : (
-                        <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderColor: colors.ruleSoft,
-                            borderWidth: 1,
-                          }}
-                        />
-                      )}
+                      ) : null}
                     </View>
                     <Text
                       style={[
-                        typography.body,
+                        typography.bodyStrong,
                         {
                           color: isPending ? colors.inkSubtle : colors.ink,
-                          fontFamily: isActive ? "IBMPlexSans_500Medium" : "IBMPlexSans_400Regular",
                           flex: 1,
                         },
                       ]}
                     >
                       {entry.label}
                     </Text>
-                    <Text style={[typography.eyebrow, { color: isPending ? colors.inkSubtle : colors.primary }]}>
-                      {isDone ? "Done" : isActive ? "…" : "Wait"}
-                    </Text>
                   </View>
-                  <Rule variant="hairline" />
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </Card>
         ) : null}
 
         {stage === "error" && error ? (
-          <View style={{ gap: spacing.md }}>
-            <Text style={[typography.eyebrow, { color: colors.error }]}>Activation failed</Text>
-            <Text style={typography.bodyLg}>{error}</Text>
-            <AppButton label="Try again" onPress={handleRetry} size="lg" />
-          </View>
+          <Card>
+            <View style={{ gap: spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                <AlertIcon color={colors.error} size={20} strokeWidth={1.8} />
+                <Text style={[typography.bodyStrong, { color: colors.error }]}>Activation failed</Text>
+              </View>
+              <Text style={typography.body}>{error}</Text>
+              <AppButton label="Try again" onPress={handleRetry} size="lg" />
+            </View>
+          </Card>
         ) : null}
       </View>
     </AppScreen>

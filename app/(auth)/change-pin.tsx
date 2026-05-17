@@ -152,7 +152,7 @@ export default function ChangePinScreen() {
             {phase === "error" && error ? (
               <Text
                 accessibilityLiveRegion="polite"
-                style={[typography.eyebrow, { color: colors.error, textAlign: "center" }]}
+                style={{ color: colors.error, fontSize: 13, fontWeight: "600", textAlign: "center" }}
               >
                 {error}
               </Text>
@@ -172,7 +172,7 @@ export default function ChangePinScreen() {
             onPress={() => router.back()}
             style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, paddingVertical: spacing.sm })}
           >
-            <Text style={[typography.eyebrow, { color: colors.inkMuted }]}>Cancel</Text>
+            <Text style={[typography.bodyStrong, { color: colors.inkMuted }]}>Cancel</Text>
           </Pressable>
         </View>
       </View>

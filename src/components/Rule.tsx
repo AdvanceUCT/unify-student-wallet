@@ -8,11 +8,11 @@ type RuleProps = {
   color?: string;
 };
 
-export function Rule({ variant = "full", color }: RuleProps) {
+export function Rule({ variant = "hairline", color }: RuleProps) {
   const isHairline = variant === "hairline";
   const inset = variant === "inset";
   const height = isHairline ? rules.hairline : rules.ink;
-  const backgroundColor = color ?? (isHairline ? colors.ruleSoft : colors.rule);
+  const backgroundColor = color ?? colors.rule;
 
   return (
     <View

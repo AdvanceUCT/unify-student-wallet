@@ -4,8 +4,8 @@ import { Text, View, useWindowDimensions } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
-import { Rule } from "@/src/components/Rule";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
 import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
@@ -84,17 +84,21 @@ export default function CredentialDetailScreen() {
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing["2xl"] }}>
-        <ScreenHeader eyebrow="Credential · Detail" title="Credential record." />
+      <View style={{ gap: spacing.xl }}>
+        <ScreenHeader eyebrow="Credential" title="Detail." />
 
         {credentialQuery.isLoading ? (
-          <Text style={typography.body}>Loading credential…</Text>
+          <Card>
+            <Text style={typography.body}>Loading credential…</Text>
+          </Card>
         ) : null}
 
         {credentialQuery.isError ? (
-          <Text style={[typography.eyebrow, { color: colors.error }]}>
-            Credential could not be loaded.
-          </Text>
+          <Card>
+            <Text style={[typography.bodyStrong, { color: colors.error }]}>
+              Credential could not be loaded.
+            </Text>
+          </Card>
         ) : null}
 
         {credential ? (
@@ -104,62 +108,72 @@ export default function CredentialDetailScreen() {
             </View>
 
             {grouped.holder.length > 0 ? (
-              <Section title="Holder">
-                {grouped.holder.map((attr) => (
-                  <InfoRow key={attr.name} label={humanize(attr.name)} value={attr.value} />
+              <Card heading="Holder">
+                {grouped.holder.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.holder.length - 1}
+                  />
                 ))}
-              </Section>
+              </Card>
             ) : null}
 
             {grouped.programme.length > 0 ? (
-              <Section title="Programme">
-                {grouped.programme.map((attr) => (
-                  <InfoRow key={attr.name} label={humanize(attr.name)} value={attr.value} />
+              <Card heading="Programme">
+                {grouped.programme.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.programme.length - 1}
+                  />
                 ))}
-              </Section>
+              </Card>
             ) : null}
 
             {grouped.issuer.length > 0 ? (
-              <Section title="Issuer">
-                {grouped.issuer.map((attr) => (
-                  <InfoRow key={attr.name} label={humanize(attr.name)} value={attr.value} />
+              <Card heading="Issuer">
+                {grouped.issuer.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.issuer.length - 1}
+                  />
                 ))}
-              </Section>
+              </Card>
             ) : null}
 
             {grouped.other.length > 0 ? (
-              <Section title="Other attributes">
-                {grouped.other.map((attr) => (
-                  <InfoRow key={attr.name} label={humanize(attr.name)} value={attr.value} />
+              <Card heading="Other attributes">
+                {grouped.other.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.other.length - 1}
+                  />
                 ))}
-              </Section>
+              </Card>
             ) : null}
 
-            <Section title="Technical">
-              <InfoRow label="Record" value={credential.id} />
+            <Card heading="Technical">
+              <InfoRow label="Record" value={credential.id} divider />
               {credential.connectionId ? (
-                <InfoRow label="Connection" value={credential.connectionId} />
+                <InfoRow label="Connection" value={credential.connectionId} divider />
               ) : null}
               {credential.state ? (
-                <InfoRow label="State" value={credential.state} tone="success" />
+                <InfoRow label="State" value={credential.state} tone="success" divider />
               ) : null}
-              <InfoRow label="Wallet" value={session.walletId ?? "—"} divider={false} />
-            </Section>
+              <InfoRow label="Wallet" value={session.walletId ?? "—"} />
+            </Card>
           </>
         ) : null}
 
         <AppButton label="Back to wallet" variant="outline" onPress={() => router.back()} />
       </View>
     </AppScreen>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <Text style={typography.eyebrow}>{title}</Text>
-      <Rule />
-      <View>{children}</View>
-    </View>
   );
 }

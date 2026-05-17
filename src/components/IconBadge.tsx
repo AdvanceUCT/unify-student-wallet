@@ -4,7 +4,6 @@ import { type LucideProps } from "lucide-react-native";
 
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type IconBadgeProps = {
   icon: ComponentType<LucideProps>;
@@ -19,7 +18,7 @@ export function IconBadge({ icon: Icon, label, tone = "ink", size = 16 }: IconBa
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
       <Icon color={color} size={size} strokeWidth={1.5} />
-      <Text style={[typography.mono, { color }]}>{label}</Text>
+      <Text style={{ color, fontSize: 13, fontWeight: "500" }}>{label}</Text>
     </View>
   );
 }

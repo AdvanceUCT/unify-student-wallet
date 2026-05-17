@@ -14,7 +14,7 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle }
   const inner = scrollable ? (
     <ScrollView
       contentContainerStyle={[
-        { flexGrow: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
+        { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: spacing["2xl"] },
         contentContainerStyle,
       ]}
       showsVerticalScrollIndicator={false}
@@ -22,7 +22,14 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle }
       <View style={{ flex: 1 }}>{children}</View>
     </ScrollView>
   ) : (
-    <View style={{ flex: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xl }}>
+    <View
+      style={{
+        flex: 1,
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.xl,
+        paddingBottom: spacing["2xl"],
+      }}
+    >
       {children}
     </View>
   );

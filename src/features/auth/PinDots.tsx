@@ -1,7 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
 import { colors } from "@/src/theme/colors";
-import { rules } from "@/src/theme/rules";
 
 export type PinDotStatus = "idle" | "error" | "success";
 
@@ -17,27 +16,29 @@ export function PinDots({ filled, length, status = "idle" }: PinDotsProps) {
 
   return (
     <View style={styles.row}>
-      {Array.from({ length }, (_, i) => (
-        <View
-          key={i}
-          style={[
-            styles.cell,
-            {
-              borderColor: fillColor,
-              backgroundColor: i < filled ? fillColor : "transparent",
-            },
-          ]}
-        />
-      ))}
+      {Array.from({ length }, (_, i) => {
+        const isFilled = i < filled;
+        return (
+          <View
+            key={i}
+            style={[
+              styles.dot,
+              {
+                backgroundColor: isFilled ? fillColor : colors.surfaceAlt,
+              },
+            ]}
+          />
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  cell: {
-    borderWidth: rules.ink,
-    height: 18,
-    width: 18,
+  dot: {
+    borderRadius: 999,
+    height: 14,
+    width: 14,
   },
   row: {
     alignItems: "center",

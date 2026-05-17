@@ -35,7 +35,7 @@ export function ListItem({
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.md,
-        paddingVertical: spacing.lg,
+        paddingVertical: spacing.md,
       }}
     >
       <View style={{ flex: 1, gap: spacing.xs }}>
@@ -43,9 +43,9 @@ export function ListItem({
         <Text style={typography.bodyStrong}>{title}</Text>
         {subtitle ? <Text style={typography.body}>{subtitle}</Text> : null}
       </View>
-      {meta ? <Text style={typography.mono}>{meta}</Text> : null}
+      {meta ? <Text style={typography.caption}>{meta}</Text> : null}
       {trailing}
-      {showChevron ? <ChevronRight color={colors.inkMuted} size={20} strokeWidth={1.5} /> : null}
+      {showChevron ? <ChevronRight color={colors.inkSubtle} size={20} strokeWidth={1.5} /> : null}
     </View>
   );
 

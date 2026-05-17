@@ -92,7 +92,7 @@ describe("wallet screens", () => {
   it("prompts the user to enable camera permission on the scan screen", () => {
     const screen = render(<ScanScreen />);
 
-    expect(screen.getByText("Camera blocked")).toBeTruthy();
+    expect(screen.getByText("Camera access needed")).toBeTruthy();
     fireEvent.press(screen.getByText("Allow camera"));
     expect(mockRequestPermission).toHaveBeenCalled();
   });

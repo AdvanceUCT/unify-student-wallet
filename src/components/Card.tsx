@@ -3,7 +3,7 @@ import { Text, View, type ViewStyle } from "react-native";
 
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
-import { rules } from "@/src/theme/rules";
+import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -11,8 +11,9 @@ type CardProps = PropsWithChildren<{
   eyebrow?: string;
   heading?: string;
   trailing?: ReactNode;
-  surface?: "white" | "alt" | "cream";
+  surface?: "white" | "alt";
   padded?: boolean;
+  elevation?: "sm" | "md" | "lg" | "none";
   style?: ViewStyle;
 }>;
 
@@ -22,20 +23,19 @@ export function Card({
   trailing,
   surface = "white",
   padded = true,
+  elevation = "sm",
   style,
   children,
 }: CardProps) {
-  const backgroundColor =
-    surface === "white" ? colors.surface : surface === "alt" ? colors.surfaceAlt : colors.background;
+  const backgroundColor = surface === "alt" ? colors.surfaceAlt : colors.surface;
 
   return (
     <View
       style={{
         backgroundColor,
-        borderColor: colors.rule,
-        borderWidth: rules.ink,
-        borderRadius: radii.sm,
+        borderRadius: radii.lg,
         padding: padded ? spacing.lg : 0,
+        ...shadows[elevation],
         ...style,
       }}
     >
@@ -46,7 +46,7 @@ export function Card({
             alignItems: "flex-start",
             justifyContent: "space-between",
             gap: spacing.md,
-            marginBottom: heading ? spacing.md : spacing.sm,
+            marginBottom: children ? spacing.md : 0,
           }}
         >
           <View style={{ flex: 1, gap: spacing.xs }}>

@@ -12,7 +12,7 @@ type InfoRowProps = {
   divider?: boolean;
 };
 
-export function InfoRow({ label, value, tone = "default", divider = true }: InfoRowProps) {
+export function InfoRow({ label, value, tone = "default", divider = false }: InfoRowProps) {
   const valueColor =
     tone === "success"
       ? colors.primary
@@ -33,8 +33,14 @@ export function InfoRow({ label, value, tone = "default", divider = true }: Info
         gap: spacing.md,
       }}
     >
-      <Text style={[typography.eyebrow, { color: colors.inkMuted, flex: 1 }]}>{label}</Text>
-      <Text style={[typography.mono, { color: valueColor, textAlign: "right" }]}>{value}</Text>
+      <Text style={[typography.body, { flex: 1 }]}>{label}</Text>
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="middle"
+        style={[typography.bodyStrong, { color: valueColor, textAlign: "right", flexShrink: 1 }]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }

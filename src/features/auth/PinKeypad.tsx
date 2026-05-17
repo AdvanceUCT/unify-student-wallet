@@ -3,8 +3,6 @@ import { Delete as DeleteIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/src/theme/colors";
-import { rules } from "@/src/theme/rules";
-import { typography } from "@/src/theme/typography";
 
 type PinKeypadProps = {
   canSubmit?: boolean;
@@ -54,7 +52,7 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                   style={({ pressed }) => [
                     styles.cell,
                     styles.submitCell,
-                    { opacity: submitDisabled ? 0.35 : pressed ? 0.7 : 1 },
+                    { opacity: submitDisabled ? 0.35 : pressed ? 0.85 : 1 },
                   ]}
                 >
                   <Text style={styles.submitLabel}>OK</Text>
@@ -72,10 +70,11 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                   onPress={() => handleKey(key)}
                   style={({ pressed }) => [
                     styles.cell,
-                    { opacity: disabled ? 0.4 : pressed ? 0.5 : 1 },
+                    pressed && styles.pressed,
+                    { opacity: disabled ? 0.4 : 1 },
                   ]}
                 >
-                  <DeleteIcon color={colors.ink} size={24} strokeWidth={1.5} />
+                  <DeleteIcon color={colors.ink} size={24} strokeWidth={1.6} />
                 </Pressable>
               );
             }
@@ -89,7 +88,8 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                 onPress={() => handleKey(key)}
                 style={({ pressed }) => [
                   styles.cell,
-                  { opacity: disabled ? 0.4 : pressed ? 0.5 : 1 },
+                  pressed && styles.pressed,
+                  { opacity: disabled ? 0.4 : 1 },
                 ]}
               >
                 <Text style={styles.digit}>{key}</Text>
@@ -107,34 +107,28 @@ const CELL = 72;
 const styles = StyleSheet.create({
   cell: {
     alignItems: "center",
+    borderRadius: 999,
     height: CELL,
     justifyContent: "center",
     width: CELL,
   },
   digit: {
-    ...typography.title,
+    color: colors.ink,
     fontSize: 28,
-    lineHeight: 32,
+    fontWeight: "500",
   },
-  grid: {
-    borderColor: colors.rule,
-    borderTopWidth: rules.ink,
-    borderBottomWidth: rules.ink,
+  grid: { gap: 8 },
+  pressed: {
+    backgroundColor: colors.surfaceAlt,
   },
-  row: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 0,
-    borderBottomColor: colors.ruleSoft,
-    borderBottomWidth: rules.hairline,
-  },
+  row: { flexDirection: "row", gap: 20, justifyContent: "center" },
   submitCell: {
     backgroundColor: colors.primary,
   },
   submitLabel: {
-    ...typography.eyebrow,
     color: colors.surface,
-    fontSize: 13,
-    letterSpacing: 1.6,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.6,
   },
 });

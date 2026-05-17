@@ -1,7 +1,6 @@
+import { type ReactNode } from "react";
 import { Text, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
-import { rules } from "@/src/theme/rules";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -10,24 +9,27 @@ type ScreenHeaderProps = {
   title: string;
   meta?: string;
   variant?: "display" | "title";
+  trailing?: ReactNode;
 };
 
-export function ScreenHeader({ eyebrow, title, meta, variant = "title" }: ScreenHeaderProps) {
+export function ScreenHeader({ eyebrow, title, meta, variant = "title", trailing }: ScreenHeaderProps) {
   const titleStyle = variant === "display" ? typography.display : typography.title;
 
   return (
     <View
       style={{
-        paddingBottom: spacing.lg,
-        borderBottomColor: colors.rule,
-        borderBottomWidth: rules.ink,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
         marginBottom: spacing.xl,
-        gap: spacing.sm,
       }}
     >
-      {eyebrow ? <Text style={typography.eyebrow}>{eyebrow}</Text> : null}
-      <Text style={titleStyle}>{title}</Text>
-      {meta ? <Text style={typography.mono}>{meta}</Text> : null}
+      <View style={{ flex: 1, gap: spacing.xs }}>
+        {eyebrow ? <Text style={typography.caption}>{eyebrow}</Text> : null}
+        <Text style={titleStyle}>{title}</Text>
+        {meta ? <Text style={typography.body}>{meta}</Text> : null}
+      </View>
+      {trailing}
     </View>
   );
 }

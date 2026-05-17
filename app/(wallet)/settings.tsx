@@ -4,8 +4,8 @@ import { Switch, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
-import { Rule } from "@/src/components/Rule";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
@@ -84,18 +84,16 @@ export default function SettingsScreen() {
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing["2xl"] }}>
+      <View style={{ gap: spacing.xl }}>
         <ScreenHeader eyebrow="Settings" title="Wallet & security." />
 
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.eyebrow}>Security</Text>
-          <Rule />
+        <Card heading="Security">
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               gap: spacing.md,
-              paddingVertical: spacing.md,
+              paddingVertical: spacing.sm,
             }}
           >
             <View style={{ flex: 1, gap: spacing.xs }}>
@@ -116,31 +114,31 @@ export default function SettingsScreen() {
             />
           </View>
           {message ? (
-            <Text style={[typography.eyebrow, { color: colors.error }]}>{message}</Text>
+            <Text style={[typography.body, { color: colors.error, marginTop: spacing.sm }]}>
+              {message}
+            </Text>
           ) : null}
-          <Rule variant="hairline" />
-          <AppButton
-            label="Change PIN"
-            variant="outline"
-            onPress={() => router.push("/(auth)/change-pin")}
-          />
-        </View>
-
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.eyebrow}>Wallet</Text>
-          <View style={{ borderTopColor: colors.rule, borderTopWidth: 1 }}>
-            <InfoRow
-              label="Lock"
-              value={session.lockStatus === "unlocked" ? "Unlocked" : "Locked"}
-              tone={session.lockStatus === "unlocked" ? "success" : "warning"}
-            />
-            <InfoRow
-              label="Wallet ID"
-              value={session.walletId ? truncate(session.walletId) : "—"}
-              divider={false}
+          <View style={{ marginTop: spacing.md }}>
+            <AppButton
+              label="Change PIN"
+              variant="outline"
+              onPress={() => router.push("/(auth)/change-pin")}
             />
           </View>
-          <View style={{ flexDirection: "row", gap: spacing.md }}>
+        </Card>
+
+        <Card heading="Wallet">
+          <InfoRow
+            label="Lock"
+            value={session.lockStatus === "unlocked" ? "Unlocked" : "Locked"}
+            tone={session.lockStatus === "unlocked" ? "success" : "warning"}
+            divider
+          />
+          <InfoRow
+            label="Wallet ID"
+            value={session.walletId ? truncate(session.walletId) : "—"}
+          />
+          <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
             <View style={{ flex: 1 }}>
               <AppButton label="Lock wallet" onPress={lockWallet} />
             </View>
@@ -148,26 +146,22 @@ export default function SettingsScreen() {
               <AppButton label="Sign out" variant="outline" onPress={signOut} />
             </View>
           </View>
-        </View>
+        </Card>
 
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.eyebrow}>Agent</Text>
-          <View style={{ borderTopColor: colors.rule, borderTopWidth: 1 }}>
-            <InfoRow
-              label="Holder agent"
-              value={holderAgent.status}
-              tone={holderAgent.status === "error" ? "error" : "success"}
-            />
-            <InfoRow
-              label="Network"
-              value="BCovrin Test"
-              divider={false}
-            />
-          </View>
+        <Card heading="Agent">
+          <InfoRow
+            label="Holder agent"
+            value={holderAgent.status}
+            tone={holderAgent.status === "error" ? "error" : "success"}
+            divider
+          />
+          <InfoRow label="Network" value="BCovrin Test" />
           {holderAgent.error ? (
-            <Text style={[typography.eyebrow, { color: colors.error }]}>{holderAgent.error}</Text>
+            <Text style={[typography.body, { color: colors.error, marginTop: spacing.sm }]}>
+              {holderAgent.error}
+            </Text>
           ) : null}
-        </View>
+        </Card>
       </View>
       <PinVerificationModal
         errorMessage={pinError}

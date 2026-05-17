@@ -11,7 +11,6 @@ import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type Step = "enter" | "confirm";
 
@@ -81,7 +80,9 @@ export default function SetPinScreen() {
           eyebrow={isEnterStep ? "Step 1 of 2 · Create PIN" : "Step 2 of 2 · Confirm PIN"}
           title={isEnterStep ? "Choose a PIN." : "Re-enter the PIN."}
           meta={
-            isEnterStep ? "Used to unlock this wallet on this device." : "Both entries must match exactly."
+            isEnterStep
+              ? "Used to unlock this wallet on this device."
+              : "Both entries must match exactly."
           }
         />
 
@@ -91,7 +92,7 @@ export default function SetPinScreen() {
           {error !== null ? (
             <Text
               accessibilityLiveRegion="polite"
-              style={[typography.eyebrow, { color: colors.error, textAlign: "center" }]}
+              style={{ color: colors.error, fontSize: 13, fontWeight: "600", textAlign: "center" }}
             >
               {error}
             </Text>

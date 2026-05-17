@@ -1,16 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Text, View } from "react-native";
+import { IdCard as IdCardIcon, ChevronRight } from "lucide-react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
-import { ListItem } from "@/src/components/ListItem";
-import { Rule } from "@/src/components/Rule";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { Tag } from "@/src/components/Tag";
 import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
+import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type CredentialAttribute = { name: string; value: string };
@@ -37,24 +39,28 @@ export default function CredentialIndexScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader eyebrow="Wallet · Credentials" title="Your credentials." />
+      <ScreenHeader eyebrow="Wallet" title="Credentials." />
 
       {credentialsQuery.isLoading ? (
-        <Text style={typography.body}>Loading credentials…</Text>
+        <Card>
+          <Text style={typography.body}>Loading credentials…</Text>
+        </Card>
       ) : credentialsQuery.isError ? (
-        <Text style={[typography.eyebrow, { color: colors.error }]}>
-          Credentials could not be loaded.
-        </Text>
+        <Card>
+          <Text style={[typography.bodyStrong, { color: colors.error }]}>
+            Credentials could not be loaded.
+          </Text>
+        </Card>
       ) : credentials.length === 0 ? (
         <EmptyState
+          icon={IdCardIcon}
           eyebrow="No credentials yet"
           heading="Your wallet is empty."
           body="Open an activation link from your university to receive your first credential."
           action={<AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />}
         />
       ) : (
-        <View>
-          <Rule />
+        <View style={{ gap: spacing.md }}>
           {credentials.map((credential) => {
             const attributes = credential.credentialAttributes;
             const issuer =
@@ -70,25 +76,41 @@ export default function CredentialIndexScreen() {
               "school",
               "department",
             );
-            const subtitle = [
-              [firstName, lastName].filter(Boolean).join(" ").trim() || "Holder pending",
-              programme,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            const holder = [firstName, lastName].filter(Boolean).join(" ").trim() || "Holder pending";
 
             return (
-              <View key={credential.id}>
-                <ListItem
-                  eyebrow={issuer.toUpperCase()}
-                  title={programme ?? "Student credential"}
-                  subtitle={subtitle}
-                  meta={credential.state ?? "—"}
-                  showChevron
-                  onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
-                />
-                <Rule variant="hairline" />
-              </View>
+              <Pressable
+                key={credential.id}
+                accessibilityRole="button"
+                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+              >
+                <Card>
+                  <View style={{ gap: spacing.sm }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={typography.eyebrow}>{issuer}</Text>
+                      {credential.state ? <Tag label={credential.state} tone="primary" /> : null}
+                    </View>
+                    <Text style={typography.heading}>{programme ?? "Student credential"}</Text>
+                    <Text style={typography.body}>{holder}</Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "flex-end",
+                        marginTop: spacing.sm,
+                      }}
+                    >
+                      <ChevronRight color={colors.inkSubtle} size={20} strokeWidth={1.5} />
+                    </View>
+                  </View>
+                </Card>
+              </Pressable>
             );
           })}
         </View>

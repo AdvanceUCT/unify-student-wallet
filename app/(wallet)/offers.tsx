@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import { Mail as MailIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
 import { InfoRow } from "@/src/components/InfoRow";
-import { Rule } from "@/src/components/Rule";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { Tag } from "@/src/components/Tag";
 import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
@@ -71,7 +73,7 @@ export default function OffersScreen() {
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing["2xl"] }}>
+      <View style={{ gap: spacing.xl }}>
         <ScreenHeader
           eyebrow="Offers"
           title="Pending offers."
@@ -79,16 +81,19 @@ export default function OffersScreen() {
         />
 
         {actionError ? (
-          <Text style={[typography.eyebrow, { color: colors.error }]}>{actionError}</Text>
+          <Card>
+            <Text style={[typography.bodyStrong, { color: colors.error }]}>{actionError}</Text>
+          </Card>
         ) : null}
 
         {offers.length === 0 ? (
           <EmptyState
+            icon={MailIcon}
             eyebrow="No pending offers"
             body="Credential offers from issuers will appear here. Open an activation link to receive one."
           />
         ) : (
-          <View style={{ gap: spacing["2xl"] }}>
+          <View style={{ gap: spacing.md }}>
             {offers.map((offer) => {
               const id = offer?.id;
               if (!id) {
@@ -106,28 +111,28 @@ export default function OffersScreen() {
                 "Credential offer";
 
               return (
-                <View key={id} style={{ gap: spacing.md }}>
-                  <Rule />
+                <Card key={id} elevation="md">
                   <View style={{ gap: spacing.sm }}>
-                    <Text style={typography.eyebrow}>{`New offer · ${issuer.toUpperCase()}`}</Text>
+                    <Tag label={issuer} tone="primary" />
                     <Text style={typography.heading}>{headline}</Text>
                   </View>
-                  <View style={{ marginTop: spacing.sm }}>
+                  <View style={{ marginTop: spacing.md }}>
                     {attributes?.length ? (
-                      attributes.map((attribute) => (
+                      attributes.map((attribute, i) => (
                         <InfoRow
                           key={attribute.name}
                           label={humanize(attribute.name)}
                           value={attribute.value}
+                          divider={i < attributes.length - 1}
                         />
                       ))
                     ) : (
                       <Text style={typography.body}>
-                        The issuer hasn't included attribute details on this offer yet.
+                        The issuer hasn&apos;t included attribute details on this offer yet.
                       </Text>
                     )}
                   </View>
-                  <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.sm }}>
+                  <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
                     <View style={{ flex: 1 }}>
                       <AppButton
                         disabled={isPending}
@@ -144,10 +149,9 @@ export default function OffersScreen() {
                       />
                     </View>
                   </View>
-                </View>
+                </Card>
               );
             })}
-            <Rule />
           </View>
         )}
       </View>

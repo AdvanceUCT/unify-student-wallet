@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { initialsFrom } from "@/src/lib/initials";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
-import { rules } from "@/src/theme/rules";
+import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -55,33 +55,48 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
         width,
         aspectRatio: 1.586,
         backgroundColor: colors.surface,
-        borderColor: colors.ink,
-        borderWidth: rules.ink,
-        borderRadius: radii.sm,
+        borderRadius: radii.xl,
         overflow: "hidden",
-        opacity: pressed ? 0.85 : 1,
+        opacity: pressed ? 0.92 : 1,
+        ...shadows.md,
       })}
     >
       <View
         style={{
+          backgroundColor: colors.primary,
           paddingHorizontal: spacing.lg,
-          paddingTop: spacing.lg,
-          paddingBottom: spacing.sm,
-          borderBottomColor: colors.rule,
-          borderBottomWidth: rules.ink,
+          paddingVertical: spacing.md,
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
+          gap: spacing.md,
         }}
       >
         <Text
           ellipsizeMode="tail"
           numberOfLines={1}
-          style={[typography.eyebrow, { color: colors.primary, flex: 1, flexShrink: 1, marginRight: spacing.md }]}
+          style={{
+            color: colors.surface,
+            fontSize: 12,
+            fontWeight: "700",
+            letterSpacing: 0.8,
+            flex: 1,
+            flexShrink: 1,
+          }}
         >
-          {issuer ? issuer.toUpperCase() : "ISSUER · NOT SET"}
+          {issuer ? issuer.toUpperCase() : "ISSUER PENDING"}
         </Text>
-        <Text numberOfLines={1} style={[typography.eyebrow, { color: colors.ink, flexShrink: 0 }]}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: colors.surface,
+            fontSize: 11,
+            fontWeight: "600",
+            letterSpacing: 0.8,
+            opacity: 0.85,
+            flexShrink: 0,
+          }}
+        >
           STUDENT · ID
         </Text>
       </View>
@@ -91,19 +106,27 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
           style={{
             width: 56,
             height: 56,
-            borderColor: colors.ink,
-            borderWidth: rules.ink,
+            borderRadius: radii.pill,
+            backgroundColor: colors.primarySoft,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Text style={[typography.heading, { color: colors.ink }]}>{initials || "—"}</Text>
+          <Text
+            style={{
+              color: colors.primaryDeep,
+              fontSize: 20,
+              fontWeight: "700",
+            }}
+          >
+            {initials || "—"}
+          </Text>
         </View>
         <View style={{ flex: 1, justifyContent: "space-between" }}>
           <View style={{ gap: spacing.xs }}>
             <Text
               numberOfLines={1}
-              style={[typography.heading, { color: colors.ink, fontSize: 20, lineHeight: 24 }]}
+              style={[typography.heading, { fontSize: 20, lineHeight: 24 }]}
             >
               {hasHolder ? holderName : "Holder name pending"}
             </Text>
@@ -113,14 +136,22 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
           </View>
           <View style={{ flexDirection: "row", gap: spacing.lg }}>
             <View style={{ flex: 1 }}>
-              <Text style={typography.eyebrow}>No.</Text>
-              <Text ellipsizeMode="tail" numberOfLines={1} style={typography.mono}>
+              <Text style={typography.caption}>No.</Text>
+              <Text
+                ellipsizeMode="tail"
+                numberOfLines={1}
+                style={[typography.bodyStrong, { marginTop: 2 }]}
+              >
                 {studentNumber ?? "—"}
               </Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={typography.eyebrow}>Year</Text>
-              <Text ellipsizeMode="tail" numberOfLines={1} style={typography.mono}>
+              <Text style={typography.caption}>Year</Text>
+              <Text
+                ellipsizeMode="tail"
+                numberOfLines={1}
+                style={[typography.bodyStrong, { marginTop: 2 }]}
+              >
                 {year ?? "—"}
               </Text>
             </View>

@@ -1,9 +1,8 @@
 import { Text, View } from "react-native";
 
 import { colors } from "@/src/theme/colors";
-import { rules } from "@/src/theme/rules";
+import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type TagTone = "ink" | "primary" | "warning" | "error" | "muted";
 
@@ -12,36 +11,45 @@ type TagProps = {
   tone?: TagTone;
 };
 
-function toneColor(tone: TagTone) {
+function toneStyles(tone: TagTone) {
   switch (tone) {
     case "primary":
-      return colors.primary;
+      return { bg: colors.primarySoft, fg: colors.primaryDeep };
     case "warning":
-      return colors.warning;
+      return { bg: colors.warningSoft, fg: colors.warning };
     case "error":
-      return colors.error;
+      return { bg: "#FBE5E2", fg: colors.error };
     case "muted":
-      return colors.inkSubtle;
+      return { bg: colors.surfaceAlt, fg: colors.inkMuted };
     case "ink":
     default:
-      return colors.ink;
+      return { bg: colors.surfaceAlt, fg: colors.ink };
   }
 }
 
 export function Tag({ label, tone = "ink" }: TagProps) {
-  const color = toneColor(tone);
+  const { bg, fg } = toneStyles(tone);
 
   return (
     <View
       style={{
         alignSelf: "flex-start",
-        borderColor: color,
-        borderWidth: rules.ink,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 3,
+        backgroundColor: bg,
+        borderRadius: radii.pill,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 4,
       }}
     >
-      <Text style={[typography.eyebrow, { color }]}>{label}</Text>
+      <Text
+        style={{
+          color: fg,
+          fontSize: 12,
+          lineHeight: 16,
+          fontWeight: "600",
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 }

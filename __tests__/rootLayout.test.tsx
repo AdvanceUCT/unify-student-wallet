@@ -9,25 +9,6 @@ jest.mock("@tanstack/react-query", () => ({
   QueryClientProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
-jest.mock("@expo-google-fonts/fraunces", () => ({
-  useFonts: () => [true],
-  Fraunces_600SemiBold: "Fraunces_600SemiBold",
-  Fraunces_700Bold: "Fraunces_700Bold",
-}));
-
-jest.mock("@expo-google-fonts/ibm-plex-sans", () => ({
-  useFonts: () => [true],
-  IBMPlexSans_400Regular: "IBMPlexSans_400Regular",
-  IBMPlexSans_500Medium: "IBMPlexSans_500Medium",
-  IBMPlexSans_600SemiBold: "IBMPlexSans_600SemiBold",
-}));
-
-jest.mock("@expo-google-fonts/ibm-plex-mono", () => ({
-  useFonts: () => [true],
-  IBMPlexMono_400Regular: "IBMPlexMono_400Regular",
-  IBMPlexMono_500Medium: "IBMPlexMono_500Medium",
-}));
-
 jest.mock("expo-router", () => ({
   Stack: () => mockReact.createElement(mockText, null, "stack-mounted"),
 }));
