@@ -1,54 +1,70 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { router } from "expo-router";
+import { Wallet as WalletIcon, Receipt as ReceiptIcon } from "lucide-react-native";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { InfoRow } from "@/src/components/InfoRow";
-import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
+import { Card } from "@/src/components/Card";
+import { EmptyState } from "@/src/components/EmptyState";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { getPaymentHistory } from "@/src/lib/api/client";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function PaymentsScreen() {
-  const { session } = useWalletSession();
-  const [topUpLink, setTopUpLink] = useState<string | null>(null);
   const paymentsQuery = useQuery({
     queryKey: ["payment-history"],
     queryFn: getPaymentHistory,
   });
 
+  const payments = paymentsQuery.data ?? [];
+
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Payments</Text>
-          <Text style={typography.title}>Recent activity</Text>
-          <Text style={typography.body}>Track wallet payment attempts, service-point transactions, and demo top-up requests.</Text>
-        </View>
+        <ScreenHeader eyebrow="Payments" title="Balance & activity." />
 
-        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.lg, gap: spacing.md }}>
-          <Text style={typography.sectionTitle}>Wallet balance backend</Text>
-          <InfoRow label="Wallet ID" value={session.walletId ?? "-"} />
-          <InfoRow label="Top-up link" value={topUpLink ?? "Not generated"} />
+        <Card elevation="md">
           <View style={{ gap: spacing.sm }}>
-            <AppButton
-              label="Generate demo top-up link"
-              onPress={() => setTopUpLink(`https://example.test/top-up/${session.walletId ?? "wallet"}`)}
-            />
-            <AppButton label="Scan payment QR" href="/(wallet)/scan" variant="secondary" />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <WalletIcon color={colors.primary} size={18} strokeWidth={1.6} />
+              <Text style={typography.eyebrow}>Balance</Text>
+            </View>
+            <Text style={typography.display}>—</Text>
+            <Text style={typography.body}>
+              Your wallet balance will appear here once your institution connects a payment source.
+            </Text>
           </View>
-        </View>
+        </Card>
 
-        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.lg, gap: spacing.lg }}>
-          {(paymentsQuery.data ?? []).map((payment) => (
-            <InfoRow key={payment.id} label={payment.vendor} value={`${payment.amount} - ${payment.status}`} />
-          ))}
-          {paymentsQuery.isLoading ? <Text style={typography.body}>Loading transactions...</Text> : null}
-          {paymentsQuery.isError ? (
-            <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>Payment history could not be loaded.</Text>
-          ) : null}
+        <View style={{ gap: spacing.md }}>
+          <Text style={typography.heading}>Recent activity</Text>
+          {payments.length === 0 ? (
+            <EmptyState
+              icon={ReceiptIcon}
+              eyebrow="No activity"
+              body="Payment and verification events will appear here once your wallet has been used at a service point."
+              action={
+                <AppButton label="Scan service QR" onPress={() => router.push("/(wallet)/scan")} />
+              }
+            />
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {payments.map((payment) => (
+                <Card key={payment.id}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+                    <View style={{ flex: 1, gap: spacing.xs }}>
+                      <Text style={typography.eyebrow}>{payment.status}</Text>
+                      <Text style={typography.bodyStrong}>{payment.vendor}</Text>
+                    </View>
+                    <Text style={typography.monoLg}>{payment.amount}</Text>
+                  </View>
+                </Card>
+              ))}
+            </View>
+          )}
         </View>
       </View>
     </AppScreen>

@@ -11,24 +11,32 @@ type PinDotsProps = {
 };
 
 export function PinDots({ filled, length, status = "idle" }: PinDotsProps) {
-  const fillColor = status === "error" ? colors.warning : status === "success" ? colors.success : colors.primary;
+  const fillColor =
+    status === "error" ? colors.error : status === "success" ? colors.primary : colors.ink;
 
   return (
     <View style={styles.row}>
-      {Array.from({ length }, (_, i) => (
-        <View
-          key={i}
-          style={[styles.dot, { borderColor: fillColor, backgroundColor: i < filled ? fillColor : "transparent" }]}
-        />
-      ))}
+      {Array.from({ length }, (_, i) => {
+        const isFilled = i < filled;
+        return (
+          <View
+            key={i}
+            style={[
+              styles.dot,
+              {
+                backgroundColor: isFilled ? fillColor : colors.surfaceAlt,
+              },
+            ]}
+          />
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   dot: {
-    borderRadius: 7,
-    borderWidth: 2,
+    borderRadius: 999,
     height: 14,
     width: 14,
   },

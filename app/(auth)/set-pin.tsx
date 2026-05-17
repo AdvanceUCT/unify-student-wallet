@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinDots } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
@@ -10,7 +11,6 @@ import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type Step = "enter" | "confirm";
 
@@ -76,28 +76,28 @@ export default function SetPinScreen() {
   return (
     <AppScreen>
       <View style={{ flex: 1, justifyContent: "space-between", paddingBottom: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Wallet security</Text>
-          <Text style={typography.title}>{isEnterStep ? "Set your PIN" : "Confirm your PIN"}</Text>
-          <Text style={typography.body}>
-            {isEnterStep
-              ? "Create a 4 to 6 digit PIN to protect this wallet."
-              : "Re-enter your PIN to confirm."}
-          </Text>
-        </View>
+        <ScreenHeader
+          eyebrow={isEnterStep ? "Step 1 of 2 · Create PIN" : "Step 2 of 2 · Confirm PIN"}
+          title={isEnterStep ? "Choose a PIN." : "Re-enter the PIN."}
+          meta={
+            isEnterStep
+              ? "Used to unlock this wallet on this device."
+              : "Both entries must match exactly."
+          }
+        />
 
-        <View style={{ alignItems: "center", gap: spacing.lg }}>
+        <View style={{ alignItems: "center", gap: spacing.xl }}>
           <PinDots filled={isEnterStep ? pinFirst.length : pinConfirm.length} length={MAX_PIN_LENGTH} />
 
           {error !== null ? (
             <Text
               accessibilityLiveRegion="polite"
-              style={{ color: colors.warning, fontSize: 14, fontWeight: "700", textAlign: "center" }}
+              style={{ color: colors.error, fontSize: 13, fontWeight: "600", textAlign: "center" }}
             >
               {error}
             </Text>
           ) : (
-            <View style={{ height: 20 }} />
+            <View style={{ height: 14 }} />
           )}
 
           {isEnterStep ? (

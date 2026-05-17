@@ -4,7 +4,9 @@ import { Switch, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
@@ -13,6 +15,11 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type PinVerificationPhase = "idle" | "verifying" | "error" | "success";
+
+function truncate(value: string, head = 8, tail = 6) {
+  if (value.length <= head + tail + 1) return value;
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
+}
 
 export default function SettingsScreen() {
   const {
@@ -78,52 +85,83 @@ export default function SettingsScreen() {
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Settings</Text>
-          <Text style={typography.title}>Wallet details</Text>
-          <Text style={typography.body}>Manage the wallet state and account context.</Text>
-        </View>
+        <ScreenHeader eyebrow="Settings" title="Wallet & security." />
 
-        <View style={{ gap: spacing.md }}>
-          <InfoRow label="Wallet" value={session.walletId ?? "-"} />
-          <InfoRow label="Status" value={session.lockStatus === "locked" ? "Locked" : "Unlocked"} />
-        </View>
-
-        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
-          <Text style={typography.sectionTitle}>Holder agent</Text>
-          <InfoRow
-            label="Status"
-            value={holderAgent.status}
-            tone={holderAgent.status === "error" ? "warning" : "default"}
-          />
-          {holderAgent.error ? (
-            <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{holderAgent.error}</Text>
-          ) : null}
-        </View>
-
-        <View style={{ borderColor: colors.border, borderRadius: 8, borderWidth: 1, gap: spacing.md, padding: spacing.lg }}>
-          <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}>
+        <Card heading="Security">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.md,
+              paddingVertical: spacing.sm,
+            }}
+          >
             <View style={{ flex: 1, gap: spacing.xs }}>
-              <Text style={typography.sectionTitle}>Biometric unlock</Text>
+              <Text style={typography.bodyStrong}>Biometric unlock</Text>
               <Text style={typography.body}>
-                {biometricAvailable ? "Use device biometrics after your PIN is set." : "Biometric unlock is unavailable on this device."}
+                {biometricAvailable
+                  ? "Use device biometrics after your PIN is set."
+                  : "Biometric unlock is unavailable on this device."}
               </Text>
             </View>
             <Switch
               accessibilityLabel="Toggle biometric unlock"
               disabled={!biometricAvailable || pinPhase === "verifying"}
               onValueChange={handleBiometricChange}
+              trackColor={{ true: colors.primary, false: colors.ruleSoft }}
+              thumbColor={colors.surface}
               value={biometricAvailable && biometricEnabled}
             />
           </View>
-          {message ? <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>{message}</Text> : null}
-        </View>
+          {message ? (
+            <Text style={[typography.body, { color: colors.error, marginTop: spacing.sm }]}>
+              {message}
+            </Text>
+          ) : null}
+          <View style={{ marginTop: spacing.md }}>
+            <AppButton
+              label="Change PIN"
+              variant="outline"
+              onPress={() => router.push("/(auth)/change-pin")}
+            />
+          </View>
+        </Card>
 
-        <View style={{ gap: spacing.sm }}>
-          <AppButton label="Change PIN" variant="secondary" onPress={() => router.push("/(auth)/change-pin")} />
-          <AppButton label="Lock wallet" onPress={lockWallet} />
-          <AppButton label="Sign out" variant="secondary" onPress={signOut} />
-        </View>
+        <Card heading="Wallet">
+          <InfoRow
+            label="Lock"
+            value={session.lockStatus === "unlocked" ? "Unlocked" : "Locked"}
+            tone={session.lockStatus === "unlocked" ? "success" : "warning"}
+            divider
+          />
+          <InfoRow
+            label="Wallet ID"
+            value={session.walletId ? truncate(session.walletId) : "—"}
+          />
+          <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <AppButton label="Lock wallet" onPress={lockWallet} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppButton label="Sign out" variant="outline" onPress={signOut} />
+            </View>
+          </View>
+        </Card>
+
+        <Card heading="Agent">
+          <InfoRow
+            label="Holder agent"
+            value={holderAgent.status}
+            tone={holderAgent.status === "error" ? "error" : "success"}
+            divider
+          />
+          <InfoRow label="Network" value="BCovrin Test" />
+          {holderAgent.error ? (
+            <Text style={[typography.body, { color: colors.error, marginTop: spacing.sm }]}>
+              {holderAgent.error}
+            </Text>
+          ) : null}
+        </Card>
       </View>
       <PinVerificationModal
         errorMessage={pinError}

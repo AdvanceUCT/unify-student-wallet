@@ -4,10 +4,11 @@ import { Text, View, useWindowDimensions } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
 import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
-import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -16,15 +17,52 @@ const MAX_CARD_WIDTH = 360;
 
 type CredentialAttribute = { name: string; value: string };
 
-function findAttribute(attributes: CredentialAttribute[] | undefined, name: string) {
-  return attributes?.find((attribute) => attribute.name === name)?.value;
+const HOLDER_KEYS = new Set([
+  "firstName",
+  "first_name",
+  "givenName",
+  "lastName",
+  "last_name",
+  "familyName",
+  "surname",
+  "fullName",
+  "name",
+]);
+
+const PROGRAMME_KEYS = new Set([
+  "programme",
+  "program",
+  "faculty",
+  "school",
+  "department",
+  "year",
+  "yearOfStudy",
+  "academicYear",
+  "studentNumber",
+  "student_number",
+  "studentId",
+]);
+
+const ISSUER_KEYS = new Set(["issuerName", "issuer", "institution", "university"]);
+
+function categorize(attribute: CredentialAttribute) {
+  if (HOLDER_KEYS.has(attribute.name)) return "holder" as const;
+  if (PROGRAMME_KEYS.has(attribute.name)) return "programme" as const;
+  if (ISSUER_KEYS.has(attribute.name)) return "issuer" as const;
+  return "other" as const;
+}
+
+function humanize(name: string) {
+  return name
+    .replace(/[_-]/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function CredentialDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session } = useWalletSession();
   const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = Math.min(screenWidth - spacing.lg * 2, MAX_CARD_WIDTH);
+  const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
 
   const credentialQuery = useQuery({
     queryKey: ["credential", id],
@@ -34,25 +72,31 @@ export default function CredentialDetailScreen() {
 
   const credential = credentialQuery.data;
   const attributes = credential?.credentialAttributes ?? [];
-  const firstName = findAttribute(attributes, "firstName");
-  const lastName = findAttribute(attributes, "lastName");
-  const holderName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  const grouped = {
+    holder: attributes.filter((a) => categorize(a) === "holder"),
+    programme: attributes.filter((a) => categorize(a) === "programme"),
+    issuer: attributes.filter((a) => categorize(a) === "issuer"),
+    other: attributes.filter((a) => categorize(a) === "other"),
+  };
 
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm }}>
-          <Text style={typography.eyebrow}>Credential</Text>
-          <Text style={typography.title}>{holderName || "Credential detail"}</Text>
-          <Text style={typography.body}>All information stored on this credential record.</Text>
-        </View>
+        <ScreenHeader eyebrow="Credential" title="Detail." />
 
-        {credentialQuery.isLoading ? <Text style={typography.body}>Loading credential…</Text> : null}
+        {credentialQuery.isLoading ? (
+          <Card>
+            <Text style={typography.body}>Loading credential…</Text>
+          </Card>
+        ) : null}
 
         {credentialQuery.isError ? (
-          <Text style={{ color: colors.warning, fontSize: 14, fontWeight: "700" }}>
-            Credential could not be loaded.
-          </Text>
+          <Card>
+            <Text style={[typography.bodyStrong, { color: colors.error }]}>
+              Credential could not be loaded.
+            </Text>
+          </Card>
         ) : null}
 
         {credential ? (
@@ -61,45 +105,62 @@ export default function CredentialDetailScreen() {
               <StudentCard credential={credential} width={cardWidth} />
             </View>
 
-            <View
-              style={{
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: spacing.lg,
-                gap: spacing.md,
-              }}
-            >
-              <Text style={typography.sectionTitle}>Attributes</Text>
-              {attributes.length > 0 ? (
-                attributes.map((attribute) => (
-                  <InfoRow key={attribute.name} label={attribute.name} value={attribute.value} />
-                ))
-              ) : (
-                <Text style={typography.body}>No attributes available.</Text>
-              )}
-            </View>
+            {grouped.holder.length > 0 ? (
+              <Card heading="Holder">
+                {grouped.holder.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.holder.length - 1}
+                  />
+                ))}
+              </Card>
+            ) : null}
 
-            <View
-              style={{
-                borderColor: colors.border,
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: spacing.lg,
-                gap: spacing.md,
-              }}
-            >
-              <Text style={typography.sectionTitle}>Storage records</Text>
-              <InfoRow label="Wallet ID" value={session.walletId ?? "-"} />
-              <InfoRow label="Credential record" value={credential.id} />
-              {credential.connectionId ? <InfoRow label="Connection" value={credential.connectionId} /> : null}
-              {credential.state ? <InfoRow label="State" value={credential.state} tone="success" /> : null}
-            </View>
+            {grouped.programme.length > 0 ? (
+              <Card heading="Programme">
+                {grouped.programme.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.programme.length - 1}
+                  />
+                ))}
+              </Card>
+            ) : null}
+
+            {grouped.issuer.length > 0 ? (
+              <Card heading="Issuer">
+                {grouped.issuer.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.issuer.length - 1}
+                  />
+                ))}
+              </Card>
+            ) : null}
+
+            {grouped.other.length > 0 ? (
+              <Card heading="Other attributes">
+                {grouped.other.map((attr, i) => (
+                  <InfoRow
+                    key={attr.name}
+                    label={humanize(attr.name)}
+                    value={attr.value}
+                    divider={i < grouped.other.length - 1}
+                  />
+                ))}
+              </Card>
+            ) : null}
+
           </>
         ) : null}
 
-        <AppButton label="Back to wallet" variant="secondary" onPress={() => router.back()} />
+        <AppButton label="Back to wallet" variant="outline" onPress={() => router.back()} />
       </View>
     </AppScreen>
   );

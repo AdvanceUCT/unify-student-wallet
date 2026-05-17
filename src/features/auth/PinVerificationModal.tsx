@@ -6,6 +6,8 @@ import { PinKeypad } from "@/src/features/auth/PinKeypad";
 import { usePinEntry } from "@/src/features/auth/usePinEntry";
 import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
+import { radii } from "@/src/theme/radii";
+import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -47,9 +49,8 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-
-          <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
-            <Text style={typography.eyebrow}>Security check</Text>
+          <View style={{ gap: spacing.xs, marginBottom: spacing.xl }}>
+            <Text style={typography.caption}>Security check</Text>
             <Text style={typography.title}>Enter your PIN</Text>
             <Text style={typography.body}>Confirm your PIN to disable biometric unlock.</Text>
           </View>
@@ -77,9 +78,9 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
           <Pressable
             accessibilityRole="button"
             onPress={onCancel}
-            style={({ pressed }) => [styles.cancelButton, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [styles.cancelButton, { opacity: pressed ? 0.5 : 1 }]}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[typography.bodyStrong, { color: colors.inkMuted }]}>Cancel</Text>
           </Pressable>
         </View>
       </View>
@@ -89,44 +90,40 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(15,20,17,0.45)",
     flex: 1,
     justifyContent: "flex-end",
   },
   cancelButton: {
     alignItems: "center",
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
     paddingVertical: spacing.sm,
-  },
-  cancelText: {
-    color: colors.muted,
-    fontSize: 16,
-    fontWeight: "600",
   },
   errorContainer: {
     height: 20,
     justifyContent: "center",
   },
   errorText: {
-    color: colors.warning,
-    fontSize: 14,
-    fontWeight: "700",
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: "600",
     textAlign: "center",
   },
   handle: {
     alignSelf: "center",
-    backgroundColor: colors.border,
-    borderRadius: 2,
+    backgroundColor: colors.rule,
+    borderRadius: 999,
     height: 4,
     marginBottom: spacing.lg,
-    width: 40,
+    width: 44,
   },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: spacing.xl,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    paddingBottom: spacing["2xl"],
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
+    ...shadows.lg,
   },
 });

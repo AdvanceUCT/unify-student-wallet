@@ -2,40 +2,50 @@ import { Pressable, Text, View } from "react-native";
 
 import { initialsFrom } from "@/src/lib/initials";
 import { colors } from "@/src/theme/colors";
+import { radii } from "@/src/theme/radii";
+import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
-
-import { StatusPill } from "./StatusPill";
+import { typography } from "@/src/theme/typography";
 
 type CredentialAttribute = { name: string; value: string };
 
 type CredentialLike = {
   id: string;
   credentialAttributes?: CredentialAttribute[];
+  connectionLabel?: string;
 };
 
 type StudentCardProps = {
   credential: CredentialLike;
   onPress?: () => void;
   width: number;
+  issuerFallback?: string;
 };
 
-const DARK_TEAL = "#0E3F34";
-const WHITE_50 = "rgba(255, 255, 255, 0.55)";
-const WHITE_15 = "rgba(255, 255, 255, 0.15)";
-
-function findAttribute(attributes: CredentialAttribute[] | undefined, name: string) {
-  return attributes?.find((attribute) => attribute.name === name)?.value;
+function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: string[]) {
+  if (!attributes) return undefined;
+  for (const name of names) {
+    const match = attributes.find((attribute) => attribute.name === name)?.value;
+    if (match) return match;
+  }
+  return undefined;
 }
 
-export function StudentCard({ credential, onPress, width }: StudentCardProps) {
+export function StudentCard({ credential, onPress, width, issuerFallback }: StudentCardProps) {
   const attributes = credential.credentialAttributes;
-  const firstName = findAttribute(attributes, "firstName");
-  const lastName = findAttribute(attributes, "lastName");
-  const studentNumber = findAttribute(attributes, "studentNumber") ?? "-";
-  const faculty = findAttribute(attributes, "faculty") ?? "-";
-  const year = findAttribute(attributes, "year") ?? "-";
-  const holderName = [firstName, lastName].filter(Boolean).join(" ").trim() || "Unknown holder";
+  const firstName = findAttribute(attributes, "firstName", "first_name", "givenName");
+  const lastName = findAttribute(attributes, "lastName", "last_name", "familyName", "surname");
+  const studentNumber = findAttribute(attributes, "studentNumber", "student_number", "studentId");
+  const faculty = findAttribute(attributes, "faculty", "school", "department", "programme", "program");
+  const year = findAttribute(attributes, "year", "yearOfStudy", "academicYear");
+  const issuer =
+    findAttribute(attributes, "issuerName", "issuer", "institution", "university") ??
+    credential.connectionLabel ??
+    issuerFallback;
+
+  const holderName = [firstName, lastName].filter(Boolean).join(" ").trim();
   const initials = initialsFrom(firstName, lastName);
+  const hasHolder = Boolean(holderName);
 
   return (
     <Pressable
@@ -44,106 +54,107 @@ export function StudentCard({ credential, onPress, width }: StudentCardProps) {
       style={({ pressed }) => ({
         width,
         aspectRatio: 1.586,
-        backgroundColor: colors.primary,
-        borderRadius: 16,
+        backgroundColor: colors.surface,
+        borderRadius: radii.xl,
         overflow: "hidden",
         opacity: pressed ? 0.92 : 1,
+        ...shadows.md,
       })}
     >
-      <View style={{ height: 8, backgroundColor: DARK_TEAL }} />
+      <View
+        style={{
+          backgroundColor: colors.primary,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: spacing.md,
+        }}
+      >
+        <Text
+          ellipsizeMode="tail"
+          numberOfLines={1}
+          style={{
+            color: colors.surface,
+            fontSize: 12,
+            fontWeight: "700",
+            letterSpacing: 0.8,
+            flex: 1,
+            flexShrink: 1,
+          }}
+        >
+          {issuer ? issuer.toUpperCase() : "ISSUER PENDING"}
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: colors.surface,
+            fontSize: 11,
+            fontWeight: "600",
+            letterSpacing: 0.8,
+            opacity: 0.85,
+            flexShrink: 0,
+          }}
+        >
+          STUDENT · ID
+        </Text>
+      </View>
 
-      <View style={{ flex: 1, padding: spacing.lg, justifyContent: "space-between" }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <View style={{ flex: 1, padding: spacing.lg, flexDirection: "row", gap: spacing.lg }}>
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: radii.pill,
+            backgroundColor: colors.primarySoft,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Text
             style={{
-              color: colors.white,
-              fontSize: 11,
-              fontWeight: "800",
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
+              color: colors.primaryDeep,
+              fontSize: 20,
+              fontWeight: "700",
             }}
           >
-            Unify University
+            {initials || "—"}
           </Text>
-          <StatusPill label="active" tone="success" />
         </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: colors.primarySoft,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: DARK_TEAL, fontSize: 20, fontWeight: "800" }}>{initials}</Text>
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1, justifyContent: "space-between" }}>
+          <View style={{ gap: spacing.xs }}>
             <Text
               numberOfLines={1}
-              style={{ color: colors.white, fontSize: 22, fontWeight: "800" }}
+              style={[typography.heading, { fontSize: 20, lineHeight: 24 }]}
             >
-              {holderName}
+              {hasHolder ? holderName : "Holder name pending"}
             </Text>
-            <Text
-              numberOfLines={1}
-              style={{ color: colors.primarySoft, fontSize: 14, fontWeight: "600" }}
-            >
-              {faculty}
+            <Text numberOfLines={1} style={typography.body}>
+              {faculty ?? "Programme pending"}
             </Text>
           </View>
-        </View>
-
-        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
-          <View style={{ gap: 2 }}>
-            <Text
-              style={{
-                color: WHITE_50,
-                fontSize: 10,
-                fontWeight: "800",
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
-              }}
-            >
-              Student no.
-            </Text>
-            <Text style={{ color: colors.white, fontSize: 20, fontWeight: "700", letterSpacing: 1 }}>
-              {studentNumber}
-            </Text>
-            <View
-              style={{
-                marginTop: 6,
-                alignSelf: "flex-start",
-                backgroundColor: WHITE_15,
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 3,
-              }}
-            >
-              <Text style={{ color: colors.white, fontSize: 11, fontWeight: "700" }}>{`Year ${year}`}</Text>
+          <View style={{ flexDirection: "row", gap: spacing.lg }}>
+            <View style={{ flex: 1 }}>
+              <Text style={typography.caption}>No.</Text>
+              <Text
+                ellipsizeMode="tail"
+                numberOfLines={1}
+                style={[typography.bodyStrong, { marginTop: 2 }]}
+              >
+                {studentNumber ?? "—"}
+              </Text>
             </View>
-          </View>
-
-          <View style={{ gap: 3, alignItems: "flex-end" }}>
-            <View
-              style={{
-                width: 36,
-                height: 10,
-                borderRadius: 2,
-                backgroundColor: colors.primarySoft,
-              }}
-            />
-            <View
-              style={{
-                width: 36,
-                height: 10,
-                borderRadius: 2,
-                backgroundColor: colors.primarySoft,
-              }}
-            />
+            <View style={{ flex: 1 }}>
+              <Text style={typography.caption}>Year</Text>
+              <Text
+                ellipsizeMode="tail"
+                numberOfLines={1}
+                style={[typography.bodyStrong, { marginTop: 2 }]}
+              >
+                {year ?? "—"}
+              </Text>
+            </View>
           </View>
         </View>
       </View>

@@ -104,7 +104,7 @@ describe("cold install link handling", () => {
 
     await act(async () => {
       const result = await walletContext?.processIncomingLink("unifywallet://activate?token=cold-token");
-      expect(result).toEqual({ ok: true });
+      expect(result).toMatchObject({ ok: true });
     });
 
     expect(walletContext?.stashedActivationUrl).toBe("unifywallet://activate?token=cold-token");

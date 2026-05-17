@@ -1,18 +1,15 @@
-import { mockPaymentHistory, mockStudentCredential, mockWalletSummary } from "@/src/lib/api/mockStudent";
+import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
+import type { PaymentRecord, StoredCredential, WalletSummary } from "@/src/lib/api/types";
 
-const wait = (durationMs: number) => new Promise((resolve) => setTimeout(resolve, durationMs));
-
-export async function getStudentCredential() {
-  await wait(150);
-  return mockStudentCredential;
+export async function getStudentCredential(): Promise<StoredCredential | null> {
+  const stored = await getStoredCredentials();
+  return stored[0] ?? null;
 }
 
-export async function getWalletSummary() {
-  await wait(150);
-  return mockWalletSummary;
+export async function getWalletSummary(): Promise<WalletSummary> {
+  return null;
 }
 
-export async function getPaymentHistory() {
-  await wait(150);
-  return mockPaymentHistory;
+export async function getPaymentHistory(): Promise<PaymentRecord[]> {
+  return [];
 }

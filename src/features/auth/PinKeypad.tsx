@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import { Delete as DeleteIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/src/theme/colors";
@@ -32,42 +33,69 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
     <View style={styles.grid}>
       {ROWS.map((row, ri) => (
         <View key={ri} style={styles.row}>
-          {row.map((key, ci) =>
-            key === "" ? (
-              onSubmit ? (
+          {row.map((key, ci) => {
+            if (key === "") {
+              if (!onSubmit) {
+                return <View key={ci} style={styles.cell} />;
+              }
+              const submitDisabled = disabled || !canSubmit;
+              return (
                 <Pressable
                   key={ci}
                   accessibilityLabel="Submit PIN"
                   accessibilityRole="button"
-                  disabled={disabled || !canSubmit}
+                  disabled={submitDisabled}
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     onSubmit();
                   }}
                   style={({ pressed }) => [
                     styles.cell,
-                    styles.button,
-                    { opacity: disabled || !canSubmit ? 0.4 : pressed ? 0.6 : 1 },
+                    styles.submitCell,
+                    { opacity: submitDisabled ? 0.35 : pressed ? 0.85 : 1 },
                   ]}
                 >
-                  <Text style={styles.label}>OK</Text>
+                  <Text style={styles.submitLabel}>OK</Text>
                 </Pressable>
-              ) : (
-                <View key={ci} style={styles.cell} />
-              )
-            ) : (
+              );
+            }
+
+            if (key === "⌫") {
+              return (
+                <Pressable
+                  key={ci}
+                  accessibilityLabel="Delete"
+                  accessibilityRole="button"
+                  disabled={disabled}
+                  onPress={() => handleKey(key)}
+                  style={({ pressed }) => [
+                    styles.cell,
+                    pressed && styles.pressed,
+                    { opacity: disabled ? 0.4 : 1 },
+                  ]}
+                >
+                  <DeleteIcon color={colors.ink} size={24} strokeWidth={1.6} />
+                </Pressable>
+              );
+            }
+
+            return (
               <Pressable
                 key={ci}
-                accessibilityLabel={key === "⌫" ? "Delete" : key}
+                accessibilityLabel={key}
                 accessibilityRole="button"
                 disabled={disabled}
                 onPress={() => handleKey(key)}
-                style={({ pressed }) => [styles.cell, styles.button, { opacity: disabled ? 0.4 : pressed ? 0.6 : 1 }]}
+                style={({ pressed }) => [
+                  styles.cell,
+                  pressed && styles.pressed,
+                  { opacity: disabled ? 0.4 : 1 },
+                ]}
               >
-                <Text style={styles.label}>{key}</Text>
+                <Text style={styles.digit}>{key}</Text>
               </Pressable>
-            ),
-          )}
+            );
+          })}
         </View>
       ))}
     </View>
@@ -77,19 +105,30 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
 const CELL = 72;
 
 const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: CELL / 2,
-    borderWidth: 1,
-  },
   cell: {
     alignItems: "center",
+    borderRadius: 999,
     height: CELL,
     justifyContent: "center",
     width: CELL,
   },
-  grid: { gap: 12 },
-  label: { color: colors.text, fontSize: 22, fontWeight: "600" },
+  digit: {
+    color: colors.ink,
+    fontSize: 28,
+    fontWeight: "500",
+  },
+  grid: { gap: 8 },
+  pressed: {
+    backgroundColor: colors.surfaceAlt,
+  },
   row: { flexDirection: "row", gap: 20, justifyContent: "center" },
+  submitCell: {
+    backgroundColor: colors.primary,
+  },
+  submitLabel: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
 });
