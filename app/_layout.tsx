@@ -11,6 +11,7 @@ import { colors } from "@/src/theme/colors";
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
 
+  // Provider order matters: routing needs the agent and session ready above it.
   return (
     <QueryClientProvider client={queryClient}>
       <HolderAgentProvider>

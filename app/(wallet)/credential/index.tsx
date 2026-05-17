@@ -29,6 +29,7 @@ function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: 
 export default function CredentialIndexScreen() {
   const { session } = useWalletSession();
 
+  // Poll while empty because a credential can arrive a few moments after activation.
   const credentialsQuery = useQuery({
     queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
     queryFn: getStoredCredentials,
@@ -63,6 +64,7 @@ export default function CredentialIndexScreen() {
         <View style={{ gap: spacing.md }}>
           {credentials.map((credential) => {
             const attributes = credential.credentialAttributes;
+            // Issuers may use slightly different names for the same student fields.
             const issuer =
               findAttribute(attributes, "issuerName", "issuer", "institution", "university") ??
               "Issuer";

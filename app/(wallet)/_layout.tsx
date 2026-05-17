@@ -34,6 +34,7 @@ function tabIcon(Icon: LucideIcon) {
 
 export default function WalletLayout() {
   const { pendingOfferIds } = useWalletSession();
+  // Keep the offer count in the tab bar so students know there is something to review.
   const offersBadge = pendingOfferIds.length > 0 ? String(pendingOfferIds.length) : undefined;
 
   return (

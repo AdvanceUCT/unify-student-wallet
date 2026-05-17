@@ -5,8 +5,6 @@ import { AppState, Text, View } from "react-native";
 import { AutoLockProvider, useAutoLock } from "@/src/features/wallet/AutoLockProvider";
 import { BACKGROUND_LOCK_MS, INACTIVITY_LOCK_MS } from "@/src/features/wallet/lockConfig";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
-
 let mockLockWallet: jest.Mock;
 let mockLockStatus: "locked" | "unlocked";
 
@@ -17,15 +15,13 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   }),
 }));
 
-// Capture AppState handlers so tests can fire them manually.
+// Keep the native AppState callbacks around so each test can drive the app state by hand.
 type AppStateHandler = (state: string) => void;
 let appStateHandlers: AppStateHandler[];
 
 function simulateAppState(state: string) {
   appStateHandlers.forEach((h) => h(state));
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function renderProvider() {
   return render(
@@ -34,8 +30,6 @@ function renderProvider() {
     </AutoLockProvider>,
   );
 }
-
-// ─── Setup / teardown ─────────────────────────────────────────────────────────
 
 beforeEach(() => {
   mockLockWallet = jest.fn().mockResolvedValue(undefined);
@@ -55,8 +49,6 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-// ─── Config constants ─────────────────────────────────────────────────────────
-
 describe("lock config", () => {
   it("inactivity timeout is 2 minutes", () => {
     expect(INACTIVITY_LOCK_MS).toBe(2 * 60 * 1000);
@@ -70,8 +62,6 @@ describe("lock config", () => {
     expect(BACKGROUND_LOCK_MS).toBeLessThan(INACTIVITY_LOCK_MS);
   });
 });
-
-// ─── Inactivity timer ─────────────────────────────────────────────────────────
 
 describe("inactivity auto-lock", () => {
   it("calls lockWallet after INACTIVITY_LOCK_MS with no interaction", async () => {
@@ -105,8 +95,6 @@ describe("inactivity auto-lock", () => {
     expect(mockLockWallet).not.toHaveBeenCalled();
   });
 });
-
-// ─── Background lockout ───────────────────────────────────────────────────────
 
 describe("background auto-lock", () => {
   it("locks when the app returns from background after BACKGROUND_LOCK_MS", async () => {
@@ -159,8 +147,6 @@ describe("background auto-lock", () => {
   });
 });
 
-// ─── Suspension ───────────────────────────────────────────────────────────────
-
 describe("auto-lock suspension", () => {
   function SuspendingChild({ id }: { id: string }) {
     const { resumeAutoLock, suspendAutoLock } = useAutoLock();
@@ -180,7 +166,7 @@ describe("auto-lock suspension", () => {
       </AutoLockProvider>,
     );
 
-    // Flush the SuspendingChild effect (suspendAutoLock state update clears the timer)
+    // Let the child register its suspension before we move the fake clock.
     await act(async () => {});
 
     await act(async () => {
@@ -197,12 +183,12 @@ describe("auto-lock suspension", () => {
       </AutoLockProvider>,
     );
 
-    // Unmount the child → resumeAutoLock("video") is called → timer restarts.
+    // Unmounting calls resumeAutoLock("video"), which should let the timer start again.
     await act(async () => {
       unmount();
     });
 
-    // Re-render without the suspending child to simulate returning to normal.
+    // Render the provider normally again, like the student has left the suspended screen.
     render(
       <AutoLockProvider>
         <View />
@@ -221,7 +207,7 @@ describe("auto-lock suspension", () => {
       const { resumeAutoLock, suspendAutoLock } = useAutoLock();
 
       useEffect(() => {
-        // Two independent activities both hold a suspension.
+        // Both keys need to be released before auto-lock is allowed to run again.
         suspendAutoLock("key-a");
         suspendAutoLock("key-b");
         return () => {

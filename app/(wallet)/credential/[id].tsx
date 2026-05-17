@@ -17,6 +17,7 @@ const MAX_CARD_WIDTH = 360;
 
 type CredentialAttribute = { name: string; value: string };
 
+// Credential attributes arrive as flat AnonCreds names, so group the ones students notice first.
 const HOLDER_KEYS = new Set([
   "firstName",
   "first_name",
@@ -73,6 +74,7 @@ export default function CredentialDetailScreen() {
   const credential = credentialQuery.data;
   const attributes = credential?.credentialAttributes ?? [];
 
+  // Keep unknown issuer-specific fields visible instead of hiding useful proof data.
   const grouped = {
     holder: attributes.filter((a) => categorize(a) === "holder"),
     programme: attributes.filter((a) => categorize(a) === "programme"),

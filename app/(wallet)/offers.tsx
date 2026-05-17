@@ -39,10 +39,12 @@ export default function OffersScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
+  // Pending offer IDs live in session state; load the full records when this page opens.
   const offersQuery = useQuery({
     queryKey: ["pending-offers", pendingOfferIds.join(",")],
     queryFn: async () => {
       const records = await Promise.all(pendingOfferIds.map((id) => getCredentialRecord(id)));
+      // If Credo has not exposed the full record yet, keep a placeholder row visible.
       return records.map((record, index) => record ?? { id: pendingOfferIds[index] });
     },
   });

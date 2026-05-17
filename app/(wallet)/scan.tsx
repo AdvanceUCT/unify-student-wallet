@@ -37,6 +37,7 @@ export default function ScanScreen() {
   async function handleRawPayload(rawPayload: string) {
     setActionResult(null);
 
+    // Activation links and service requests share the scanner, so route links first.
     if (looksLikeActivationLink(rawPayload)) {
       setScanError(null);
       setScanResult(null);
@@ -69,6 +70,7 @@ export default function ScanScreen() {
       return;
     }
 
+    // Service QR actions are simulated until the verifier/payment backend is connected.
     setActionResult(
       scanResult.payload.type === "payment"
         ? `Payment approved for ${scanResult.payload.servicePointId}.`

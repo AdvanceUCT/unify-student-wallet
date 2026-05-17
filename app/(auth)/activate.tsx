@@ -59,6 +59,7 @@ export default function ActivateScreen() {
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
+    // Expo can deliver the same link twice, so only process each activation URL once.
     if (!isHydrated || !routeActivationUrl || processedActivationUrlRef.current === routeActivationUrl) {
       return;
     }
@@ -103,6 +104,7 @@ export default function ActivateScreen() {
       return;
     }
 
+    // The connection can finish before the credential offer reaches the wallet.
     if (pendingOfferIds.length > baselineOfferCountRef.current) {
       setStage("redirecting");
       router.replace("/(wallet)/offers");
@@ -114,6 +116,7 @@ export default function ActivateScreen() {
       return;
     }
 
+    // If Credo stays quiet, let the student retry the same activation link.
     const timeoutId = setTimeout(() => {
       setError("The credential offer did not arrive. Try opening the activation link again.");
       setStage("error");

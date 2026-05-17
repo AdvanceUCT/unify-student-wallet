@@ -41,6 +41,7 @@ export default function SettingsScreen() {
     setMessage(null);
 
     if (!enabled) {
+      // Disabling biometrics can require PIN proof, depending on how the session was saved.
       const result = await setBiometricEnabled(false);
 
       if (!result.ok && "requiresPin" in result) {
@@ -65,6 +66,7 @@ export default function SettingsScreen() {
     if (result.ok) {
       setPinError(null);
       setPinPhase("success");
+      // Give the success state a beat before closing the PIN modal.
       setTimeout(() => {
         setPinModalVisible(false);
         setPinPhase("idle");

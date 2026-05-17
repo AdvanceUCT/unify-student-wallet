@@ -43,6 +43,7 @@ export default function ChangePinScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
 
+  // Keep the PIN pieces out of render state so each step can clear its own keypad.
   const currentPinRef = useRef("");
   const newPinRef = useRef("");
 
@@ -86,6 +87,7 @@ export default function ChangePinScreen() {
       const err = result.error;
 
       if (err.includes("Too many failed attempts")) {
+        // At this point the session should force a fresh sign-in before another try.
         setIsLocked(true);
         return;
       }

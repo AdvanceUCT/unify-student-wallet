@@ -2,12 +2,7 @@
 
 Student wallet application for UNIFY. This repo is the React Native mobile wallet used by students to activate, store, present, and use their student Verifiable Credential.
 
-Future Codex instances should read this file first, then:
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/DECISIONS.md](docs/DECISIONS.md)
-- [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md)
-- [docs/WORKFLOW.md](docs/WORKFLOW.md)
+This README is the main project guide. Keep setup notes, workflow decisions, and wallet-specific context here so teammates have one place to check first.
 
 ## Current Status
 
@@ -471,7 +466,7 @@ npx yarn@1.22.22 expo start --dev-client --port 8082
 
 - `app/` contains Expo Router screens and navigation groups.
 - `src/components/` contains small shared UI primitives.
-- `src/lib/api/` contains mock API data and typed client placeholders.
+- `src/lib/api/` contains the typed client surface used by the wallet screens.
 - `src/lib/storage/` contains secure storage wrappers for future sensitive values.
 - `src/lib/validation/` contains QR payload validation.
 - `src/theme/` contains shared colors, spacing, and typography.
@@ -508,9 +503,5 @@ This repo should stay aligned with the BA system document:
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md): systems, repo boundaries, and runtime flows.
-- [Decisions](docs/DECISIONS.md): important project decisions and why they were made.
-- [API Contracts](docs/API_CONTRACTS.md): draft contracts between wallet, admin, vendor, and future backend services.
-- [Workflow](docs/WORKFLOW.md): GitHub Issues, PRs, checks, releases, and deployment conventions.
-- [Mobile Wallet Plan](docs/MOBILE_WALLET_PLAN.md): phased implementation plan for the student wallet MVP.
+This README is the only project documentation file. Add new setup notes or decisions here instead of creating separate docs.
 

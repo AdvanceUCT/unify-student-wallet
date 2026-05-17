@@ -45,6 +45,7 @@ export default function UnlockScreen() {
       biometricFired.current = true;
       void triggerBiometric();
     }
+    // This should only run on first mount; later changes can be triggered from the button.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

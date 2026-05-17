@@ -14,6 +14,7 @@ import { typography } from "@/src/theme/typography";
 export default function SignInScreen() {
   const { isHydrated } = useWalletSession();
 
+  // Wait for session hydration so setup does not race the saved wallet state.
   return (
     <AppScreen>
       <View style={{ flex: 1, justifyContent: "space-between" }}>
