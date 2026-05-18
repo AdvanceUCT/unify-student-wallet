@@ -14,6 +14,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function PaymentsScreen() {
+  // Payments are still a backend placeholder, but this keeps the screen ready to wire.
   const paymentsQuery = useQuery({
     queryKey: ["payment-history"],
     queryFn: getPaymentHistory,

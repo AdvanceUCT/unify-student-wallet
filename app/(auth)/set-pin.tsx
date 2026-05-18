@@ -19,6 +19,7 @@ export default function SetPinScreen() {
   const [step, setStep] = useState<Step>("enter");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Store the first entry while the confirm keypad starts fresh.
   const firstPinRef = useRef("");
 
   const {
@@ -65,6 +66,7 @@ export default function SetPinScreen() {
       clearConfirm();
 
       if (result.error === "PIN entries do not match.") {
+        // A mismatch means starting both entries again is less confusing than partial retry.
         firstPinRef.current = "";
         setStep("enter");
       }

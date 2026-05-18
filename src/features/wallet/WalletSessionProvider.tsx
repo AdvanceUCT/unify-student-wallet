@@ -222,6 +222,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     return unsubscribe;
   }, [addPendingOfferId, removePendingOfferId, state.session.lockStatus, state.session.walletId]);
 
+  /**
+   * Processes an activation link once, even if React sends the same URL through twice.
+   *
+   * @param url - The wallet activation URL from an email link, app link, or QR scan.
+   * @returns The next place the app should send the student after handling the link.
+   */
   const processIncomingLink = useCallback(
     async (url: string): Promise<ActionResult> => {
       const parsed = parseActivationLink(url);
@@ -241,6 +247,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         const current = stateRef.current;
 
         if (!current.session.walletId) {
+          // If a student opens an email link before setting up the wallet, hold
+          // the URL and replay it after PIN setup finishes.
           stateRef.current = { ...stateRef.current, stashedActivationUrl: url };
           setState((curr) => ({ ...curr, stashedActivationUrl: url }));
           return { ok: true, activationTarget: "stashed" };

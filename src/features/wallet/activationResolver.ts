@@ -107,6 +107,15 @@ function suffixFor(value: string) {
   return value.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "oob";
 }
 
+/**
+ * Turns an activation link payload into the issuer invitation the wallet can open.
+ *
+ * Token links go through the agent service, while direct OOB links are kept local
+ * for development and QR testing.
+ *
+ * @param request - Parsed activation link data from the deep link or QR scanner.
+ * @returns The resolved invitation details, or a user-facing error if resolution fails.
+ */
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
   if (request.kind === "token") {
     const activationApi = getActivationApi();

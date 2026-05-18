@@ -33,6 +33,8 @@ export default function HomeScreen() {
   const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
 
   const credentialQuery = useQuery({
+    // Cache this per wallet so a fresh test wallet does not show the previous
+    // wallet's credential on the home screen.
     queryKey: ["student-credential", session.walletId ?? "no-wallet"],
     queryFn: getStudentCredential,
   });

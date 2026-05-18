@@ -6,11 +6,16 @@ import { BACKGROUND_LOCK_MS, INACTIVITY_LOCK_MS } from "./lockConfig";
 
 type AutoLockContextValue = {
   /**
-   * Suspend auto-lock for an activity identified by `key`. Multiple callers may
-   * hold independent suspensions — the lock resumes only when all keys are released.
+   * Pauses auto-lock while a screen is doing something that should not be interrupted.
+   *
+   * @param key - A stable name for the thing holding the pause.
    */
   suspendAutoLock: (key: string) => void;
-  /** Release a previously acquired suspension key. */
+  /**
+   * Releases a previous auto-lock pause.
+   *
+   * @param key - The same key passed to `suspendAutoLock`.
+   */
   resumeAutoLock: (key: string) => void;
 };
 
@@ -23,7 +28,7 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
   const [suspendKeys, setSuspendKeys] = useState<ReadonlySet<string>>(() => new Set());
   const isSuspended = suspendKeys.size > 0;
 
-  // Refs keep callbacks inside timers and AppState handlers free from stale closures.
+  // Timers and AppState callbacks can fire later, so keep the latest session state in refs.
   const isUnlockedRef = useRef(isUnlocked);
   const isSuspendedRef = useRef(isSuspended);
   const lockWalletRef = useRef(lockWallet);
@@ -61,7 +66,7 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
     }, INACTIVITY_LOCK_MS);
   }, [clearInactivityTimer]);
 
-  // Start or stop the inactivity timer whenever unlock/suspension state changes.
+  // Restart the timer whenever the wallet becomes usable again.
   useEffect(() => {
     if (isUnlocked && !isSuspended) {
       startInactivityTimer();
@@ -72,7 +77,7 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
     return clearInactivityTimer;
   }, [clearInactivityTimer, isSuspended, isUnlocked, startInactivityTimer]);
 
-  // Handle app backgrounding: record timestamp on hide, check elapsed on return.
+  // The app can sit in the background, so check the elapsed time when it comes back.
   useEffect(() => {
     function handleAppStateChange(nextState: AppStateStatus) {
       if (nextState === "background" || nextState === "inactive") {
@@ -120,7 +125,7 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  // Called on every touch start/move. Resets the inactivity countdown.
+  // Any screen touch counts as activity and gives the student a fresh timeout.
   function handleUserActivity() {
     if (isUnlockedRef.current && !isSuspendedRef.current) {
       startInactivityTimer();
@@ -146,10 +151,6 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
   );
 }
 
-/**
- * Access the auto-lock suspension API. Must be called inside a component
- * rendered within `AutoLockProvider`.
- */
 export function useAutoLock(): AutoLockContextValue {
   const value = useContext(AutoLockContext);
 

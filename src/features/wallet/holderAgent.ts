@@ -179,6 +179,13 @@ function findCredentialOffer(records: CredentialRecord[], ignoredIds = new Set<s
   return records.find((record) => isCredentialOffer(record) && !ignoredIds.has(record.id));
 }
 
+/**
+ * Finds a credential that was stored after the current activation started.
+ *
+ * @param records - Credential records currently known to Credo.
+ * @param ignoredIds - Records that were already in the wallet before this activation.
+ * @returns The first newly stored credential, or undefined if Credo has not stored it yet.
+ */
 function findStoredCredential(records: CredentialRecord[], ignoredIds = new Set<string>()) {
   return records.find((record) => isStoredCredential(record) && !ignoredIds.has(record.id));
 }
@@ -188,6 +195,14 @@ function findCredentialRecord(records: CredentialRecord[], ignoredIds = new Set<
   return candidates.find(isStoredCredential) ?? candidates.find(isCredentialOffer);
 }
 
+/**
+ * Starts message pickup for a granted mediator.
+ *
+ * @param mediationRecipient - Credo's mediation recipient API for this holder agent.
+ * @param mediation - The mediator record that should receive pickup requests.
+ * @param mediatorPickupStrategy - The pickup strategy selected from app config.
+ * @returns A promise that resolves once Credo has started pickup.
+ */
 async function startMediatorPickup(
   mediationRecipient: DidCommMediationRecipient,
   mediation: DidCommMediationRecord,
@@ -235,6 +250,8 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   );
 
   if (existingDefaultMediator?.isReady) {
+    // The mediator can already be connected after app restart, but pickup still
+    // needs to be started or queued credential messages may not arrive.
     await startMediatorPickup(mediationRecipient, existingDefaultMediator, mediatorPickupStrategy);
     return;
   }
@@ -501,6 +518,16 @@ export async function resumeHolderAgentSession(walletId: string): Promise<Holder
   return initializeHolderAgent({ walletId });
 }
 
+/**
+ * Opens an issuer invitation and waits for the credential record it creates.
+ *
+ * Older records can still be in the wallet from previous test runs, so this only
+ * returns a record that appeared after the current activation link was opened.
+ *
+ * @param invitationUrl - The issuer's out-of-band invitation URL from the activation link.
+ * @returns The new credential record created by this invitation.
+ * @throws If the wallet is not ready, Credo is missing the needed APIs, or no new record appears in time.
+ */
 export async function receiveCredentialOffer(invitationUrl: string): Promise<CredentialRecord> {
   if (!agentRef) {
     throw new Error("Wallet has not been created yet.");
@@ -518,9 +545,11 @@ export async function receiveCredentialOffer(invitationUrl: string): Promise<Cre
   }
 
   const existingCredentials = await credentials.getAll();
+  // We snapshot existing records first so an old credential does not get mistaken
+  // for the one from the link the student just opened.
   const existingCredentialIds = new Set(existingCredentials.map((record) => record.id));
 
-  // Invoke through the chain so Credo's internal this binding is preserved.
+  // Keep this call attached to `oob`; Credo relies on its internal binding here.
   await oob.receiveInvitationFromUrl(invitationUrl, {
     autoAcceptConnection: true,
     autoAcceptInvitation: true,
