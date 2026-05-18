@@ -1,507 +1,211 @@
 # UNIFY Student Wallet
+[![React Native](https://img.shields.io/badge/React_Native-61DAFB?logo=react&logoColor=black)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Expo Router](https://img.shields.io/badge/Expo_Router-000020?logo=expo&logoColor=white)](https://docs.expo.dev/router/introduction/)
+[![React Query](https://img.shields.io/badge/React_Query-FF4154?logo=reactquery&logoColor=white)](https://tanstack.com/query/latest)
+[![Credo TS](https://img.shields.io/badge/Credo_TS-2D3748?logo=typescript&logoColor=white)](https://credo.js.org/)
+[![AnonCreds](https://img.shields.io/badge/AnonCreds-00599C?logo=hyperledger&logoColor=white)](https://hyperledger.github.io/anoncreds-spec/)
+[![Yarn](https://img.shields.io/badge/Yarn-2C8EBB?logo=yarn&logoColor=white)](https://classic.yarnpkg.com/)
 
-Student wallet application for UNIFY. This repo is the React Native mobile wallet used by students to activate, store, present, and use their student Verifiable Credential.
+<div align="center">
 
-This README is the main project guide. Keep setup notes, workflow decisions, and wallet-specific context here so teammates have one place to check first.
+React Native wallet app for students to receive, store, and present their
+university digital credential.
 
-## Current Status
+Built as an Expo development build because the wallet uses native Credo,
+Askar, AnonCreds, and Indy VDR modules.
+</div>
 
-- Stack: Expo Router, React Native, TypeScript.
-- Active feature: AD-39 wallet activation with Credo holder-agent support.
-- Package workflow: Yarn 1 through Corepack.
-- Runtime requirement: Expo development build for native Credo/Askar/AnonCreds/Indy VDR bindings. Expo Go is not sufficient for this feature.
-- Current data: simulated student, balance, and payment data only; no real student data or production secrets.
-- Active local checks: lint, typecheck, Jest tests, Expo export build.
-- System scope: proof of concept using simulated student records, simulated payments, and simulated service-provider flows.
-- Identity stack: Credo holder agent, DIDComm, AnonCreds, Aries Askar wallet storage, Indy VDR, and BCovrin Test as the development Indy ledger.
-- Ledger boundary: BCovrin Test is used only for public DID, schema, credential definition, and revocation-related objects. Student records, payment data, UI state, and audit logs stay off-ledger in application storage.
+---
 
-This repo owns:
+## Overview
 
-- Student-facing credential wallet flows
-- Student credential activation and renewal interactions
-- QR payment initiation
-- Service-point verification through QR/NFC presentation flows
-- Simulated wallet balance, top-up, and transaction history
-- Wallet security and credential presentation behavior
-- Shared wallet UI and client-side state
+UNIFY Student Wallet is the holder-side mobile app for the student digital
+identity proof of concept. Students open an activation link from the Admin
+Portal, create a local wallet PIN, initialize a Credo holder agent, and store
+their issued student credential on the device.
 
-## Working Agreement
+The app features:
 
-- Work enters through issues and pull requests.
-- `main` is protected and should only change through reviewed PRs.
-- Use draft PRs early when work is still in progress.
-- Link every PR to an issue before it is merged.
-- Security-sensitive changes need two approving reviews before merge.
+- **Credential Activation** - Opens `unifywallet://activate?...` links from email or QR flows
+- **Secure Wallet Setup** - Protects local wallet access with a PIN and optional biometrics
+- **Credo Holder Agent** - Initializes the mobile holder agent and stores credentials locally
+- **Credential Review** - Shows stored credential details in a student-friendly layout
+- **Offer Handling** - Accepts or declines pending credential offers
+- **QR Scanner** - Routes activation links, payment requests, and verification requests
+- **Simulated Payments** - Displays placeholder balance and payment activity for the PoC
 
-## Getting Started
+---
 
-This app uses native React Native modules for Credo, Askar, AnonCreds, Indy VDR, SecureStore, and the Expo development client. Expo Go is not enough for the activation and credential-storage flow. Teammates should use a development build on an Android emulator for the first boot.
+## Tech Stack
 
-The commands below are written for Windows PowerShell because that is the tested team path. macOS and Linux developers can use the same command order, but paths to Android SDK tools will be different.
+### Mobile App
+[![React Native](https://img.shields.io/badge/React_Native-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev/)
 
-### What A Successful First Run Proves
+[![Expo](https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
 
-The first-run flow should prove that:
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-- Metro starts and serves the JavaScript bundle.
-- Android Studio has a working emulator.
-- The app builds and installs as a development build.
-- `unifywallet://activate?token=...` opens the app.
-- The activation flow reaches PIN setup.
-- The PIN is saved.
-- Credo initializes Askar wallet storage.
-- The demo student credential screen loads.
+[![Expo Router](https://img.shields.io/badge/Expo_Router-000020?style=for-the-badge&logo=expo&logoColor=white)](https://docs.expo.dev/router/introduction/)
 
-If the app lands on the `Student status` credential screen after saving a PIN, the local Android setup is working.
+[![React Query](https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white)](https://tanstack.com/query/latest)
 
-### Required Tools
+### Wallet / Credentials
+[![Credo TS](https://img.shields.io/badge/Credo_TS-2D3748?style=for-the-badge&logo=typescript&logoColor=white)](https://credo.js.org/)
 
-Install these before opening the repo:
+[![Aries Askar](https://img.shields.io/badge/Aries_Askar-4B5563?style=for-the-badge&logo=hyperledger&logoColor=white)](https://github.com/hyperledger/aries-askar)
 
-- Git.
-- Node.js with Corepack. Node 20 LTS or newer is recommended.
-- Android Studio.
-- Android Studio bundled Java runtime. On Windows this is usually `C:\Program Files\Android\Android Studio\jbr`.
-- Android SDK Platform Tools. This provides `adb.exe`.
-- Android SDK Platform 36.
-- Android SDK Build-Tools 36.
-- Android NDK `27.1.12297006`.
-- CMake `3.22.1`.
-- An Android emulator, such as Android Studio's default Medium Phone.
+[![AnonCreds](https://img.shields.io/badge/AnonCreds-00599C?style=for-the-badge&logo=hyperledger&logoColor=white)](https://hyperledger.github.io/anoncreds-spec/)
 
-Android Studio usually installs missing SDK pieces during the first Gradle build. If the build asks to accept licenses, accept them.
+[![Indy VDR](https://img.shields.io/badge/Indy_VDR-003B57?style=for-the-badge&logo=hyperledger&logoColor=white)](https://github.com/hyperledger/indy-vdr)
 
-### Clone The Repo
+### Testing
+[![Jest](https://img.shields.io/badge/Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
 
-Use PowerShell:
+[![Testing Library](https://img.shields.io/badge/Testing_Library-E33332?style=for-the-badge&logo=testinglibrary&logoColor=white)](https://callstack.github.io/react-native-testing-library/)
 
-```powershell
-cd C:\Users\<your-windows-user>
-git clone https://github.com/AdvanceUCT/unify-student-wallet.git
-cd C:\Users\<your-windows-user>\unify-student-wallet
+---
+
+## Project Structure
+
+```
+unify-student-wallet/
+├── app/                      # Expo Router screens and navigation groups
+│   ├── (auth)/               # Sign-in, activation, PIN setup, unlock screens
+│   └── (wallet)/             # Home, credentials, offers, scan, payments, settings
+├── src/
+│   ├── components/           # Shared UI components
+│   ├── features/             # Wallet, auth, credential, payment, and QR logic
+│   ├── lib/                  # API client, storage wrappers, validation helpers
+│   └── theme/                # Shared colors, spacing, typography, shadows
+├── android/                  # Native Android project generated for dev/release builds
+├── patches/                  # patch-package fixes for native dependencies
+├── __tests__/                # Jest and React Native Testing Library tests
+├── package.json              # Scripts and dependencies
+└── README.md                 # This file
 ```
 
-If you already have the repo:
+---
+
+## Setup
 
-```powershell
-cd C:\Users\<your-windows-user>\unify-student-wallet
-git pull
-```
+### Prerequisites
 
-If `git pull` says local files such as `package.json` would be overwritten, do not use `git pull --force`. Stash your local changes, pull, then decide whether you still need the stash:
+- **Git**
+- **Node.js 20+**
+- **Corepack**
+- **Yarn 1.22.22**
+- **Android Studio**
+- **Android SDK Platform Tools**
+- **Android SDK Platform 36**
+- **Android SDK Build-Tools 36**
+- **Android NDK 27.1.12297006**
+- **CMake 3.22.1**
+- **Android emulator or physical Android device**
 
-```powershell
-git stash push -u -m "local setup changes"
-git pull
-```
+Expo Go is not enough for this app because the holder-agent flow uses native
+Credo, Askar, AnonCreds, Indy VDR, SecureStore, and Expo dev-client modules.
 
-### Set Android Environment Variables
+### Installation
 
-Run this in every new PowerShell terminal before Android commands, or add equivalent values to your user environment variables:
+1. **Clone the repository**
+   ```powershell
+   git clone https://github.com/AdvanceUCT/unify-student-wallet.git
+   cd unify-student-wallet
+   ```
 
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
-```
+2. **Install dependencies**
+   ```powershell
+   corepack enable
+   corepack yarn install --frozen-lockfile
+   ```
 
-Check that `adb` is visible:
+   If `yarn` is not available on PATH:
 
-```powershell
-adb version
-```
+   ```powershell
+   npx yarn@1.22.22 install --frozen-lockfile
+   ```
 
-If PowerShell says `adb` is not recognized, use the full path:
+3. **Set Android environment variables**
+   ```powershell
+   $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+   $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+   $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+   $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
+   ```
 
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" version
-```
+4. **Start an Android emulator**
 
-### Install Dependencies
+   Open Android Studio, start an Android Virtual Device, then confirm it is
+   visible:
 
-Use Yarn 1.22.22. The repo's `packageManager` field pins this version.
+   ```powershell
+   adb devices
+   ```
 
-Preferred command:
+5. **Build and run the development app**
+   ```powershell
+   npx yarn@1.22.22 expo run:android
+   ```
 
-```powershell
-corepack enable
-corepack yarn install --frozen-lockfile
-```
+   The first build can take several minutes. Leave Metro running after the app
+   installs.
 
-Fallback command when `yarn` or `yarnpkg` is not on PATH:
+6. **Run the app after the first build**
+   ```powershell
+   npx yarn@1.22.22 start:dev-client
+   ```
 
-```powershell
-npx yarn@1.22.22 install --frozen-lockfile
-```
+   Open the installed development build and select the running Metro server.
+   On an emulator, it usually appears as:
 
-The `postinstall` script runs `patch-package`. That is expected. It patches native package build flags needed by the Android development build.
+   ```text
+   http://10.0.2.2:8081
+   ```
 
-### Start The Android Emulator
+7. **Test a local activation link**
+   ```powershell
+   adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
+   ```
 
-Use Android Studio:
+   Expected flow:
 
-1. Open Android Studio.
-2. Open `Tools` -> `Device Manager`.
-3. Create or select an Android Virtual Device.
-4. Use a recent Android system image compatible with SDK 36.
-5. Start the emulator.
-6. Wait until the Android home screen is fully loaded.
+   - The deep link opens the wallet app
+   - The app routes to activation or PIN setup
+   - The student creates a wallet PIN
+   - Credo initializes the local holder wallet
+   - The wallet opens to the credential or offers flow
 
-Then verify PowerShell can see it:
+8. **Reset local app state**
+   ```powershell
+   adb shell pm clear com.advanceuct.unifystudentwallet
+   ```
 
-```powershell
-adb devices
-```
+   Use this before retesting the first-run setup flow.
 
-Expected shape:
+---
 
-```text
-List of devices attached
-emulator-5554   device
-```
+## Testing
 
-If the list is empty, the emulator is not fully booted or Android Studio did not start it correctly. Wait, then run `adb devices` again.
-
-### First Build And Boot
-
-Use two terminals.
-
-#### Terminal 1: Build, Install, And Start Metro
-
-From the repo root:
-
-```powershell
-cd C:\Users\<your-windows-user>\unify-student-wallet
-
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
-
-npx yarn@1.22.22 expo run:android
-```
-
-The first build can take several minutes. Gradle may install Android SDK Platform 36, Build-Tools 36, the Android NDK, and CMake. Warnings about deprecated Gradle features, SDK XML versions, Kotlin deprecations, or package attributes inside third-party manifests are usually non-blocking if the build continues.
-
-When successful, the terminal should show:
-
-```text
-BUILD SUCCESSFUL
-Starting Metro Bundler
-Metro waiting on exp+unify-student-wallet://expo-development-client/?url=...
-Installing ...\android\app\build\outputs\apk\debug\app-debug.apk
-Opening exp+unify-student-wallet://expo-development-client/?url=...
-```
-
-Leave Terminal 1 running. This terminal is now Metro and will print app logs.
-
-#### If The App Opens To The Expo Dev Client Launcher
-
-This is normal for a development build. On the emulator, tap the listed development server. It usually looks like:
-
-```text
-http://10.0.2.2:8081
-```
-
-`10.0.2.2` is the Android emulator's special address for the host machine.
-
-If the app does not connect, confirm Terminal 1 is still running Metro and that the server entry has a green dot.
-
-### Test Activation With A Deep Link
-
-Open Terminal 2. Keep Terminal 1 running.
-
-Run the Android environment setup again in Terminal 2:
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
-```
-
-Verify the emulator:
-
-```powershell
-adb devices
-```
-
-Inject a demo activation link:
-
-```powershell
-adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
-```
-
-If `adb` is not on PATH, use:
-
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
-```
-
-Expected app flow:
-
-1. The deep link opens the wallet app.
-2. The app accepts the activation link.
-3. If no PIN exists, the app routes to `Set your wallet PIN`.
-4. Enter a 4 to 6 digit PIN.
-5. Enter the same PIN in `Confirm PIN`.
-6. Tap `Save PIN`.
-7. The app should route to the `Student status` credential screen.
-
-The `Activation link accepted. Set a PIN to store the credential.` message can be brief because the route guard immediately moves pending activation to PIN setup.
-
-### Test With The Manual Demo Code
-
-If deep-link testing is not needed, the activation screen can use the current demo code:
-
-```text
-UNIFY-DEMO-2026
-```
-
-This verifies the app-side demo activation path. It does not prove a real backend-issued token unless the app is connected to a real activation service.
-
-### Running The App Again Later
-
-After the first native build is installed, day-to-day development usually only needs Metro:
-
-```powershell
-cd C:\Users\<your-windows-user>\unify-student-wallet
-npx yarn@1.22.22 start:dev-client
-```
-
-Then open the installed development build on the emulator and tap the Metro server.
-
-Re-run `npx yarn@1.22.22 expo run:android` whenever native dependencies change, `app.json` native identifiers change, Gradle files change, patches change, or the installed development build is stale.
-
-### Reset Emulator App State
-
-Use this when the emulator is stuck in an old activation state, an old PIN is stored, or you want to retest first-run activation:
-
-```powershell
-adb shell pm clear com.advanceuct.unifystudentwallet
-```
-
-If native libraries or the installed build may be stale, uninstall the app:
-
-```powershell
-adb uninstall com.advanceuct.unifystudentwallet
-```
-
-Then rebuild:
-
-```powershell
-npx yarn@1.22.22 expo run:android
-```
-
-### Clean Rebuild
-
-Use this after pulling dependency, native module, or patch changes:
-
-```powershell
-cd C:\Users\<your-windows-user>\unify-student-wallet
-
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force android\build, android\app\build -ErrorAction SilentlyContinue
-
-npx yarn@1.22.22 install --frozen-lockfile
-
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
-
-adb uninstall com.advanceuct.unifystudentwallet
-npx yarn@1.22.22 expo run:android
-```
-
-Use the full `adb.exe` path if `adb` is not recognized.
-
-### Local Checks
-
-Run these before opening a PR:
-
+### Lint
 ```powershell
 npx yarn@1.22.22 lint
+```
+
+### TypeScript Checks
+```powershell
 npx yarn@1.22.22 typecheck
+```
+
+### Unit Tests
+```powershell
 npx yarn@1.22.22 test
+```
+
+### Expo Export Build
+```powershell
 npx yarn@1.22.22 build
 ```
 
-`expo lint` may print a Windows message like `'yarnpkg' is not recognized...` even when the command exits successfully. Treat the command exit code as authoritative.
-
-### Troubleshooting
-
-#### `adb` Is Not Recognized
-
-Set Android environment variables in the current terminal:
-
-```powershell
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:Path = "$env:ANDROID_HOME\platform-tools;$env:Path"
-```
-
-Or call `adb.exe` directly:
-
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices
-```
-
-#### `git pull --force` Still Refuses To Pull
-
-`--force` does not overwrite local working-tree changes during a merge. Stash first:
-
-```powershell
-git stash push -u -m "local changes before pull"
-git pull
-```
-
-For a first-time teammate, a fresh clone is usually simpler than repairing a dirty local checkout.
-
-#### `patch-package` Fails During Install
-
-This usually means `node_modules` contains old package contents from another branch or an interrupted patch. Remove `node_modules` and install again:
-
-```powershell
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-npx yarn@1.22.22 install --frozen-lockfile
-```
-
-Do not edit generated files in `node_modules` by hand unless you are intentionally creating a new `patch-package` patch.
-
-#### Build Fails With `ReactAndroid::reactnativejni` Not Found
-
-This points to an old native Askar package or stale native build output. Pull the latest branch, remove `node_modules`, remove Android build folders, reinstall, and rebuild the development client:
-
-```powershell
-git pull
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force android\build, android\app\build -ErrorAction SilentlyContinue
-npx yarn@1.22.22 install --frozen-lockfile
-npx yarn@1.22.22 expo run:android
-```
-
-#### Build Fails With `std::snprintf` Or C++ Standard Errors
-
-The native Askar wrapper must build with the patched C++ standard. Run a clean install so `patch-package` can apply:
-
-```powershell
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-npx yarn@1.22.22 install --frozen-lockfile
-Remove-Item -Recurse -Force android\build, android\app\build -ErrorAction SilentlyContinue
-npx yarn@1.22.22 expo run:android
-```
-
-#### App Shows The Expo Dev Client Home Screen
-
-This is expected after installing a development build. Tap the running development server, usually `http://10.0.2.2:8081`.
-
-If there is no server:
-
-```powershell
-npx yarn@1.22.22 start:dev-client
-```
-
-#### Deep Link Opens The App But No Activation Message Appears
-
-If the app routes straight to PIN setup, the link was accepted and the route guard moved to the required PIN step. Continue by setting the PIN.
-
-If nothing happens, check:
-
-```powershell
-adb devices
-adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
-```
-
-Also confirm the installed package is `com.advanceuct.unifystudentwallet`.
-
-#### `Error during call to 'onInitializeContext' method in module 'askar'`
-
-This means the deep link and PIN flow reached Credo, but Askar wallet storage failed to initialize. The common causes are stale native code, stale app data, or stale dependencies.
-
-Run:
-
-```powershell
-git pull
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force android\build, android\app\build -ErrorAction SilentlyContinue
-npx yarn@1.22.22 install --frozen-lockfile
-adb uninstall com.advanceuct.unifystudentwallet
-npx yarn@1.22.22 expo run:android
-```
-
-Then inject the activation link again.
-
-#### Metro Logs Show `Attempted to import the module ... not listed in exports`
-
-These warnings can appear from transitive SSI dependencies such as `multiformats` or `@noble/hashes`. They are warnings, not activation failures, if the app continues bundling and running.
-
-#### Android Build Prints SDK XML, Kotlin, Or Manifest Warnings
-
-Warnings like these are usually non-blocking if Gradle eventually prints `BUILD SUCCESSFUL`:
-
-- `This version only understands SDK XML versions up to 3...`
-- `Setting the namespace via the package attribute...`
-- Kotlin deprecation warnings from Expo or React Native packages.
-- CMake long path warnings.
-
-If the build stops, fix the first `FAILED` task in the output. The first real error is more useful than the later stack trace.
-
-#### Port 8081 Is Busy Or Metro Is Confused
-
-Stop old Metro terminals with `Ctrl+C`. Then restart with a clean Metro cache:
-
-```powershell
-npx yarn@1.22.22 expo start --dev-client --clear
-```
-
-If needed, use another port and follow the URL printed by Expo:
-
-```powershell
-npx yarn@1.22.22 expo start --dev-client --port 8082
-```
-
-## App Structure
-
-- `app/` contains Expo Router screens and navigation groups.
-- `src/components/` contains small shared UI primitives.
-- `src/lib/api/` contains the typed client surface used by the wallet screens.
-- `src/lib/storage/` contains secure storage wrappers for future sensitive values.
-- `src/lib/validation/` contains QR payload validation.
-- `src/theme/` contains shared colors, spacing, and typography.
-
-## Activation And SSI Notes
-
-The wallet accepts activation links shaped as `unifywallet://activate?token=<opaque-token>`. For development, it also accepts `unifywallet://activate?oob=<encoded-oob-url>` so an issuer-provided DIDComm out-of-band invitation can be exercised before the activation service exists.
-
-The issuer service, verifier service, mediator, app database, email delivery, and fallback web landing pages are integration points outside this repo. This app owns the holder-side activation flow, local PIN gate, Credo holder-agent initialization, Askar credential storage, and safe SecureStore session metadata.
-
-Implementation basis:
-
-- [Credo Agent Setup](https://credo.js.org/guides/getting-started/set-up)
-- [Aries Askar](https://credo.js.org/guides/getting-started/set-up/aries-askar)
-- [AnonCreds](https://credo.js.org/guides/getting-started/set-up/anoncreds)
-- [Indy VDR](https://credo.js.org/guides/getting-started/set-up/indy-vdr)
-- [Credo DIDComm issuance](https://credo.js.org/guides/tutorials/issue-an-anoncreds-credential-over-didcomm)
-- [Credo mediation](https://credo.js.org/guides/tutorials/mediation)
-- [BCovrin Test](https://test.bcovrin.vonx.io/)
-- [VON Network](https://github.com/bcgov/von-network)
-- [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/)
-
-## Scope Alignment
-
-This repo should stay aligned with the BA system document:
-
-- Build for a controlled proof-of-concept, not production rollout.
-- Do not use real university data.
-- Do not integrate real payment gateways or bank settlement.
-- Keep wallet balances and top-ups simulated until a later decision changes scope.
-- Store no PII on-chain.
-- Do not build a blockchain or write student/payment/audit records to BCovrin.
-- Treat Credo, Aries Askar, AnonCreds, Indy VDR, DIDComm, and BCovrin changes as security-sensitive.
-
-## Documentation
-
-This README is the only project documentation file. Add new setup notes or decisions here instead of creating separate docs.
-
+---
