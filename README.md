@@ -88,6 +88,21 @@ unify-student-wallet/
 
 ---
 
+## Brief Setup
+
+```powershell
+git clone https://github.com/AdvanceUCT/unify-student-wallet.git
+cd unify-student-wallet
+corepack enable
+corepack yarn install --frozen-lockfile
+npx yarn@1.22.22 expo run:android
+```
+
+Use an Expo development build, not Expo Go. The app needs native Credo, Askar,
+AnonCreds, Indy VDR, SecureStore, and dev-client modules to run the wallet flow.
+
+---
+
 ## Setup
 
 ### Prerequisites
