@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// "verification" is the active sprint focus — it powers real student credential
+// presentation against the agent service. "payment" is a future feature and is
+// still simulated in the UI until the payment backend is built.
+
 const baseServicePointQrPayloadSchema = z.object({
   vendorId: z.string().min(1),
   servicePointId: z.string().min(1),

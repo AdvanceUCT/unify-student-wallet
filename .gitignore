@@ -45,7 +45,10 @@ app-example
 /android
 
 docs-local
-
 .env
 .env.*
 !.env.example
+
+package-lock.json
+yarn.lock
+claude
