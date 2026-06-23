@@ -49,6 +49,4 @@ docs-local
 .env.*
 !.env.example
 
-package-lock.json
-yarn.lock
 claude
