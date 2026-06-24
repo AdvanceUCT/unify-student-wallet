@@ -1,4 +1,4 @@
-import { parseQrPayload } from "@/src/lib/validation/qrPayload";
+import { parseQrPayload, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 describe("parseQrPayload", () => {
   it("accepts a valid service-point payment payload", () => {
@@ -18,7 +18,7 @@ describe("parseQrPayload", () => {
     }
   });
 
-  it("accepts a valid service-point verification payload", () => {
+  it("rejects legacy verification JSON containing vendor and nonce data", () => {
     const result = parseQrPayload(
       JSON.stringify({
         vendorId: "vendor-001",
@@ -28,15 +28,34 @@ describe("parseQrPayload", () => {
       }),
     );
 
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.type).toBe("verification");
-    }
+    expect(result.ok).toBe(false);
   });
 
   it("rejects malformed payloads", () => {
     const result = parseQrPayload("not-json");
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("parseVerificationLink", () => {
+  it.each([
+    "https://voskuils.com/verify/sp-public-001",
+    "unifywallet://verify/sp-public-001",
+  ])("accepts a trusted static verification link: %s", (value) => {
+    expect(parseVerificationLink(value)).toEqual({
+      ok: true,
+      publicServicePointId: "sp-public-001",
+    });
+  });
+
+  it.each([
+    "http://voskuils.com/verify/sp-public-001",
+    "https://evil.example/verify/sp-public-001",
+    "https://voskuils.com/verify/sp-public-001?nonce=attacker",
+    "https://voskuils.com/verify/sp-public-001/extra",
+    "unifywallet://payment/sp-public-001",
+  ])("rejects an untrusted or malformed verification link: %s", (value) => {
+    expect(parseVerificationLink(value).ok).toBe(false);
   });
 });

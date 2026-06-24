@@ -1,6 +1,9 @@
 import * as LocalAuthentication from "expo-local-authentication";
+import * as Linking from "expo-linking";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+
+import { parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
@@ -50,9 +53,11 @@ type WalletSessionContextValue = {
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
   pendingOfferIds: string[];
+  pendingVerificationPublicServicePointId?: string;
   processIncomingLink: (url: string) => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
+  setPendingVerificationPublicServicePointId: (publicServicePointId?: string) => Promise<void>;
   signOut: () => Promise<void>;
   stashedActivationUrl?: string;
   unlockWithBiometric: () => Promise<ActionResult>;
@@ -150,10 +155,49 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const persistState = useCallback(async (nextState: PersistedWalletSessionState) => {
-    stateRef.current = { ...stateRef.current, ...nextState };
-    setState((current) => ({ ...current, ...nextState }));
+    const mergedState: PersistedWalletSessionState = {
+      ...nextState,
+      ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingVerificationPublicServicePointId")
+        ? {
+            pendingVerificationPublicServicePointId:
+              stateRef.current.pendingVerificationPublicServicePointId,
+          }
+        : {}),
+    };
+    stateRef.current = { ...stateRef.current, ...mergedState };
+    setState((current) => ({ ...current, ...mergedState }));
+    await saveWalletSessionState(mergedState);
+  }, []);
+
+  const setPendingVerificationPublicServicePointId = useCallback(async (publicServicePointId?: string) => {
+    const current = stateRef.current;
+    const nextState: PersistedWalletSessionState = {
+      biometricEnabled: current.biometricEnabled,
+      changePinAttempts: current.changePinAttempts,
+      failedAttempts: current.failedAttempts,
+      pinHash: current.pinHash,
+      pinSalt: current.pinSalt,
+      pendingVerificationPublicServicePointId: publicServicePointId,
+      session: current.session,
+    };
+    stateRef.current = { ...current, ...nextState };
+    setState((value) => ({ ...value, ...nextState }));
     await saveWalletSessionState(nextState);
   }, []);
+
+  useEffect(() => {
+    if (!state.isHydrated) return;
+
+    const stashVerificationLink = (url: string | null) => {
+      if (!url) return;
+      const parsed = parseVerificationLink(url);
+      if (parsed.ok) void setPendingVerificationPublicServicePointId(parsed.publicServicePointId);
+    };
+
+    void Linking.getInitialURL().then(stashVerificationLink);
+    const subscription = Linking.addEventListener("url", ({ url }) => stashVerificationLink(url));
+    return () => subscription.remove();
+  }, [setPendingVerificationPublicServicePointId, state.isHydrated]);
 
   const addPendingOfferId = useCallback(async (credentialRecordId: string) => {
     const current = stateRef.current;
@@ -168,6 +212,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       failedAttempts: current.failedAttempts,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
         ...current.session,
         pendingOfferIds: [...current.session.pendingOfferIds, credentialRecordId],
@@ -192,6 +237,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       failedAttempts: current.failedAttempts,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
         ...current.session,
         pendingOfferIds: current.session.pendingOfferIds.filter((id) => id !== credentialRecordId),
@@ -645,9 +691,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       isHydrated: state.isHydrated,
       lockWallet,
       pendingOfferIds: state.session.pendingOfferIds,
+      pendingVerificationPublicServicePointId: state.pendingVerificationPublicServicePointId,
       processIncomingLink,
       session: state.session,
       setBiometricEnabled,
+      setPendingVerificationPublicServicePointId,
       signOut,
       stashedActivationUrl: state.stashedActivationUrl,
       unlockWithBiometric,
@@ -662,6 +710,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       lockWallet,
       processIncomingLink,
       setBiometricEnabled,
+      setPendingVerificationPublicServicePointId,
       signOut,
       state,
       unlockWithBiometric,
@@ -673,7 +722,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 }
 
 export function WalletRouteGate({ children }: PropsWithChildren) {
-  const { hasPin, isHydrated, session } = useWalletSession();
+  const { hasPin, isHydrated, pendingVerificationPublicServicePointId, session } = useWalletSession();
   const segments = useSegments();
 
   useEffect(() => {
@@ -683,10 +732,19 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
 
     const routeAccess = getWalletRouteAccess(session, hasPin);
 
+    if (
+      routeAccess === "wallet" &&
+      pendingVerificationPublicServicePointId &&
+      !segments.includes("verify")
+    ) {
+      router.replace(`/verify/${encodeURIComponent(pendingVerificationPublicServicePointId)}`);
+      return;
+    }
+
     if (!isRouteAllowedForAccess(segments, routeAccess)) {
       router.replace(getWalletRouteHref(routeAccess));
     }
-  }, [hasPin, isHydrated, segments, session]);
+  }, [hasPin, isHydrated, pendingVerificationPublicServicePointId, segments, session]);
 
   return children;
 }

@@ -22,6 +22,10 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       failedAttempts: parsed.failedAttempts ?? 0,
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
+      pendingVerificationPublicServicePointId:
+        typeof parsed.pendingVerificationPublicServicePointId === "string"
+          ? parsed.pendingVerificationPublicServicePointId
+          : undefined,
       session: {
         authStatus: parsed.session?.authStatus ?? "signedOut",
         lockStatus: parsed.session?.lockStatus ?? "locked",

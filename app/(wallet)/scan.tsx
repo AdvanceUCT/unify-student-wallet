@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { Camera as CameraIcon } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -11,8 +11,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { submitServiceVerification, type VerificationCredential } from "@/src/lib/api/verification";
-import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
+import { parseQrPayload, parseVerificationLink, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
@@ -34,12 +33,12 @@ export default function ScanScreen() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verifiedCredential, setVerifiedCredential] = useState<VerificationCredential | null>(null);
+  const scanLockedRef = useRef(false);
 
   async function handleRawPayload(rawPayload: string) {
+    if (scanLockedRef.current) return;
+    scanLockedRef.current = true;
     setActionResult(null);
-    setVerifiedCredential(null);
 
     // Activation links and service requests share the scanner, so route links first.
     if (looksLikeActivationLink(rawPayload)) {
@@ -49,6 +48,7 @@ export default function ScanScreen() {
 
       if (!result.ok) {
         setScanError(result.error);
+        scanLockedRef.current = false;
         return;
       }
 
@@ -57,11 +57,20 @@ export default function ScanScreen() {
       return;
     }
 
+    const verificationLink = parseVerificationLink(rawPayload);
+    if (verificationLink.ok) {
+      setScanError(null);
+      setScanResult(null);
+      router.push(`/verify/${encodeURIComponent(verificationLink.publicServicePointId)}`);
+      return;
+    }
+
     const result = parseQrPayload(rawPayload);
 
     if (!result.ok) {
       setScanResult(null);
       setScanError("This QR payload is not a valid UNIFY service request.");
+      scanLockedRef.current = false;
       return;
     }
 
@@ -74,34 +83,8 @@ export default function ScanScreen() {
       return;
     }
 
-    if (scanResult.payload.type === "payment") {
-      // Payment QR actions are simulated until the payment backend is connected.
-      setActionResult(`Payment approved for ${scanResult.payload.servicePointId}.`);
-      return;
-    }
-
-    if (!session.walletId) {
-      setActionResult("No active wallet found. Unlock your wallet before presenting a credential.");
-      return;
-    }
-
-    setIsVerifying(true);
-    setVerifiedCredential(null);
-
-    try {
-      const result = await submitServiceVerification(scanResult.payload, session.walletId);
-
-      if (result.approved) {
-        setActionResult(`Credential presentation approved for ${scanResult.payload.servicePointId}.`);
-        setVerifiedCredential(result.credential ?? null);
-      } else {
-        setActionResult(result.reason ?? "Credential presentation was declined.");
-      }
-    } catch {
-      setActionResult("Could not reach the verification service. Please try again.");
-    } finally {
-      setIsVerifying(false);
-    }
+    // Payment QR actions are simulated until the payment backend is connected.
+    setActionResult(`Payment approved for ${scanResult.payload.servicePointId}.`);
   }
 
   return (
@@ -182,11 +165,7 @@ export default function ScanScreen() {
             <InfoRow label="Service point" value={scanResult.payload.servicePointId} divider />
             <InfoRow
               label="Amount"
-              value={
-                scanResult.payload.type === "payment"
-                  ? `R ${scanResult.payload.amount.toFixed(2)}`
-                  : "Not required"
-              }
+              value={`R ${scanResult.payload.amount.toFixed(2)}`}
               divider
             />
             <InfoRow label="Nonce" value={scanResult.payload.nonce} divider />
@@ -194,27 +173,15 @@ export default function ScanScreen() {
             <View style={{ paddingTop: spacing.lg }}>
               <AppButton
                 label={
-                  scanResult.payload.type === "payment"
-                    ? "Approve payment"
-                    : isVerifying
-                      ? "Verifying..."
-                      : "Present credential"
+                  "Approve payment"
                 }
                 onPress={handleServiceAction}
-                disabled={isVerifying}
                 size="lg"
               />
             </View>
           </Card>
         ) : null}
 
-        {verifiedCredential ? (
-          <Card eyebrow="Proof of verification" heading="Verified credential">
-            <InfoRow label="Student" value={verifiedCredential.studentName} divider />
-            <InfoRow label="Faculty" value={verifiedCredential.faculty} divider />
-            <InfoRow label="Valid until" value={verifiedCredential.validUntil} />
-          </Card>
-        ) : null}
       </View>
     </AppScreen>
   );

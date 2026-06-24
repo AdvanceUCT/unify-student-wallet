@@ -1,40 +1,71 @@
 import { apiClient } from "@/src/lib/api/apiClient";
-import type { QrPayload } from "@/src/lib/validation/qrPayload";
 
-export type VerificationCredential = {
-  studentName: string;
-  faculty: string;
-  validUntil: string;
+export const VERIFICATION_ATTRIBUTES = ["studentNumber", "enrolmentStatus", "faculty", "programme"] as const;
+
+export type VerificationAttributeName = (typeof VERIFICATION_ATTRIBUTES)[number];
+export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired" | "Failed";
+
+export type StartVerificationSessionResult = {
+  verificationRequestId: string;
+  invitationUrl: string;
+  resultToken: string;
+  vendorName: string;
+  servicePointName: string;
+  requestedAttributes: VerificationAttributeName[];
+  expiresAt: string;
 };
 
-export type ServiceVerificationResult = {
-  approved: boolean;
-  reason?: string;
-  credential?: VerificationCredential;
+export type VerificationResult = {
+  status: VerificationStatus;
+  failureCode?: string;
+  expiresAt: string;
+  completedAt?: string;
 };
 
-export async function submitServiceVerification(
-  payload: QrPayload,
-  walletId: string,
-): Promise<ServiceVerificationResult> {
-  const result = await apiClient.post<ServiceVerificationResult>("/api/wallet/verification/submit", {
-    vendorId: payload.vendorId,
-    servicePointId: payload.servicePointId,
-    nonce: payload.nonce,
-    walletId,
-    type: payload.type,
+export function startVerificationSession(
+  publicServicePointId: string,
+  clientRequestId: string,
+  signal?: AbortSignal,
+) {
+  return apiClient.post<StartVerificationSessionResult>(
+    "/api/wallet/verification/sessions",
+    { publicServicePointId, clientRequestId },
+    { signal, timeoutMs: 10_000 },
+  );
+}
+
+export function getVerificationResult(
+  verificationRequestId: string,
+  resultToken: string,
+  signal?: AbortSignal,
+) {
+  return apiClient.get<VerificationResult>(
+    `/api/wallet/verification/sessions/${encodeURIComponent(verificationRequestId)}`,
+    { resultToken, signal, timeoutMs: 10_000 },
+  );
+}
+
+function wait(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    const cancel = () => {
+      clearTimeout(timeout);
+      reject(new DOMException("The request was cancelled.", "AbortError"));
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
   });
+}
 
-  if (result.status === "ok") {
-    return result.data;
+export async function pollVerificationResult(
+  verificationRequestId: string,
+  resultToken: string,
+  signal?: AbortSignal,
+): Promise<VerificationResult> {
+  while (!signal?.aborted) {
+    const result = await getVerificationResult(verificationRequestId, resultToken, signal);
+    if (result.status !== "Pending") return result;
+    await wait(1_000, signal);
   }
 
-  if (result.status === "error") {
-    return { approved: false, reason: result.error };
-  }
-
-  return {
-    approved: false,
-    reason: "Verification service is unavailable. Check that the Credo agent service is running and try again.",
-  };
+  throw new DOMException("The request was cancelled.", "AbortError");
 }

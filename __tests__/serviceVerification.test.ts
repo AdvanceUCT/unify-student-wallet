@@ -1,77 +1,50 @@
-import { submitServiceVerification } from "@/src/lib/api/verification";
-
-jest.mock("@/src/lib/api/apiClient", () => ({
-  apiClient: { post: jest.fn() },
-}));
-
+import {
+  getVerificationResult,
+  pollVerificationResult,
+  startVerificationSession,
+  type VerificationStatus,
+} from "@/src/lib/api/verification";
 import { apiClient } from "@/src/lib/api/apiClient";
 
-const verificationPayload = {
-  type: "verification" as const,
-  vendorId: "vendor-001",
-  servicePointId: "main-library",
-  nonce: "proof-request-nonce",
-};
+jest.mock("@/src/lib/api/apiClient", () => ({
+  apiClient: { get: jest.fn(), post: jest.fn() },
+}));
 
-describe("submitServiceVerification", () => {
-  afterEach(() => {
-    jest.clearAllMocks();
+describe("wallet verification API", () => {
+  afterEach(() => jest.clearAllMocks());
+
+  it("starts a session with the public service point and stable client request ID", async () => {
+    (apiClient.post as jest.Mock).mockResolvedValueOnce({ verificationRequestId: "verification-001" });
+
+    await startVerificationSession("sp-public-001", "client-request-001");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/api/wallet/verification/sessions",
+      { publicServicePointId: "sp-public-001", clientRequestId: "client-request-001" },
+      { signal: undefined, timeoutMs: 10_000 },
+    );
   });
 
-  it("returns the credential when verification is approved", async () => {
-    (apiClient.post as jest.Mock).mockResolvedValueOnce({
-      status: "ok",
-      data: {
-        approved: true,
-        credential: {
-          studentName: "Thando Nkosi",
-          faculty: "Faculty of Science",
-          validUntil: "2026-12-31",
-        },
-      },
-    });
+  it("uses the capability token only for the matching result endpoint", async () => {
+    (apiClient.get as jest.Mock).mockResolvedValueOnce({ status: "Pending" });
 
-    const result = await submitServiceVerification(verificationPayload, "wallet-123");
+    await getVerificationResult("verification/001", "result-token");
 
-    expect(apiClient.post).toHaveBeenCalledWith("/api/wallet/verification/submit", {
-      vendorId: "vendor-001",
-      servicePointId: "main-library",
-      nonce: "proof-request-nonce",
-      walletId: "wallet-123",
-      type: "verification",
-    });
-    expect(result).toEqual({
-      approved: true,
-      credential: {
-        studentName: "Thando Nkosi",
-        faculty: "Faculty of Science",
-        validUntil: "2026-12-31",
-      },
-    });
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/api/wallet/verification/sessions/verification%2F001",
+      { resultToken: "result-token", signal: undefined, timeoutMs: 10_000 },
+    );
   });
 
-  it("returns the decline reason when verification is rejected", async () => {
-    (apiClient.post as jest.Mock).mockResolvedValueOnce({
-      status: "ok",
-      data: { approved: false, reason: "Credential has expired." },
-    });
+  it.each<VerificationStatus>(["Approved", "Declined", "Expired", "Failed"])(
+    "returns the authoritative %s result",
+    async (status) => {
+      (apiClient.get as jest.Mock).mockResolvedValueOnce({
+        status,
+        expiresAt: "2026-06-23T10:05:00.000Z",
+      });
 
-    const result = await submitServiceVerification(verificationPayload, "wallet-123");
-
-    expect(result).toEqual({ approved: false, reason: "Credential has expired." });
-  });
-
-  it("surfaces a service error as a decline reason", async () => {
-    (apiClient.post as jest.Mock).mockResolvedValueOnce({
-      status: "error",
-      error: "Verification request failed with status 500.",
-    });
-
-    const result = await submitServiceVerification(verificationPayload, "wallet-123");
-
-    expect(result).toEqual({
-      approved: false,
-      reason: "Verification request failed with status 500.",
-    });
-  });
+      await expect(pollVerificationResult("verification-001", "result-token")).resolves.toMatchObject({ status });
+    },
+  );
 });

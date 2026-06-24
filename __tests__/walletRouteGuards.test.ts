@@ -59,6 +59,7 @@ describe("wallet route guards", () => {
     expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(wallet)", "offers"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(auth)", "change-pin"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["verify", "[publicServicePointId]"], access)).toBe(true);
   });
 
   it("allows the activate route at every access level so links can route through", () => {

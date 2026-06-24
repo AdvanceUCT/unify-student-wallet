@@ -45,8 +45,7 @@ app-example
 /android
 
 docs-local
+
 .env
 .env.*
 !.env.example
-
-claude

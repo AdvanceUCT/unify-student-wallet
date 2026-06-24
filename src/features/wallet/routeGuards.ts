@@ -47,6 +47,7 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
     case "wallet":
       return (
         segments.includes("(wallet)") ||
+        segments.includes("verify") ||
         ["home", "credential", "scan", "payments", "settings", "offers", "change-pin", "activate"].includes(
           lastSegment ?? "",
         )

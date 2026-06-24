@@ -19,6 +19,11 @@ module.exports = {
             host: activationHost,
             pathPrefix: "/activate",
           },
+          {
+            scheme: "https",
+            host: activationHost,
+            pathPrefix: "/verify",
+          },
         ],
       },
     ],

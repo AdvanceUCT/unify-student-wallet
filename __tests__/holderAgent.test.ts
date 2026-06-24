@@ -1,7 +1,10 @@
 import {
   __holderAgentTestInternals,
   clearActiveHolderAgent,
+  acceptVerificationProof,
   receiveCredentialOffer,
+  receiveVerificationProofRequest,
+  selectVerificationCredentials,
   type HolderAgent,
 } from "@/src/features/wallet/holderAgent";
 
@@ -36,6 +39,72 @@ describe("holder agent credential activation", () => {
       label: "UNIFY Student Wallet",
     });
     expect(result).toBe(newCredential);
+  });
+});
+
+describe("holder agent proof presentation", () => {
+  afterEach(() => {
+    clearActiveHolderAgent();
+    jest.restoreAllMocks();
+  });
+
+  it("discovers request-received, selects exact values, and waits for explicit acceptance", async () => {
+    const proof = { id: "proof-001", parentThreadId: "invitation-001", state: "request-received" };
+    const getAll = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([proof]);
+    const acceptRequest = jest.fn(async () => proof);
+    const selectCredentialsForRequest = jest.fn(async () => ({
+      proofFormats: {
+        anoncreds: {
+          attributes: {
+            student_details: {
+              credentialInfo: {
+                attributes: {
+                  studentNumber: "VOSCAL100",
+                  enrolmentStatus: "Registered",
+                  faculty: "Commerce",
+                  programme: "Business Science",
+                },
+              },
+            },
+          },
+          predicates: {},
+          selfAttestedAttributes: {},
+        },
+      },
+    }));
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        oob: {
+          parseInvitation: jest.fn(async () => ({ id: "invitation-001" })),
+          receiveInvitationFromUrl: jest.fn(async () => ({})),
+        },
+        proofs: { acceptRequest, getAll, selectCredentialsForRequest },
+      },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    const received = await receiveVerificationProofRequest("https://verifier.example/oob");
+    const selection = await selectVerificationCredentials(received.id, [
+      "studentNumber",
+      "enrolmentStatus",
+      "faculty",
+      "programme",
+    ]);
+
+    expect(selection.values).toEqual({
+      studentNumber: "VOSCAL100",
+      enrolmentStatus: "Registered",
+      faculty: "Commerce",
+      programme: "Business Science",
+    });
+    expect(acceptRequest).not.toHaveBeenCalled();
+
+    await acceptVerificationProof(selection);
+    expect(acceptRequest).toHaveBeenCalledWith({
+      proofExchangeRecordId: "proof-001",
+      proofFormats: selection.proofFormats,
+    });
   });
 });
 
