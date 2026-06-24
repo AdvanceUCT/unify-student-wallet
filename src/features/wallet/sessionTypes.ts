@@ -14,6 +14,7 @@ export type PersistedWalletSessionState = {
   failedAttempts: number;
   pinHash?: string;
   pinSalt?: string;
+  pendingVerificationPublicServicePointId?: string;
   session: WalletSession;
 };
 

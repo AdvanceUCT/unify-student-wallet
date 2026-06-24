@@ -9,6 +9,7 @@ describe("wallet session storage serialization", () => {
       failedAttempts: 0,
       pinHash: "hash",
       pinSalt: "salt",
+      pendingVerificationPublicServicePointId: "sp-public-001",
       session: {
         authStatus: "signedIn",
         lockStatus: "unlocked",
@@ -18,6 +19,20 @@ describe("wallet session storage serialization", () => {
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
+  });
+
+  it("persists a pending verification service point without result capabilities", () => {
+    const state: PersistedWalletSessionState = {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      pendingVerificationPublicServicePointId: "sp-public-001",
+      session: { authStatus: "signedOut", lockStatus: "locked", pendingOfferIds: [] },
+    };
+
+    const serialized = serializeWalletSessionState(state);
+    expect(parseWalletSessionState(serialized).pendingVerificationPublicServicePointId).toBe("sp-public-001");
+    expect(serialized).not.toContain("resultToken");
   });
 
   it("falls back to signed-out state for missing or invalid storage", () => {

@@ -27,6 +27,31 @@ type CredentialRecord = {
   credentialAttributes?: { name: string; value: string }[];
 };
 
+type ProofExchangeRecord = {
+  id: string;
+  state?: string;
+  errorMessage?: string;
+  parentThreadId?: string;
+};
+
+type AnonCredsSelectedCredential = {
+  credentialInfo?: { attributes?: Record<string, string> };
+};
+
+type SelectedProofFormats = {
+  anoncreds?: {
+    attributes?: Record<string, AnonCredsSelectedCredential>;
+    predicates?: Record<string, unknown>;
+    selfAttestedAttributes?: Record<string, string>;
+  };
+};
+
+export type VerificationProofSelection = {
+  proofRecordId: string;
+  proofFormats: SelectedProofFormats;
+  values: Record<string, string>;
+};
+
 type DidCommConnectionRecord = {
   id: string;
   isReady?: boolean;
@@ -83,6 +108,17 @@ export type HolderAgent = {
           reuseConnection?: boolean;
         },
       ) => Promise<{ connectionRecord?: DidCommConnectionRecord; outOfBandRecord?: { id?: string } }>;
+    };
+    proofs?: {
+      acceptRequest?: (options: {
+        proofExchangeRecordId: string;
+        proofFormats: SelectedProofFormats;
+      }) => Promise<ProofExchangeRecord>;
+      getAll?: () => Promise<ProofExchangeRecord[]>;
+      selectCredentialsForRequest?: (options: {
+        proofExchangeRecordId: string;
+        proofFormats?: { anoncreds: { filterByNonRevocationRequirements: boolean } };
+      }) => Promise<{ proofFormats: SelectedProofFormats }>;
     };
     registerOutboundTransport?: (transport: unknown) => void;
   };
@@ -388,6 +424,7 @@ const DidCommMediatorPickupStrategy = didcommExports.DidCommMediatorPickupStrate
   | undefined;
 const DidCommCredentialV1Protocol = getConstructor<unknown>(anoncredsExports, "DidCommCredentialV1Protocol");
 const DidCommCredentialV2Protocol = getConstructor<unknown>(didcommExports, "DidCommCredentialV2Protocol");
+const DidCommProofV2Protocol = getConstructor<unknown>(didcommExports, "DidCommProofV2Protocol");
 const LegacyIndyDidCommCredentialFormatService = getConstructor<unknown>(
   anoncredsExports,
   "LegacyIndyDidCommCredentialFormatService",
@@ -396,17 +433,26 @@ const AnonCredsDidCommCredentialFormatService = getConstructor<unknown>(
   anoncredsExports,
   "AnonCredsDidCommCredentialFormatService",
 );
+const AnonCredsDidCommProofFormatService = getConstructor<unknown>(
+  anoncredsExports,
+  "AnonCredsDidCommProofFormatService",
+);
 const AskarModule = getConstructor<unknown>(askarExports, "AskarModule");
 const AnonCredsModule = getConstructor<unknown>(anoncredsExports, "AnonCredsModule");
 const IndyVdrModule = getConstructor<unknown>(indyVdrExports, "IndyVdrModule");
 const IndyVdrAnonCredsRegistry = getConstructor<unknown>(indyVdrExports, "IndyVdrAnonCredsRegistry");
 const autoAcceptCredential = (didcommExports.DidCommAutoAcceptCredential as { ContentApproved?: unknown } | undefined)
   ?.ContentApproved;
+const autoAcceptProof = (didcommExports.DidCommAutoAcceptProof as { Never?: unknown } | undefined)?.Never;
 const logLevel = (coreExports.LogLevel as { debug?: unknown; info?: unknown } | undefined)?.debug;
 const peerDidGenesisDoc = PeerDidNumAlgo?.GenesisDoc;
 
 if (!autoAcceptCredential) {
   throw new Error("Credo auto-accept credential enum is unavailable.");
+}
+
+if (!autoAcceptProof) {
+  throw new Error("Credo proof auto-accept enum is unavailable.");
 }
 
 if (!logLevel) {
@@ -455,6 +501,14 @@ const modules: Record<string, unknown> = {
             new AnonCredsDidCommCredentialFormatService(),
             new LegacyIndyDidCommCredentialFormatService(),
           ],
+        }),
+      ],
+    },
+    proofs: {
+      autoAcceptProofs: autoAcceptProof,
+      proofProtocols: [
+        new DidCommProofV2Protocol({
+          proofFormats: [new AnonCredsDidCommProofFormatService()],
         }),
       ],
     },
@@ -653,6 +707,103 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
   );
 
   return all.filter((record) => record.state === "done" || record.state === "credential-received");
+}
+
+function throwIfCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new DOMException("The verification was cancelled.", "AbortError");
+  }
+}
+
+export async function receiveVerificationProofRequest(
+  invitationUrl: string,
+  signal?: AbortSignal,
+): Promise<ProofExchangeRecord> {
+  if (!agentRef) throw new Error("Wallet has not been created yet.");
+
+  const oob = agentRef.didcomm?.oob;
+  const proofs = agentRef.didcomm?.proofs;
+  if (!oob?.receiveInvitationFromUrl || !proofs?.getAll) {
+    throw new Error("Credo holder agent is missing the proof request APIs.");
+  }
+
+  const invitation = oob.parseInvitation ? await oob.parseInvitation(invitationUrl) : undefined;
+  const existingProofs = await proofs.getAll();
+  const existingInvitationProof = invitation
+    ? existingProofs.find(
+        (record) => record.parentThreadId === invitation.id && record.state === "request-received",
+      )
+    : undefined;
+  if (existingInvitationProof) return existingInvitationProof;
+
+  const existingIds = new Set(existingProofs.map((record) => record.id));
+  throwIfCancelled(signal);
+  await oob.receiveInvitationFromUrl(invitationUrl, {
+    autoAcceptConnection: true,
+    autoAcceptInvitation: true,
+    label: "UNIFY Student Wallet",
+  });
+
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    throwIfCancelled(signal);
+    const proof = (await proofs.getAll()).find(
+      (record) =>
+        !existingIds.has(record.id) ||
+        (invitation ? record.parentThreadId === invitation.id : false),
+    );
+    if (proof?.state === "request-received") return proof;
+    if (proof?.state === "abandoned") {
+      throw new Error(proof.errorMessage || "The verifier abandoned the proof request.");
+    }
+    await sleep(500);
+  }
+
+  throw new Error("The invitation opened, but no proof request was received.");
+}
+
+export async function selectVerificationCredentials(
+  proofRecordId: string,
+  requestedAttributes: readonly string[],
+): Promise<VerificationProofSelection> {
+  const proofs = agentRef?.didcomm?.proofs;
+  if (!proofs?.selectCredentialsForRequest) {
+    throw new Error("Credo holder agent is missing credential selection for proofs.");
+  }
+
+  const selection = await proofs.selectCredentialsForRequest({
+    proofExchangeRecordId: proofRecordId,
+    proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
+  });
+  const selectedAttributes = selection.proofFormats.anoncreds?.attributes;
+  if (!selectedAttributes || Object.keys(selectedAttributes).length === 0) {
+    throw new Error("No credential in this wallet matches the verification request.");
+  }
+
+  const values: Record<string, string> = {};
+  for (const attributeName of requestedAttributes) {
+    const value = Object.values(selectedAttributes)
+      .map((selected) => selected.credentialInfo?.attributes?.[attributeName])
+      .find((candidate): candidate is string => typeof candidate === "string");
+    if (value === undefined) {
+      throw new Error(`The selected credential does not contain ${attributeName}.`);
+    }
+    values[attributeName] = value;
+  }
+
+  return { proofRecordId, proofFormats: selection.proofFormats, values };
+}
+
+export async function acceptVerificationProof(selection: VerificationProofSelection): Promise<void> {
+  const proofs = agentRef?.didcomm?.proofs;
+  if (!proofs?.acceptRequest) {
+    throw new Error("Credo holder agent is missing proof presentation support.");
+  }
+
+  await proofs.acceptRequest({
+    proofExchangeRecordId: selection.proofRecordId,
+    proofFormats: selection.proofFormats,
+  });
 }
 
 export type CredentialOfferReceivedHandler = (record: CredentialRecord) => void;

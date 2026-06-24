@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { Camera as CameraIcon } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -11,7 +11,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
+import { parseQrPayload, parseVerificationLink, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
@@ -33,8 +33,11 @@ export default function ScanScreen() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
+  const scanLockedRef = useRef(false);
 
   async function handleRawPayload(rawPayload: string) {
+    if (scanLockedRef.current) return;
+    scanLockedRef.current = true;
     setActionResult(null);
 
     // Activation links and service requests share the scanner, so route links first.
@@ -45,6 +48,7 @@ export default function ScanScreen() {
 
       if (!result.ok) {
         setScanError(result.error);
+        scanLockedRef.current = false;
         return;
       }
 
@@ -53,11 +57,20 @@ export default function ScanScreen() {
       return;
     }
 
+    const verificationLink = parseVerificationLink(rawPayload);
+    if (verificationLink.ok) {
+      setScanError(null);
+      setScanResult(null);
+      router.push(`/verify/${encodeURIComponent(verificationLink.publicServicePointId)}`);
+      return;
+    }
+
     const result = parseQrPayload(rawPayload);
 
     if (!result.ok) {
       setScanResult(null);
       setScanError("This QR payload is not a valid UNIFY service request.");
+      scanLockedRef.current = false;
       return;
     }
 
@@ -65,17 +78,13 @@ export default function ScanScreen() {
     setScanResult({ payload: result.data, rawPayload });
   }
 
-  function handleServiceAction() {
+  async function handleServiceAction() {
     if (!scanResult) {
       return;
     }
 
-    // Service QR actions are simulated until the verifier/payment backend is connected.
-    setActionResult(
-      scanResult.payload.type === "payment"
-        ? `Payment approved for ${scanResult.payload.servicePointId}.`
-        : `Credential presentation approved for ${scanResult.payload.servicePointId}.`,
-    );
+    // Payment QR actions are simulated until the payment backend is connected.
+    setActionResult(`Payment approved for ${scanResult.payload.servicePointId}.`);
   }
 
   return (
@@ -156,11 +165,7 @@ export default function ScanScreen() {
             <InfoRow label="Service point" value={scanResult.payload.servicePointId} divider />
             <InfoRow
               label="Amount"
-              value={
-                scanResult.payload.type === "payment"
-                  ? `R ${scanResult.payload.amount.toFixed(2)}`
-                  : "Not required"
-              }
+              value={`R ${scanResult.payload.amount.toFixed(2)}`}
               divider
             />
             <InfoRow label="Nonce" value={scanResult.payload.nonce} divider />
@@ -168,7 +173,7 @@ export default function ScanScreen() {
             <View style={{ paddingTop: spacing.lg }}>
               <AppButton
                 label={
-                  scanResult.payload.type === "payment" ? "Approve payment" : "Present credential"
+                  "Approve payment"
                 }
                 onPress={handleServiceAction}
                 size="lg"
@@ -176,6 +181,7 @@ export default function ScanScreen() {
             </View>
           </Card>
         ) : null}
+
       </View>
     </AppScreen>
   );
