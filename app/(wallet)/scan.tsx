@@ -11,7 +11,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { submitServiceVerification, type VerificationCredential } from "@/src/lib/api/verification";
+import { submitServiceVerification } from "@/src/lib/api/verification";
 import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
@@ -35,11 +35,9 @@ export default function ScanScreen() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verifiedCredential, setVerifiedCredential] = useState<VerificationCredential | null>(null);
 
   async function handleRawPayload(rawPayload: string) {
     setActionResult(null);
-    setVerifiedCredential(null);
 
     // Activation links and service requests share the scanner, so route links first.
     if (looksLikeActivationLink(rawPayload)) {
@@ -86,14 +84,24 @@ export default function ScanScreen() {
     }
 
     setIsVerifying(true);
-    setVerifiedCredential(null);
 
     try {
       const result = await submitServiceVerification(scanResult.payload, session.walletId);
 
-      if (result.approved) {
+      if (result.approved && result.credential) {
+        router.push({
+          pathname: "/(wallet)/verification-result",
+          params: {
+            studentName: result.credential.studentName,
+            faculty: result.credential.faculty,
+            validUntil: result.credential.validUntil,
+            vendorId: scanResult.payload.vendorId,
+            servicePointId: scanResult.payload.servicePointId,
+            verifiedAt: new Date().toISOString(),
+          },
+        });
+      } else if (result.approved) {
         setActionResult(`Credential presentation approved for ${scanResult.payload.servicePointId}.`);
-        setVerifiedCredential(result.credential ?? null);
       } else {
         setActionResult(result.reason ?? "Credential presentation was declined.");
       }
@@ -205,14 +213,6 @@ export default function ScanScreen() {
                 size="lg"
               />
             </View>
-          </Card>
-        ) : null}
-
-        {verifiedCredential ? (
-          <Card eyebrow="Proof of verification" heading="Verified credential">
-            <InfoRow label="Student" value={verifiedCredential.studentName} divider />
-            <InfoRow label="Faculty" value={verifiedCredential.faculty} divider />
-            <InfoRow label="Valid until" value={verifiedCredential.validUntil} />
           </Card>
         ) : null}
       </View>
