@@ -53,25 +53,25 @@ describe("submitServiceVerification", () => {
   it("returns the decline reason when verification is rejected", async () => {
     (apiClient.post as jest.Mock).mockResolvedValueOnce({
       status: "ok",
-      data: { approved: false, reason: "Credential has expired." },
+      data: { approved: false, reason: "credential_expired" },
     });
 
     const result = await submitServiceVerification(verificationPayload, "wallet-123");
 
-    expect(result).toEqual({ approved: false, reason: "Credential has expired." });
+    expect(result).toEqual({ approved: false, reason: "credential_expired" });
   });
 
   it("surfaces a service error as a decline reason", async () => {
     (apiClient.post as jest.Mock).mockResolvedValueOnce({
       status: "error",
-      error: "Verification request failed with status 500.",
+      error: "credential_not_found",
     });
 
     const result = await submitServiceVerification(verificationPayload, "wallet-123");
 
     expect(result).toEqual({
       approved: false,
-      reason: "Verification request failed with status 500.",
+      reason: "credential_not_found",
     });
   });
 });
