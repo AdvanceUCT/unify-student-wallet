@@ -44,6 +44,11 @@ const FAILURE_COPY: Record<VerificationFailureReason, FailureCopy> = {
     message: "We couldn't find a matching credential for this request.",
     nextStep: "Make sure your credential is loaded in your wallet, then try again.",
   },
+  session_expired: {
+    title: "Verification session timed out.",
+    message: "The verification window closed before we could confirm a response.",
+    nextStep: "Scan the QR code again to start a new verification session.",
+  },
   unknown: {
     title: "Verification failed.",
     message: "This verification attempt was declined.",

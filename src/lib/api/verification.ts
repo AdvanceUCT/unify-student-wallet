@@ -1,5 +1,6 @@
 import { apiClient } from "@/src/lib/api/apiClient";
-import type { QrPayload } from "@/src/lib/validation/qrPayload";
+
+export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired" | "Failed";
 
 export type VerificationCredential = {
   studentName: string;
@@ -12,6 +13,7 @@ export type VerificationFailureReason =
   | "credential_revoked"
   | "credential_expired"
   | "credential_not_found"
+  | "session_expired"
   | "unknown";
 
 const KNOWN_FAILURE_REASONS: readonly string[] = [
@@ -19,6 +21,7 @@ const KNOWN_FAILURE_REASONS: readonly string[] = [
   "credential_revoked",
   "credential_expired",
   "credential_not_found",
+  "session_expired",
   "unknown",
 ];
 
@@ -29,35 +32,90 @@ function normalizeFailureReason(reason: string | undefined): VerificationFailure
   return "unknown";
 }
 
-export type ServiceVerificationResult = {
-  approved: boolean;
-  reason?: VerificationFailureReason;
-  credential?: VerificationCredential;
+export type StartVerificationSessionResult = {
+  verificationRequestId: string;
+  resultToken: string;
+  expiresAt: string;
 };
 
-export async function submitServiceVerification(
-  payload: QrPayload,
-  walletId: string,
-): Promise<ServiceVerificationResult> {
-  const result = await apiClient.post<{ approved: boolean; reason?: string; credential?: VerificationCredential }>(
-    "/api/wallet/verification/submit",
-    {
-      vendorId: payload.vendorId,
-      servicePointId: payload.servicePointId,
-      nonce: payload.nonce,
-      walletId,
-      type: payload.type,
-    },
+export async function startVerificationSession(
+  publicServicePointId: string,
+  clientRequestId: string,
+): Promise<StartVerificationSessionResult> {
+  const result = await apiClient.post<StartVerificationSessionResult>("/api/wallet/verification/sessions", {
+    servicePointId: publicServicePointId,
+    clientRequestId,
+  });
+
+  if (result.status === "ok") {
+    return result.data;
+  }
+
+  throw new Error(result.status === "error" ? result.error : "Verification service unavailable.");
+}
+
+export type VerificationResult = {
+  status: VerificationStatus;
+  expiresAt: string;
+  credential?: VerificationCredential;
+  reason?: VerificationFailureReason;
+};
+
+export async function getVerificationResult(
+  verificationRequestId: string,
+  resultToken: string,
+): Promise<VerificationResult> {
+  const result = await apiClient.get<{
+    status: VerificationStatus;
+    expiresAt: string;
+    credential?: VerificationCredential;
+    reason?: string;
+  }>(
+    `/api/wallet/verification/sessions/${encodeURIComponent(verificationRequestId)}/result?resultToken=${encodeURIComponent(resultToken)}`,
   );
 
   if (result.status === "ok") {
-    const { approved, reason, credential } = result.data;
-    return approved ? { approved, credential } : { approved, reason: normalizeFailureReason(reason) };
+    const { status, expiresAt, credential, reason } = result.data;
+    return { status, expiresAt, credential, reason: reason ? normalizeFailureReason(reason) : undefined };
   }
 
-  if (result.status === "error") {
-    return { approved: false, reason: normalizeFailureReason(result.error) };
-  }
+  throw new Error(result.status === "error" ? result.error : "Verification service unavailable.");
+}
 
-  return { approved: false, reason: "network_error" };
+export class VerificationPollAbortedError extends Error {
+  constructor() {
+    super("Verification polling was aborted.");
+    this.name = "VerificationPollAbortedError";
+  }
+}
+
+export type PollVerificationOptions = {
+  intervalMs?: number;
+  signal?: AbortSignal;
+};
+
+export async function pollVerificationResult(
+  verificationRequestId: string,
+  resultToken: string,
+  options: PollVerificationOptions = {},
+): Promise<VerificationResult> {
+  const intervalMs = options.intervalMs ?? 2000;
+
+  while (true) {
+    if (options.signal?.aborted) {
+      throw new VerificationPollAbortedError();
+    }
+
+    const result = await getVerificationResult(verificationRequestId, resultToken);
+
+    if (result.status !== "Pending") {
+      return result;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+    if (options.signal?.aborted) {
+      throw new VerificationPollAbortedError();
+    }
+  }
 }

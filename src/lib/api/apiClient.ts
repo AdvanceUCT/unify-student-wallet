@@ -61,4 +61,31 @@ async function post<T>(path: string, body: object): Promise<ApiPostResult<T>> {
   }
 }
 
-export const apiClient = { post };
+async function get<T>(path: string): Promise<ApiPostResult<T>> {
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl || typeof fetch !== "function") {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      method: "GET",
+    });
+    const responseBody = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        error: apiErrorMessage(responseBody, `Request to ${path} failed with status ${response.status}.`),
+        status: "error",
+      };
+    }
+
+    return { data: responseBody as T, status: "ok" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export const apiClient = { post, get };

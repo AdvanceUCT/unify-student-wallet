@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
 import { Camera as CameraIcon } from "lucide-react-native";
 import { useState } from "react";
@@ -11,7 +12,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { submitServiceVerification } from "@/src/lib/api/verification";
+import { startVerificationSession } from "@/src/lib/api/verification";
 import { parseQrPayload, type QrPayload } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
@@ -86,32 +87,22 @@ export default function ScanScreen() {
     setIsVerifying(true);
 
     try {
-      const result = await submitServiceVerification(scanResult.payload, session.walletId);
+      const clientRequestId = Crypto.randomUUID();
+      const { verificationRequestId, resultToken, expiresAt } = await startVerificationSession(
+        scanResult.payload.servicePointId,
+        clientRequestId,
+      );
 
-      if (result.approved && result.credential) {
-        router.push({
-          pathname: "/(wallet)/verification-result",
-          params: {
-            studentName: result.credential.studentName,
-            faculty: result.credential.faculty,
-            validUntil: result.credential.validUntil,
-            vendorId: scanResult.payload.vendorId,
-            servicePointId: scanResult.payload.servicePointId,
-            verifiedAt: new Date().toISOString(),
-          },
-        });
-      } else if (result.approved) {
-        setActionResult(`Credential presentation approved for ${scanResult.payload.servicePointId}.`);
-      } else {
-        router.push({
-          pathname: "/(wallet)/verification-failed",
-          params: {
-            reason: result.reason ?? "unknown",
-            vendorId: scanResult.payload.vendorId,
-            servicePointId: scanResult.payload.servicePointId,
-          },
-        });
-      }
+      router.push({
+        pathname: "/(wallet)/verifying",
+        params: {
+          verificationRequestId,
+          resultToken,
+          expiresAt,
+          vendorId: scanResult.payload.vendorId,
+          servicePointId: scanResult.payload.servicePointId,
+        },
+      });
     } catch {
       router.push({
         pathname: "/(wallet)/verification-failed",
