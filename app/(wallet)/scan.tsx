@@ -103,10 +103,24 @@ export default function ScanScreen() {
       } else if (result.approved) {
         setActionResult(`Credential presentation approved for ${scanResult.payload.servicePointId}.`);
       } else {
-        setActionResult(result.reason ?? "Credential presentation was declined.");
+        router.push({
+          pathname: "/(wallet)/verification-failed",
+          params: {
+            reason: result.reason ?? "unknown",
+            vendorId: scanResult.payload.vendorId,
+            servicePointId: scanResult.payload.servicePointId,
+          },
+        });
       }
     } catch {
-      setActionResult("Could not reach the verification service. Please try again.");
+      router.push({
+        pathname: "/(wallet)/verification-failed",
+        params: {
+          reason: "network_error",
+          vendorId: scanResult.payload.vendorId,
+          servicePointId: scanResult.payload.servicePointId,
+        },
+      });
     } finally {
       setIsVerifying(false);
     }
