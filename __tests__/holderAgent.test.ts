@@ -60,9 +60,8 @@ describe("holder agent proof presentation", () => {
               credentialInfo: {
                 attributes: {
                   studentNumber: "VOSCAL100",
-                  enrolmentStatus: "Registered",
                   faculty: "Commerce",
-                  programme: "Business Science",
+                  year: 2026,
                 },
               },
             },
@@ -87,16 +86,14 @@ describe("holder agent proof presentation", () => {
     const received = await receiveVerificationProofRequest("https://verifier.example/oob");
     const selection = await selectVerificationCredentials(received.id, [
       "studentNumber",
-      "enrolmentStatus",
       "faculty",
-      "programme",
+      "year",
     ]);
 
     expect(selection.values).toEqual({
       studentNumber: "VOSCAL100",
-      enrolmentStatus: "Registered",
       faculty: "Commerce",
-      programme: "Business Science",
+      year: "2026",
     });
     expect(acceptRequest).not.toHaveBeenCalled();
 
