@@ -35,7 +35,7 @@ type ProofExchangeRecord = {
 };
 
 type AnonCredsSelectedCredential = {
-  credentialInfo?: { attributes?: Record<string, string> };
+  credentialInfo?: { attributes?: Record<string, string | number> };
 };
 
 type SelectedProofFormats = {
@@ -784,11 +784,14 @@ export async function selectVerificationCredentials(
   for (const attributeName of requestedAttributes) {
     const value = Object.values(selectedAttributes)
       .map((selected) => selected.credentialInfo?.attributes?.[attributeName])
-      .find((candidate): candidate is string => typeof candidate === "string");
+      .find(
+        (candidate): candidate is string | number =>
+          typeof candidate === "string" || typeof candidate === "number",
+      );
     if (value === undefined) {
       throw new Error(`The selected credential does not contain ${attributeName}.`);
     }
-    values[attributeName] = value;
+    values[attributeName] = String(value);
   }
 
   return { proofRecordId, proofFormats: selection.proofFormats, values };
