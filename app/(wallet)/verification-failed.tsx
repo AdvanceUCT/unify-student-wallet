@@ -71,8 +71,8 @@ export default function VerificationFailedScreen() {
 
         <Card heading="What to do next">
           <InfoRow label="Next step" value={copy.nextStep} divider />
-          <InfoRow label="Vendor" value={vendorId} divider />
-          <InfoRow label="Service point" value={servicePointId} />
+          <InfoRow label="Requested by" value={vendorId} divider />
+          <InfoRow label="Location" value={servicePointId} />
         </Card>
 
         <View style={{ gap: spacing.sm }}>

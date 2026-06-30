@@ -122,8 +122,8 @@ export default function ScanScreen() {
       <View style={{ gap: spacing.xl }}>
         <ScreenHeader
           eyebrow="Scan"
-          title="Service QR."
-          meta="Activation, payment, or verification — the wallet picks the right action."
+          title="Scan a QR code."
+          meta="Point your camera at a QR code to activate your wallet, make a payment, or verify your student identity."
         />
 
         <View style={{ gap: spacing.sm }}>
@@ -189,28 +189,24 @@ export default function ScanScreen() {
         ) : null}
 
         {scanResult ? (
-          <Card heading="Parsed service request">
-            <InfoRow label="Type" value={scanResult.payload.type} tone="success" divider />
-            <InfoRow label="Vendor" value={scanResult.payload.vendorId} divider />
-            <InfoRow label="Service point" value={scanResult.payload.servicePointId} divider />
-            <InfoRow
-              label="Amount"
-              value={
-                scanResult.payload.type === "payment"
-                  ? `R ${scanResult.payload.amount.toFixed(2)}`
-                  : "Not required"
-              }
-              divider
-            />
-            <InfoRow label="Nonce" value={scanResult.payload.nonce} divider />
-            <InfoRow label="Wallet" value={session.walletId ?? "—"} />
+          <Card heading={scanResult.payload.type === "payment" ? "Payment request" : "Identity check request"}>
+            <InfoRow label="Requested by" value={scanResult.payload.vendorId} divider />
+            <InfoRow label="Location" value={scanResult.payload.servicePointId} divider />
+            {scanResult.payload.type === "payment" ? (
+              <InfoRow label="Amount" value={`R ${scanResult.payload.amount.toFixed(2)}`} divider />
+            ) : (
+              <Text style={[typography.body, { paddingTop: spacing.md, paddingBottom: spacing.sm }]}>
+                Tapping "Present credential" will share your student name, faculty, and enrollment
+                status with this location.
+              </Text>
+            )}
             <View style={{ paddingTop: spacing.lg }}>
               <AppButton
                 label={
                   scanResult.payload.type === "payment"
                     ? "Approve payment"
                     : isVerifying
-                      ? "Verifying..."
+                      ? "Verifying…"
                       : "Present credential"
                 }
                 onPress={handleServiceAction}

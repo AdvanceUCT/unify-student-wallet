@@ -95,7 +95,11 @@ export default function VerifyingScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader eyebrow="Verifying" title="Confirming your credential." meta="This will only take a moment." />
+      <ScreenHeader
+        eyebrow="Verifying"
+        title="Confirming your credential."
+        meta="Your student credential is being presented to the service point. Please wait a moment."
+      />
       <LoadingState heading="Waiting for the service point to respond…" />
     </AppScreen>
   );
