@@ -12,6 +12,10 @@ const mockSecureValues = new Map<string, string>();
 const mockHolderAgent = { id: "holder-agent-001" };
 const mockCreateLocalHolderWallet = jest.fn(async () => ({ walletId: "wallet-uuid-001", agent: mockHolderAgent }));
 const mockResumeHolderAgentSession = jest.fn(async (_walletId: string) => mockHolderAgent);
+const mockRestoreEncryptedHolderWallet = jest.fn(async (_path: string, _password: string) => ({
+  walletId: "wallet-restored-001",
+  agent: mockHolderAgent,
+}));
 const mockReceiveCredentialOffer = jest.fn(async (_url: string) => undefined);
 const mockSubscribeToOfferReceived = jest.fn((_handler: (record: { id: string }) => void) => () => undefined);
 
@@ -35,6 +39,8 @@ jest.mock("@/src/features/wallet/holderAgent", () => ({
   getCredentialRecord: jest.fn(async () => null),
   initializeHolderAgent: jest.fn(async () => mockHolderAgent),
   receiveCredentialOffer: (url: string) => mockReceiveCredentialOffer(url),
+  restoreEncryptedHolderWallet: (path: string, password: string) =>
+    mockRestoreEncryptedHolderWallet(path, password),
   resumeHolderAgentSession: (walletId: string) => mockResumeHolderAgentSession(walletId),
   subscribeToOfferReceived: (handler: unknown) => mockSubscribeToOfferReceived(handler as () => void),
 }));
@@ -58,6 +64,7 @@ jest.mock("expo-router", () => ({
 let walletContext:
   | {
       createWallet: (pin: string, confirmation: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+      restoreWallet: (path: string, recoveryPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       hasPin: boolean;
       isHydrated: boolean;
       session: WalletSession;
@@ -75,6 +82,7 @@ describe("wallet creation flow", () => {
   beforeEach(() => {
     mockCreateLocalHolderWallet.mockClear();
     mockResumeHolderAgentSession.mockClear();
+    mockRestoreEncryptedHolderWallet.mockClear();
     mockReceiveCredentialOffer.mockClear();
     mockSubscribeToOfferReceived.mockClear();
     mockSecureValues.clear();
@@ -129,5 +137,37 @@ describe("wallet creation flow", () => {
 
     expect(mockCreateLocalHolderWallet).not.toHaveBeenCalled();
     expect(walletContext?.session.walletId).toBeUndefined();
+  });
+
+  it("restores an encrypted store and sets a new PIN without replacing it", async () => {
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+
+    await act(async () => {
+      expect(await walletContext?.restoreWallet("/cache/backup.unifywallet", "long-recovery-password")).toEqual({
+        ok: true,
+      });
+    });
+
+    expect(mockRestoreEncryptedHolderWallet).toHaveBeenCalledWith(
+      "/cache/backup.unifywallet",
+      "long-recovery-password",
+    );
+    expect(walletContext?.session.walletId).toBe("wallet-restored-001");
+    expect(walletContext?.hasPin).toBe(false);
+
+    await act(async () => {
+      expect(await walletContext?.createWallet("2468", "2468")).toEqual({ ok: true });
+    });
+
+    expect(mockCreateLocalHolderWallet).not.toHaveBeenCalled();
+    expect(walletContext?.hasPin).toBe(true);
   });
 });

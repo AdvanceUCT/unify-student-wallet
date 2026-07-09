@@ -49,6 +49,17 @@ export async function resumeHolderAgentSession(walletId: string): Promise<Holder
   return null;
 }
 
+export async function exportEncryptedHolderWallet(_path: string, _recoveryPassword: string): Promise<void> {
+  throw new Error("Wallet backup is only available in the installed mobile app.");
+}
+
+export async function restoreEncryptedHolderWallet(
+  _path: string,
+  _recoveryPassword: string,
+): Promise<CreateHolderWalletResult> {
+  throw new Error("Wallet recovery is only available in the installed mobile app.");
+}
+
 export async function receiveCredentialOffer(_invitationUrl: string): Promise<void> {
   return;
 }

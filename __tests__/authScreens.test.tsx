@@ -53,6 +53,10 @@ let mockSearchParams: { oob?: string | string[]; token?: string | string[] } = {
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const React = require("react");
+    React.useEffect(callback, [callback]);
+  },
   useLocalSearchParams: () => mockSearchParams,
 }));
 

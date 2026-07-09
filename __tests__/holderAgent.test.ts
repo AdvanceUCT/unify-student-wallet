@@ -1,6 +1,7 @@
 import {
   __holderAgentTestInternals,
   clearActiveHolderAgent,
+  exportEncryptedHolderWallet,
   acceptVerificationProof,
   receiveCredentialOffer,
   receiveVerificationProofRequest,
@@ -39,6 +40,31 @@ describe("holder agent credential activation", () => {
       label: "UNIFY Student Wallet",
     });
     expect(result).toBe(newCredential);
+  });
+});
+
+describe("holder agent backup", () => {
+  afterEach(() => {
+    clearActiveHolderAgent();
+  });
+
+  it("exports the active Askar store with password-based key derivation", async () => {
+    const exportStore = jest.fn(async () => undefined);
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      initialize: jest.fn(),
+      modules: { askar: { exportStore, importStore: jest.fn() } },
+    });
+
+    await exportEncryptedHolderWallet("/cache/wallet.unifywallet", "long-recovery-password");
+
+    expect(exportStore).toHaveBeenCalledWith({
+      exportToStore: {
+        id: "backup-test-wallet",
+        key: "long-recovery-password",
+        keyDerivationMethod: "kdf:argon2i:mod",
+        database: { type: "sqlite", config: { path: "/cache/wallet.unifywallet" } },
+      },
+    });
   });
 });
 

@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { Switch, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -9,7 +9,13 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
+import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
+import {
+  loadBackupMetadata,
+  shouldRemindToBackUp,
+  type BackupMetadata,
+} from "@/src/features/wallet/walletBackup";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -19,6 +25,12 @@ type PinVerificationPhase = "idle" | "verifying" | "error" | "success";
 function truncate(value: string, head = 8, tail = 6) {
   if (value.length <= head + tail + 1) return value;
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
+}
+
+function formatBackupDate(value?: string) {
+  if (!value) return "Never";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString();
 }
 
 export default function SettingsScreen() {
@@ -36,6 +48,26 @@ export default function SettingsScreen() {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pinPhase, setPinPhase] = useState<PinVerificationPhase>("idle");
   const [pinError, setPinError] = useState<string | null>(null);
+  const [backupMetadata, setBackupMetadata] = useState<BackupMetadata>({});
+  const [credentialCount, setCredentialCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      void Promise.all([loadBackupMetadata(), getStoredCredentials()])
+        .then(([metadata, credentials]) => {
+          if (!active) return;
+          setBackupMetadata(metadata);
+          setCredentialCount(credentials.length);
+        })
+        .catch(() => undefined);
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   async function handleBiometricChange(enabled: boolean) {
     setMessage(null);
@@ -147,6 +179,27 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <AppButton label="Sign out" variant="outline" onPress={signOut} />
             </View>
+          </View>
+        </Card>
+
+        <Card heading="Backup">
+          <InfoRow
+            divider
+            label="Last backup"
+            tone={shouldRemindToBackUp(credentialCount, backupMetadata.lastBackupAt) ? "warning" : "success"}
+            value={formatBackupDate(backupMetadata.lastBackupAt)}
+          />
+          {shouldRemindToBackUp(credentialCount, backupMetadata.lastBackupAt) ? (
+            <Text style={[typography.body, { color: colors.warning, marginTop: spacing.md }]}>
+              Create a new encrypted backup so recent credentials can be recovered if this device is lost.
+            </Text>
+          ) : null}
+          <View style={{ marginTop: spacing.md }}>
+            <AppButton
+              label="Create wallet backup"
+              onPress={() => router.push("/(wallet)/backup")}
+              variant="outline"
+            />
           </View>
         </Card>
 
