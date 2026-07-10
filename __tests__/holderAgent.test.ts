@@ -66,6 +66,57 @@ describe("holder agent backup", () => {
       },
     });
   });
+
+  it("uses the same backup store config for export and restore import", () => {
+    expect(
+      __holderAgentTestInternals.backupStoreConfig(
+        "wallet-restored-001",
+        "/cache/wallet.unifywallet",
+        "long-recovery-password",
+      ),
+    ).toEqual({
+      id: "backup-wallet-restored-001",
+      key: "long-recovery-password",
+      keyDerivationMethod: "kdf:argon2i:mod",
+      database: { type: "sqlite", config: { path: "/cache/wallet.unifywallet" } },
+    });
+  });
+
+  it("reads the wallet profile stored inside the backup", () => {
+    expect(
+      __holderAgentTestInternals.firstRestorableBackupProfile("wallet-original-001", [
+        "wallet-original-001",
+        "secondary-profile",
+      ]),
+    ).toBe("wallet-original-001");
+    expect(__holderAgentTestInternals.firstRestorableBackupProfile(undefined, ["wallet-fallback-001"])).toBe(
+      "wallet-fallback-001",
+    );
+    expect(() => __holderAgentTestInternals.firstRestorableBackupProfile(undefined, [])).toThrow(
+      "The selected backup does not contain a restorable wallet profile.",
+    );
+  });
+
+  it("imports a backup profile into a new local wallet id", () => {
+    expect(
+      __holderAgentTestInternals.restoredWalletImportPlan("wallet-original-001", () => "wallet-restored-001"),
+    ).toEqual({
+      sourceWalletId: "wallet-original-001",
+      walletId: "wallet-restored-001",
+    });
+  });
+
+  it("explains invalid backup database files clearly", () => {
+    expect(
+      __holderAgentTestInternals.backupOpenErrorFromUnknown(
+        new Error("Error fetching store config caused by error from database code 1: no such table: config"),
+      ),
+    ).toEqual(
+      new Error(
+      "This file is not a valid UNIFY wallet backup. Create a new backup from the wallet and try restoring that file.",
+      ),
+    );
+  });
 });
 
 describe("holder agent proof presentation", () => {

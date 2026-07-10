@@ -415,11 +415,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           },
         });
         return { ok: true };
-      } catch {
-        return {
-          ok: false,
-          error: "The backup could not be opened. Check the file and recovery password, then try again.",
-        };
+      } catch (error) {
+        console.error("[wallet-restore] failed", error);
+        return actionErrorFromUnknown(
+          error,
+          "The backup could not be opened. Check the file and recovery password, then try again.",
+        );
       }
     },
     [persistState, restoreHolderWallet],
