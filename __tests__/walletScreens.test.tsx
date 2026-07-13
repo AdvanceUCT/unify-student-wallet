@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "@/app/(wallet)/home";
 import ScanScreen from "@/app/(wallet)/scan";
@@ -54,6 +54,10 @@ jest.mock("expo-camera", () => ({
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const React = require("react");
+    React.useEffect(callback, [callback]);
+  },
 }));
 
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
@@ -97,10 +101,11 @@ describe("wallet screens", () => {
     expect(mockRequestPermission).toHaveBeenCalled();
   });
 
-  it("shows the agent status in settings", () => {
+  it("shows the agent status and backup action in settings", async () => {
     const screen = render(<SettingsScreen />);
 
     expect(screen.getByText("Holder agent")).toBeTruthy();
     expect(screen.getByText("Sign out")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Create wallet backup")).toBeTruthy());
   });
 });

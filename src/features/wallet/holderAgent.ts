@@ -1,12 +1,14 @@
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
-import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
+import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
 import { getMediatorInvitationUrl, getMediatorPickupStrategy } from "./mediatorService";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
+const BACKUP_KEY_DERIVATION_METHOD = "kdf:argon2i:mod";
+const BACKUP_STORE_ID_PREFIX = "backup";
 const CREDENTIAL_OFFER_STATE = "offer-received";
 const CREDENTIAL_STORED_STATES = new Set(["credential-received", "done"]);
 const CREDENTIAL_OFFER_WAIT_MS = 45_000;
@@ -15,6 +17,27 @@ const CREDENTIAL_OFFER_POLL_MS = 1_000;
 
 export type HolderAgentConfig = {
   walletId: string;
+};
+
+type EncryptedStoreConfig = {
+  id: string;
+  key: string;
+  keyDerivationMethod: "kdf:argon2i:mod" | "raw";
+  database: {
+    type: "sqlite";
+    config: { path: string };
+  };
+};
+
+type HolderAskarApi = {
+  exportStore: (options: { exportToStore: EncryptedStoreConfig }) => Promise<void>;
+  importStore: (options: { importFromStore: EncryptedStoreConfig }) => Promise<void>;
+};
+
+type HolderAgentImport = {
+  path: string;
+  recoveryPassword: string;
+  sourceWalletId: string;
 };
 
 type Constructor<T> = new (...args: unknown[]) => T;
@@ -127,6 +150,8 @@ export type HolderAgent = {
     off?: (eventType: string, handler: (event: unknown) => void) => void;
   };
   initialize: () => Promise<void>;
+  modules?: { askar?: HolderAskarApi };
+  shutdown?: () => Promise<void>;
 };
 
 export type CreateHolderWalletResult = {
@@ -161,6 +186,82 @@ async function getOrCreateHolderWalletKey(walletId: string, generateRawKey: () =
   const newKey = generateRawKey();
   await saveSecureValue(storageKey, newKey);
   return newKey;
+}
+
+function holderWalletKeyStorageKey(walletId: string) {
+  return `${HOLDER_WALLET_KEY_PREFIX}.${walletId}`;
+}
+
+function backupStoreId(walletId: string) {
+  return `${BACKUP_STORE_ID_PREFIX}-${walletId}`;
+}
+
+function backupStoreConfig(walletId: string, path: string, recoveryPassword: string): EncryptedStoreConfig {
+  return {
+    id: backupStoreId(walletId),
+    key: recoveryPassword,
+    keyDerivationMethod: BACKUP_KEY_DERIVATION_METHOD,
+    database: { type: "sqlite", config: { path } },
+  };
+}
+
+function firstRestorableBackupProfile(defaultProfile?: string, profiles: string[] = []) {
+  const walletId = defaultProfile || profiles[0];
+
+  if (!walletId) {
+    throw new Error("The selected backup does not contain a restorable wallet profile.");
+  }
+
+  return walletId;
+}
+
+function backupOpenErrorFromUnknown(error: unknown) {
+  const message = errorMessageFromUnknown(error);
+
+  if (message.includes("no such table: config")) {
+    return new Error(
+      "This file is not a valid UNIFY wallet backup. Create a new backup from the wallet and try restoring that file.",
+    );
+  }
+
+  return error;
+}
+
+function restoredWalletImportPlan(sourceWalletId: string, createWalletId = Crypto.randomUUID) {
+  return {
+    sourceWalletId,
+    walletId: createWalletId(),
+  };
+}
+
+async function readEncryptedBackupWalletId(path: string, recoveryPassword: string) {
+  await import("@openwallet-foundation/askar-react-native");
+  const { KdfMethod, Store, StoreKeyMethod } = await import("@openwallet-foundation/askar-shared");
+  let backupStore;
+
+  try {
+    backupStore = await Store.open({
+      uri: `sqlite://${path}`,
+      keyMethod: new StoreKeyMethod(KdfMethod.Argon2IMod),
+      passKey: recoveryPassword,
+    });
+  } catch (error) {
+    throw backupOpenErrorFromUnknown(error);
+  }
+
+  try {
+    const [defaultProfile, profiles] = await Promise.all([
+      backupStore.getDefaultProfile().catch(() => undefined),
+      backupStore.listProfiles().catch(() => []),
+    ]);
+    return firstRestorableBackupProfile(defaultProfile, profiles);
+  } finally {
+    await backupStore.close();
+  }
+}
+
+export async function validateEncryptedHolderWalletBackup(path: string, recoveryPassword: string) {
+  return readEncryptedBackupWalletId(path, recoveryPassword);
 }
 
 async function loadBcovrinGenesisTransactions() {
@@ -345,7 +446,10 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   await startMediatorPickup(mediationRecipient, mediation, mediatorPickupStrategy);
 }
 
-export async function initializeHolderAgent(config: HolderAgentConfig): Promise<HolderAgent | null> {
+export async function initializeHolderAgent(
+  config: HolderAgentConfig,
+  importStore?: HolderAgentImport,
+): Promise<HolderAgent | null> {
   if (Platform.OS === "web") {
     return null;
   }
@@ -543,6 +647,24 @@ const modules: Record<string, unknown> = {
       modules,
     });
 
+    if (importStore) {
+      const askar = agent.modules?.askar;
+
+      if (!askar?.importStore) {
+        throw new Error("Credo holder agent is missing the Askar import API.");
+      }
+
+      await loggedStep("import encrypted wallet backup", () =>
+        askar.importStore({
+          importFromStore: backupStoreConfig(
+            importStore.sourceWalletId,
+            importStore.path,
+            importStore.recoveryPassword,
+          ),
+        }),
+      );
+    }
+
     await loggedStep("initialize Credo agent", () => agent.initialize());
     await initializeMediator(agent, mediatorInvitationUrl, mediatorPickupStrategy);
     agentRef = agent;
@@ -553,6 +675,41 @@ const modules: Record<string, unknown> = {
       return null;
     }
 
+    throw error;
+  }
+}
+
+export async function exportEncryptedHolderWallet(path: string, recoveryPassword: string) {
+  if (!agentRef || !activeWalletId) {
+    throw new Error("Unlock the wallet before creating a backup.");
+  }
+
+  const askar = agentRef.modules?.askar;
+
+  if (!askar?.exportStore) {
+    throw new Error("Credo holder agent is missing the Askar export API.");
+  }
+
+  await askar.exportStore({
+    exportToStore: backupStoreConfig(activeWalletId, path, recoveryPassword),
+  });
+}
+
+export async function restoreEncryptedHolderWallet(
+  path: string,
+  recoveryPassword: string,
+): Promise<CreateHolderWalletResult> {
+  const sourceWalletId = await readEncryptedBackupWalletId(path, recoveryPassword);
+  const restorePlan = restoredWalletImportPlan(sourceWalletId);
+
+  try {
+    const agent = await initializeHolderAgent(
+      { walletId: restorePlan.walletId },
+      { path, recoveryPassword, sourceWalletId: restorePlan.sourceWalletId },
+    );
+    return { walletId: restorePlan.walletId, agent };
+  } catch (error) {
+    await deleteSecureValue(holderWalletKeyStorageKey(restorePlan.walletId));
     throw error;
   }
 }
@@ -777,7 +934,7 @@ export async function selectVerificationCredentials(
   });
   const selectedAttributes = selection.proofFormats.anoncreds?.attributes;
   if (!selectedAttributes || Object.keys(selectedAttributes).length === 0) {
-    throw new Error("No credential in this wallet matches the verification request.");
+    throw new Error("No active credential in this wallet matches the verification request.");
   }
 
   const values: Record<string, string> = {};
@@ -839,9 +996,13 @@ export function subscribeToOfferReceived(handler: CredentialOfferReceivedHandler
 }
 
 export const __holderAgentTestInternals = {
+  backupOpenErrorFromUnknown,
+  backupStoreConfig,
   findCredentialOffer,
   findCredentialRecord,
   findStoredCredential,
+  firstRestorableBackupProfile,
+  restoredWalletImportPlan,
   setActiveHolderAgentForTest(agent: HolderAgent | null, walletId = "test-wallet") {
     agentRef = agent;
     activeWalletId = agent ? walletId : undefined;

@@ -21,6 +21,7 @@ import {
   startVerificationSession,
   type StartVerificationSessionResult,
   type VerificationResult,
+  verificationFailureMessage,
 } from "@/src/lib/api/verification";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -29,10 +30,17 @@ import { typography } from "@/src/theme/typography";
 type Phase = "idle" | "loading" | "review" | "presenting" | "polling" | "result" | "error";
 
 const ATTRIBUTE_LABELS: Record<string, string> = {
-  studentNumber: "Student number",
+  email: "Email",
   enrolmentStatus: "Enrolment status",
+  expiresAt: "Expires",
   faculty: "Faculty",
+  firstName: "First name",
+  institution: "Institution",
+  lastName: "Last name",
   programme: "Programme",
+  studentNumber: "Student number",
+  validFrom: "Valid from",
+  year: "Year",
 };
 
 function errorMessage(error: unknown) {
@@ -41,6 +49,8 @@ function errorMessage(error: unknown) {
 }
 
 function resultMessage(result: VerificationResult) {
+  if (result.failureCode) return verificationFailureMessage(result.failureCode);
+
   switch (result.status) {
     case "Approved":
       return "The verifier approved this presentation.";
@@ -216,11 +226,6 @@ export default function VerifyServicePointScreen() {
             >
               {resultMessage(result)}
             </Text>
-            {result.failureCode ? (
-              <Text selectable style={[typography.caption, { paddingTop: spacing.sm }]}>
-                {result.failureCode}
-              </Text>
-            ) : null}
           </Card>
         ) : null}
 

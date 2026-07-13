@@ -2,6 +2,7 @@ import {
   getVerificationResult,
   pollVerificationResult,
   startVerificationSession,
+  verificationFailureMessage,
   type VerificationStatus,
 } from "@/src/lib/api/verification";
 import { apiClient } from "@/src/lib/api/apiClient";
@@ -47,4 +48,10 @@ describe("wallet verification API", () => {
       await expect(pollVerificationResult("verification-001", "result-token")).resolves.toMatchObject({ status });
     },
   );
+
+  it("explains a non-current credential without exposing an internal code", () => {
+    expect(verificationFailureMessage("CREDENTIAL_NOT_CURRENT")).toBe(
+      "This credential is suspended, revoked, or no longer current.",
+    );
+  });
 });

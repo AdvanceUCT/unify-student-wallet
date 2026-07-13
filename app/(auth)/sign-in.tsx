@@ -44,7 +44,7 @@ export default function SignInScreen() {
                     <LockIcon color={colors.primary} size={18} strokeWidth={1.6} />
                   </View>
                   <Text style={typography.bodyStrong}>Encrypted</Text>
-                  <Text style={typography.body}>Keys never leave your device.</Text>
+                  <Text style={typography.body}>Protected on this device.</Text>
                 </View>
               </Card>
             </View>
@@ -77,6 +77,12 @@ export default function SignInScreen() {
             label="Create wallet"
             size="lg"
             onPress={() => router.push("/(auth)/set-pin")}
+          />
+          <AppButton
+            disabled={!isHydrated}
+            label="Restore from backup"
+            onPress={() => router.push("/(auth)/restore")}
+            variant="outline"
           />
           <Text style={[typography.caption, { textAlign: "center" }]}>
             Setting up creates an encrypted wallet on this device only.

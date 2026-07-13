@@ -78,6 +78,7 @@ export default function WalletLayout() {
       />
       <Tabs.Screen name="payments" options={{ title: "Pay", tabBarIcon: tabIcon(ReceiptIcon) }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon(SettingsIcon) }} />
+      <Tabs.Screen name="backup" options={{ href: null }} />
     </Tabs>
   );
 }

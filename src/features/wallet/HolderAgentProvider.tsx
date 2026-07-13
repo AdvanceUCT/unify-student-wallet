@@ -3,6 +3,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useMemo
 import {
   clearActiveHolderAgent,
   createLocalHolderWallet,
+  restoreEncryptedHolderWallet,
   resumeHolderAgentSession,
   type HolderAgent,
 } from "./holderAgent";
@@ -18,8 +19,9 @@ type HolderAgentState = {
 
 type HolderAgentContextValue = HolderAgentState & {
   createWallet: () => Promise<{ walletId: string }>;
+  restoreWallet: (path: string, recoveryPassword: string) => Promise<{ walletId: string }>;
   resumeWallet: (walletId: string) => Promise<HolderAgent | null>;
-  resetAgent: () => void;
+  resetAgent: () => Promise<void>;
 };
 
 const HolderAgentContext = createContext<HolderAgentContextValue | null>(null);
@@ -46,12 +48,17 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
   const agentRef = useRef<HolderAgent | null>(null);
   const walletIdRef = useRef<string | undefined>(undefined);
 
-  const resetAgent = useCallback(() => {
+  const resetAgent = useCallback(async () => {
+    const activeAgent = agentRef.current;
     initPromiseRef.current = null;
     agentRef.current = null;
     walletIdRef.current = undefined;
     clearActiveHolderAgent();
     setState({ agent: null, status: "idle" });
+
+    if (activeAgent?.shutdown) {
+      await activeAgent.shutdown();
+    }
   }, []);
 
   const createWallet = useCallback<HolderAgentContextValue["createWallet"]>(async () => {
@@ -103,14 +110,33 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     return initPromiseRef.current;
   }, []);
 
+  const restoreWallet = useCallback<HolderAgentContextValue["restoreWallet"]>(async (path, recoveryPassword) => {
+    setState({ agent: null, status: "initializing" });
+
+    try {
+      const { walletId, agent } = await restoreEncryptedHolderWallet(path, recoveryPassword);
+      agentRef.current = agent;
+      walletIdRef.current = walletId;
+      setState({ agent, status: "ready", walletId });
+      return { walletId };
+    } catch (error) {
+      const message = errorMessageFromUnknown(error);
+      agentRef.current = null;
+      walletIdRef.current = undefined;
+      setState({ agent: null, error: message, status: "error" });
+      throw error;
+    }
+  }, []);
+
   const value = useMemo<HolderAgentContextValue>(
     () => ({
       ...state,
       createWallet,
+      restoreWallet,
       resumeWallet,
       resetAgent,
     }),
-    [createWallet, resetAgent, resumeWallet, state],
+    [createWallet, resetAgent, restoreWallet, resumeWallet, state],
   );
 
   return <HolderAgentContext.Provider value={value}>{children}</HolderAgentContext.Provider>;

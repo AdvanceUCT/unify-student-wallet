@@ -1,9 +1,16 @@
 import { apiClient } from "@/src/lib/api/apiClient";
 
-export const VERIFICATION_ATTRIBUTES = ["studentNumber", "enrolmentStatus", "faculty", "programme"] as const;
-
-export type VerificationAttributeName = (typeof VERIFICATION_ATTRIBUTES)[number];
 export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired" | "Failed";
+export type VerificationFailureCode =
+  | "CREDO_PROTOCOL_ERROR"
+  | "CREDENTIAL_NOT_CURRENT"
+  | "PROOF_EXCHANGE_ABANDONED"
+  | "PROOF_NOT_VERIFIED"
+  | "PROOF_REQUEST_EXPIRED"
+  | "REQUIRED_ATTRIBUTE_MISSING"
+  | "REVOCATION_CHECK_FAILED"
+  | "STUDENT_NOT_REGISTERED"
+  | "UNTRUSTED_CREDENTIAL_DEFINITION";
 
 export type StartVerificationSessionResult = {
   verificationRequestId: string;
@@ -11,16 +18,32 @@ export type StartVerificationSessionResult = {
   resultToken: string;
   vendorName: string;
   servicePointName: string;
-  requestedAttributes: VerificationAttributeName[];
+  requestedAttributes: string[];
   expiresAt: string;
 };
 
 export type VerificationResult = {
   status: VerificationStatus;
-  failureCode?: string;
+  failureCode?: VerificationFailureCode;
   expiresAt: string;
   completedAt?: string;
 };
+
+const FAILURE_MESSAGES: Record<VerificationFailureCode, string> = {
+  CREDO_PROTOCOL_ERROR: "The verifier could not process the credential proof.",
+  CREDENTIAL_NOT_CURRENT: "This credential is suspended, revoked, or no longer current.",
+  PROOF_EXCHANGE_ABANDONED: "The credential presentation was not completed.",
+  PROOF_NOT_VERIFIED: "The credential proof could not be verified.",
+  PROOF_REQUEST_EXPIRED: "The verification session expired before presentation completed.",
+  REQUIRED_ATTRIBUTE_MISSING: "The credential does not contain every requested value.",
+  REVOCATION_CHECK_FAILED: "The verifier could not confirm the credential's current status.",
+  STUDENT_NOT_REGISTERED: "The credential does not identify a registered student.",
+  UNTRUSTED_CREDENTIAL_DEFINITION: "The credential was not issued by a trusted institution.",
+};
+
+export function verificationFailureMessage(code: VerificationFailureCode) {
+  return FAILURE_MESSAGES[code];
+}
 
 export function startVerificationSession(
   publicServicePointId: string,

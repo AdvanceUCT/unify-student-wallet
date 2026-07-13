@@ -55,6 +55,7 @@ type WalletSessionContextValue = {
   pendingOfferIds: string[];
   pendingVerificationPublicServicePointId?: string;
   processIncomingLink: (url: string) => Promise<ActionResult>;
+  restoreWallet: (path: string, recoveryPassword: string) => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
   setPendingVerificationPublicServicePointId: (publicServicePointId?: string) => Promise<void>;
@@ -113,7 +114,12 @@ function isStoredCredential(record: { state?: string }) {
 }
 
 export function WalletSessionProvider({ children }: PropsWithChildren) {
-  const { createWallet: createHolderWallet, resetAgent, resumeWallet } = useHolderAgent();
+  const {
+    createWallet: createHolderWallet,
+    resetAgent,
+    restoreWallet: restoreHolderWallet,
+    resumeWallet,
+  } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
   const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
@@ -342,16 +348,22 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       const pinSalt = createPinSalt();
       const pinHash = await hashPin(pin, pinSalt);
+      const current = stateRef.current;
 
       let walletId: string;
       try {
-        const result = await createHolderWallet();
-        walletId = result.walletId;
+        // A restored store already exists. This setup pass only creates a fresh
+        // device PIN instead of replacing the imported wallet.
+        if (current.session.walletId && !hasStoredPin(current)) {
+          walletId = current.session.walletId;
+        } else {
+          const result = await createHolderWallet();
+          walletId = result.walletId;
+        }
       } catch (error) {
         return actionErrorFromUnknown(error, "Wallet could not be created.");
       }
 
-      const current = stateRef.current;
       const nextState: PersistedWalletSessionState = {
         biometricEnabled: current.biometricEnabled,
         changePinAttempts: current.changePinAttempts,
@@ -379,6 +391,39 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       return { ok: true };
     },
     [createHolderWallet, persistState, processIncomingLink],
+  );
+
+  const restoreWallet = useCallback(
+    async (path: string, recoveryPassword: string): Promise<ActionResult> => {
+      const current = stateRef.current;
+
+      if (current.session.walletId) {
+        return { ok: false, error: "Sign out before restoring a different wallet." };
+      }
+
+      try {
+        const { walletId } = await restoreHolderWallet(path, recoveryPassword);
+        await persistState({
+          biometricEnabled: false,
+          changePinAttempts: 0,
+          failedAttempts: 0,
+          session: {
+            authStatus: "signedIn",
+            lockStatus: "unlocked",
+            pendingOfferIds: [],
+            walletId,
+          },
+        });
+        return { ok: true };
+      } catch (error) {
+        console.error("[wallet-restore] failed", error);
+        return actionErrorFromUnknown(
+          error,
+          "The backup could not be opened. Check the file and recovery password, then try again.",
+        );
+      }
+    },
+    [persistState, restoreHolderWallet],
   );
 
   const acceptOffer = useCallback(
@@ -663,7 +708,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
-    resetAgent();
+    await resetAgent();
     setState((current) => ({
       ...current,
       biometricEnabled: false,
@@ -693,6 +738,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pendingOfferIds: state.session.pendingOfferIds,
       pendingVerificationPublicServicePointId: state.pendingVerificationPublicServicePointId,
       processIncomingLink,
+      restoreWallet,
       session: state.session,
       setBiometricEnabled,
       setPendingVerificationPublicServicePointId,
@@ -709,6 +755,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       declineOffer,
       lockWallet,
       processIncomingLink,
+      restoreWallet,
       setBiometricEnabled,
       setPendingVerificationPublicServicePointId,
       signOut,
