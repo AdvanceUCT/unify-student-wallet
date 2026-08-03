@@ -1,12 +1,7 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
 
-import {
-  clearActiveHolderAgent,
-  createLocalHolderWallet,
-  restoreEncryptedHolderWallet,
-  resumeHolderAgentSession,
-  type HolderAgent,
-} from "./holderAgent";
+import type { HolderAgent } from "./holderAgent";
+import { loadedHolderAgentRuntime, loadHolderAgentRuntime } from "./holderAgentRuntime";
 
 type HolderAgentStatus = "idle" | "initializing" | "ready" | "error";
 
@@ -53,7 +48,11 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     initPromiseRef.current = null;
     agentRef.current = null;
     walletIdRef.current = undefined;
-    clearActiveHolderAgent();
+    const runtimePromise = loadedHolderAgentRuntime();
+    if (runtimePromise) {
+      const runtime = await runtimePromise;
+      runtime.clearActiveHolderAgent();
+    }
     setState({ agent: null, status: "idle" });
 
     if (activeAgent?.shutdown) {
@@ -65,7 +64,8 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     setState({ agent: null, status: "initializing" });
 
     try {
-      const { walletId, agent } = await createLocalHolderWallet();
+      const runtime = await loadHolderAgentRuntime();
+      const { walletId, agent } = await runtime.createLocalHolderWallet();
       agentRef.current = agent;
       walletIdRef.current = walletId;
       setState({ agent, status: "ready", walletId });
@@ -90,7 +90,8 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
 
     setState({ agent: agentRef.current, status: "initializing", walletId });
 
-    initPromiseRef.current = resumeHolderAgentSession(walletId)
+    initPromiseRef.current = loadHolderAgentRuntime()
+      .then((runtime) => runtime.resumeHolderAgentSession(walletId))
       .then((agent) => {
         agentRef.current = agent;
         walletIdRef.current = walletId;
@@ -114,7 +115,8 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     setState({ agent: null, status: "initializing" });
 
     try {
-      const { walletId, agent } = await restoreEncryptedHolderWallet(path, recoveryPassword);
+      const runtime = await loadHolderAgentRuntime();
+      const { walletId, agent } = await runtime.restoreEncryptedHolderWallet(path, recoveryPassword);
       agentRef.current = agent;
       walletIdRef.current = walletId;
       setState({ agent, status: "ready", walletId });

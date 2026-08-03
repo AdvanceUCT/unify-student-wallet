@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
 import { getMediatorInvitationUrl, getMediatorPickupStrategy } from "./mediatorService";
+import { isValidGenesisTransactions, readCachedGenesisTransactions, writeCachedGenesisTransactions } from "./genesisCache";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
@@ -265,13 +266,23 @@ export async function validateEncryptedHolderWalletBackup(path: string, recovery
 }
 
 async function loadBcovrinGenesisTransactions() {
+  const cachedTransactions = await readCachedGenesisTransactions();
+  if (cachedTransactions) {
+    return { fromCache: true, transactions: cachedTransactions };
+  }
+
   const response = await fetch(BCOVRIN_TEST_GENESIS_URL);
 
   if (!response.ok) {
     throw new Error("Unable to load BCovrin Test genesis transactions.");
   }
 
-  return response.text();
+  const transactions = await response.text();
+  if (!isValidGenesisTransactions(transactions)) {
+    throw new Error("BCovrin Test returned malformed genesis transactions.");
+  }
+
+  return { fromCache: false, transactions };
 }
 
 function getConstructor<T>(moduleExports: DynamicModule, exportName: string): Constructor<T> {
@@ -488,7 +499,7 @@ export async function initializeHolderAgent(
 
       return generatedKey;
     });
-    const genesisTransactions = await loadBcovrinGenesisTransactions();
+    const genesis = await loadBcovrinGenesisTransactions();
 
    const coreExports = core as DynamicModule;
 const didcommExports = didcomm as DynamicModule;
@@ -630,7 +641,7 @@ const modules: Record<string, unknown> = {
     networks: [
       {
         connectOnStartup: false,
-        genesisTransactions,
+        genesisTransactions: genesis.transactions,
         indyNamespace: "bcovrin:test",
         isProduction: false,
       },
@@ -667,6 +678,13 @@ const modules: Record<string, unknown> = {
 
     await loggedStep("initialize Credo agent", () => agent.initialize());
     await initializeMediator(agent, mediatorInvitationUrl, mediatorPickupStrategy);
+    if (!genesis.fromCache) {
+      await writeCachedGenesisTransactions(genesis.transactions).catch((error) => {
+        console.warn(
+          `[holder-agent] Unable to cache BCovrin genesis transactions: ${errorMessageFromUnknown(error)}`,
+        );
+      });
+    }
     agentRef = agent;
     activeWalletId = config.walletId;
     return agent;

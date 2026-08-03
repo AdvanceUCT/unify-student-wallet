@@ -1,6 +1,11 @@
 export type WalletAuthStatus = "signedOut" | "signedIn";
 export type WalletLockStatus = "locked" | "unlocked";
 
+export type PendingCheckoutVerification = {
+  verificationRequestId: string;
+  claimToken: string;
+};
+
 export type WalletSession = {
   authStatus: WalletAuthStatus;
   lockStatus: WalletLockStatus;
@@ -14,6 +19,7 @@ export type PersistedWalletSessionState = {
   failedAttempts: number;
   pinHash?: string;
   pinSalt?: string;
+  pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   session: WalletSession;
 };

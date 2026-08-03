@@ -31,6 +31,12 @@ function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: 
   return undefined;
 }
 
+export function formatCredentialDate(value: string | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "—";
+}
+
 export function StudentCard({ credential, onPress, width, issuerFallback }: StudentCardProps) {
   const attributes = credential.credentialAttributes;
   const firstName = findAttribute(attributes, "firstName", "first_name", "givenName");
@@ -38,10 +44,16 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
   const studentNumber = findAttribute(attributes, "studentNumber", "student_number", "studentId");
   const faculty = findAttribute(attributes, "faculty", "school", "department", "programme", "program");
   const year = findAttribute(attributes, "year", "yearOfStudy", "academicYear");
-  const issuer =
-    findAttribute(attributes, "issuerName", "issuer", "institution", "university") ??
+  const university =
+    findAttribute(attributes, "institution", "university", "issuerName", "issuer") ??
     credential.connectionLabel ??
     issuerFallback;
+  const issuedAt = formatCredentialDate(
+    findAttribute(attributes, "issuedAt", "issued_at", "validFrom", "valid_from", "issuanceDate"),
+  );
+  const expiresAt = formatCredentialDate(
+    findAttribute(attributes, "expiresAt", "expires_at", "expiryDate", "expirationDate"),
+  );
 
   const holderName = [firstName, lastName].filter(Boolean).join(" ").trim();
   const initials = initialsFrom(firstName, lastName);
@@ -84,7 +96,7 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
             flexShrink: 1,
           }}
         >
-          {issuer ? issuer.toUpperCase() : "ISSUER PENDING"}
+          {university ? university.toUpperCase() : "UNIVERSITY PENDING"}
         </Text>
         <Text
           numberOfLines={1}
@@ -134,26 +146,34 @@ export function StudentCard({ credential, onPress, width, issuerFallback }: Stud
               {faculty ?? "Programme pending"}
             </Text>
           </View>
-          <View style={{ flexDirection: "row", gap: spacing.lg }}>
-            <View style={{ flex: 1 }}>
-              <Text style={typography.caption}>No.</Text>
-              <Text
-                ellipsizeMode="tail"
-                numberOfLines={1}
-                style={[typography.bodyStrong, { marginTop: 2 }]}
-              >
-                {studentNumber ?? "—"}
-              </Text>
+          <View style={{ gap: spacing.sm }}>
+            <View style={{ flexDirection: "row", gap: spacing.lg }}>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.caption}>No.</Text>
+                <Text ellipsizeMode="tail" numberOfLines={1} style={[typography.bodyStrong, { marginTop: 2 }]}>
+                  {studentNumber ?? "—"}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.caption}>Year</Text>
+                <Text ellipsizeMode="tail" numberOfLines={1} style={[typography.bodyStrong, { marginTop: 2 }]}>
+                  {year ?? "—"}
+                </Text>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={typography.caption}>Year</Text>
-              <Text
-                ellipsizeMode="tail"
-                numberOfLines={1}
-                style={[typography.bodyStrong, { marginTop: 2 }]}
-              >
-                {year ?? "—"}
-              </Text>
+            <View style={{ flexDirection: "row", gap: spacing.lg }}>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.caption}>Issued</Text>
+                <Text numberOfLines={1} style={[typography.bodyStrong, { fontSize: 13, marginTop: 2 }]}>
+                  {issuedAt}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.caption}>Expires</Text>
+                <Text numberOfLines={1} style={[typography.bodyStrong, { fontSize: 13, marginTop: 2 }]}>
+                  {expiresAt}
+                </Text>
+              </View>
             </View>
           </View>
         </View>

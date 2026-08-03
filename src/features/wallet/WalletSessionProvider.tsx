@@ -3,16 +3,11 @@ import * as Linking from "expo-linking";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
-import {
-  acceptCredentialOffer as agentAcceptCredentialOffer,
-  declineCredentialOffer as agentDeclineCredentialOffer,
-  receiveCredentialOffer as agentReceiveCredentialOffer,
-  subscribeToOfferReceived,
-} from "./holderAgent";
+import { loadHolderAgentRuntime } from "./holderAgentRuntime";
 import { useHolderAgent } from "./HolderAgentProvider";
 import { createPinSalt, hashPin, validateNewPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
@@ -22,6 +17,7 @@ import {
   isSessionHardLocked,
   MAX_CHANGE_PIN_ATTEMPTS,
   MAX_PIN_ATTEMPTS,
+  type PendingCheckoutVerification,
   type PersistedWalletSessionState,
   signedOutSession,
   type WalletSession,
@@ -53,11 +49,13 @@ type WalletSessionContextValue = {
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
   pendingOfferIds: string[];
+  pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   processIncomingLink: (url: string) => Promise<ActionResult>;
   restoreWallet: (path: string, recoveryPassword: string) => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
+  setPendingCheckoutVerification: (request?: PendingCheckoutVerification) => Promise<void>;
   setPendingVerificationPublicServicePointId: (publicServicePointId?: string) => Promise<void>;
   signOut: () => Promise<void>;
   stashedActivationUrl?: string;
@@ -169,6 +167,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
               stateRef.current.pendingVerificationPublicServicePointId,
           }
         : {}),
+      ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingCheckoutVerification")
+        ? { pendingCheckoutVerification: stateRef.current.pendingCheckoutVerification }
+        : {}),
     };
     stateRef.current = { ...stateRef.current, ...mergedState };
     setState((current) => ({ ...current, ...mergedState }));
@@ -183,7 +184,25 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       failedAttempts: current.failedAttempts,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: publicServicePointId,
+      session: current.session,
+    };
+    stateRef.current = { ...current, ...nextState };
+    setState((value) => ({ ...value, ...nextState }));
+    await saveWalletSessionState(nextState);
+  }, []);
+
+  const setPendingCheckoutVerification = useCallback(async (request?: PendingCheckoutVerification) => {
+    const current = stateRef.current;
+    const nextState: PersistedWalletSessionState = {
+      biometricEnabled: current.biometricEnabled,
+      changePinAttempts: current.changePinAttempts,
+      failedAttempts: current.failedAttempts,
+      pinHash: current.pinHash,
+      pinSalt: current.pinSalt,
+      pendingCheckoutVerification: request,
+      pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: current.session,
     };
     stateRef.current = { ...current, ...nextState };
@@ -196,6 +215,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
     const stashVerificationLink = (url: string | null) => {
       if (!url) return;
+      const checkout = parseCheckoutVerificationLink(url);
+      if (checkout.ok) {
+        void setPendingCheckoutVerification({
+          verificationRequestId: checkout.verificationRequestId,
+          claimToken: checkout.claimToken,
+        });
+        return;
+      }
       const parsed = parseVerificationLink(url);
       if (parsed.ok) void setPendingVerificationPublicServicePointId(parsed.publicServicePointId);
     };
@@ -203,7 +230,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     void Linking.getInitialURL().then(stashVerificationLink);
     const subscription = Linking.addEventListener("url", ({ url }) => stashVerificationLink(url));
     return () => subscription.remove();
-  }, [setPendingVerificationPublicServicePointId, state.isHydrated]);
+  }, [setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, state.isHydrated]);
 
   const addPendingOfferId = useCallback(async (credentialRecordId: string) => {
     const current = stateRef.current;
@@ -218,6 +245,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       failedAttempts: current.failedAttempts,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
         ...current.session,
@@ -243,6 +271,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       failedAttempts: current.failedAttempts,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
         ...current.session,
@@ -260,18 +289,31 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const unsubscribe = subscribeToOfferReceived((record) => {
-      if (isPendingCredentialOffer(record)) {
-        void addPendingOfferId(record.id);
-        return;
-      }
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
 
-      if (isStoredCredential(record)) {
-        void removePendingOfferId(record.id);
-      }
-    });
+    void loadHolderAgentRuntime()
+      .then((runtime) => {
+        if (!active) return;
+        unsubscribe = runtime.subscribeToOfferReceived((record) => {
+          if (isPendingCredentialOffer(record)) {
+            void addPendingOfferId(record.id);
+            return;
+          }
 
-    return unsubscribe;
+          if (isStoredCredential(record)) {
+            void removePendingOfferId(record.id);
+          }
+        });
+      })
+      .catch((error) => {
+        console.error("[holder-agent] Unable to subscribe to credential offers.", error);
+      });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [addPendingOfferId, removePendingOfferId, state.session.lockStatus, state.session.walletId]);
 
   /**
@@ -313,7 +355,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         }
 
         try {
-          const credentialRecord = await agentReceiveCredentialOffer(resolved.data.invitationUrl);
+          const runtime = await loadHolderAgentRuntime();
+          const credentialRecord = await runtime.receiveCredentialOffer(resolved.data.invitationUrl);
 
           if (isPendingCredentialOffer(credentialRecord)) {
             await addPendingOfferId(credentialRecord.id);
@@ -429,7 +472,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const acceptOffer = useCallback(
     async (credentialRecordId: string): Promise<ActionResult> => {
       try {
-        await agentAcceptCredentialOffer(credentialRecordId);
+        const runtime = await loadHolderAgentRuntime();
+        await runtime.acceptCredentialOffer(credentialRecordId);
         await removePendingOfferId(credentialRecordId);
         router.replace("/(wallet)/credential");
         return { ok: true };
@@ -443,7 +487,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const declineOffer = useCallback(
     async (credentialRecordId: string): Promise<ActionResult> => {
       try {
-        await agentDeclineCredentialOffer(credentialRecordId);
+        const runtime = await loadHolderAgentRuntime();
+        await runtime.declineCredentialOffer(credentialRecordId);
         await removePendingOfferId(credentialRecordId);
         return { ok: true };
       } catch (error) {
@@ -736,11 +781,13 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       isHydrated: state.isHydrated,
       lockWallet,
       pendingOfferIds: state.session.pendingOfferIds,
+      pendingCheckoutVerification: state.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: state.pendingVerificationPublicServicePointId,
       processIncomingLink,
       restoreWallet,
       session: state.session,
       setBiometricEnabled,
+      setPendingCheckoutVerification,
       setPendingVerificationPublicServicePointId,
       signOut,
       stashedActivationUrl: state.stashedActivationUrl,
@@ -757,6 +804,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       processIncomingLink,
       restoreWallet,
       setBiometricEnabled,
+      setPendingCheckoutVerification,
       setPendingVerificationPublicServicePointId,
       signOut,
       state,
@@ -769,7 +817,13 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 }
 
 export function WalletRouteGate({ children }: PropsWithChildren) {
-  const { hasPin, isHydrated, pendingVerificationPublicServicePointId, session } = useWalletSession();
+  const {
+    hasPin,
+    isHydrated,
+    pendingCheckoutVerification,
+    pendingVerificationPublicServicePointId,
+    session,
+  } = useWalletSession();
   const segments = useSegments();
 
   useEffect(() => {
@@ -778,6 +832,17 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     }
 
     const routeAccess = getWalletRouteAccess(session, hasPin);
+
+    if (routeAccess === "wallet" && pendingCheckoutVerification && !segments.includes("verify")) {
+      router.replace({
+        pathname: "/verify/checkout/[verificationRequestId]",
+        params: {
+          verificationRequestId: pendingCheckoutVerification.verificationRequestId,
+          token: pendingCheckoutVerification.claimToken,
+        },
+      });
+      return;
+    }
 
     if (
       routeAccess === "wallet" &&
@@ -791,7 +856,7 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     if (!isRouteAllowedForAccess(segments, routeAccess)) {
       router.replace(getWalletRouteHref(routeAccess));
     }
-  }, [hasPin, isHydrated, pendingVerificationPublicServicePointId, segments, session]);
+  }, [hasPin, isHydrated, pendingCheckoutVerification, pendingVerificationPublicServicePointId, segments, session]);
 
   return children;
 }

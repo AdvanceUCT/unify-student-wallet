@@ -1,4 +1,8 @@
-import { parseQrPayload, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import {
+  parseCheckoutVerificationLink,
+  parseQrPayload,
+  parseVerificationLink,
+} from "@/src/lib/validation/qrPayload";
 
 describe("parseQrPayload", () => {
   it("accepts a valid service-point payment payload", () => {
@@ -57,5 +61,31 @@ describe("parseVerificationLink", () => {
     "unifywallet://payment/sp-public-001",
   ])("rejects an untrusted or malformed verification link: %s", (value) => {
     expect(parseVerificationLink(value).ok).toBe(false);
+  });
+});
+
+describe("parseCheckoutVerificationLink", () => {
+  const token = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+
+  it.each([
+    `https://voskuils.com/verify/checkout/verification-001?token=${token}`,
+    `unifywallet://verify/checkout/verification-001?token=${token}`,
+  ])("accepts a trusted checkout verification link: %s", (value) => {
+    expect(parseCheckoutVerificationLink(value)).toEqual({
+      ok: true,
+      verificationRequestId: "verification-001",
+      claimToken: token,
+    });
+  });
+
+  it.each([
+    `http://voskuils.com/verify/checkout/verification-001?token=${token}`,
+    `https://evil.example/verify/checkout/verification-001?token=${token}`,
+    "https://voskuils.com/verify/checkout/verification-001",
+    `https://voskuils.com/verify/checkout/verification-001?token=${token}&extra=1`,
+    `https://voskuils.com/verify/checkout/verification-001?token=${token}#fragment`,
+    "unifywallet://verify/checkout/verification-001?token=short",
+  ])("rejects an untrusted or malformed checkout link: %s", (value) => {
+    expect(parseCheckoutVerificationLink(value).ok).toBe(false);
   });
 });

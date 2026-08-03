@@ -16,6 +16,7 @@ describe("wallet activation resolver", () => {
     global.fetch = originalFetch;
     process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = originalAgentApiBaseUrl;
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   it("uses the agent service resolve API with the configured base URL", async () => {
@@ -106,6 +107,25 @@ describe("wallet activation resolver", () => {
     expect(resolved).toEqual({
       ok: false,
       error: "Activation service is unavailable. Check that the Credo agent service is running and try again.",
+    });
+  });
+
+  it("stops an activation request that exceeds the shared client timeout", async () => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn((_url, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+    })) as jest.Mock;
+
+    const resultPromise = resolveWalletActivation({
+      kind: "token",
+      sourceUrl: "unifywallet://activate?token=slow-token",
+      token: "slow-token",
+    });
+    jest.advanceTimersByTime(10_000);
+
+    await expect(resultPromise).resolves.toEqual({
+      error: "Activation timed out. Check your connection and try again.",
+      ok: false,
     });
   });
 

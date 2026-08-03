@@ -22,6 +22,11 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       failedAttempts: parsed.failedAttempts ?? 0,
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
+      pendingCheckoutVerification:
+        typeof parsed.pendingCheckoutVerification?.verificationRequestId === "string" &&
+        typeof parsed.pendingCheckoutVerification.claimToken === "string"
+          ? parsed.pendingCheckoutVerification
+          : undefined,
       pendingVerificationPublicServicePointId:
         typeof parsed.pendingVerificationPublicServicePointId === "string"
           ? parsed.pendingVerificationPublicServicePointId

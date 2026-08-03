@@ -9,6 +9,10 @@ describe("wallet session storage serialization", () => {
       failedAttempts: 0,
       pinHash: "hash",
       pinSalt: "salt",
+      pendingCheckoutVerification: {
+        verificationRequestId: "verification-001",
+        claimToken: "single-use-claim-token",
+      },
       pendingVerificationPublicServicePointId: "sp-public-001",
       session: {
         authStatus: "signedIn",
@@ -16,6 +20,21 @@ describe("wallet session storage serialization", () => {
         pendingOfferIds: ["offer-1", "offer-2"],
         walletId: "wallet-uuid-001",
       },
+    };
+
+    expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
+  });
+
+  it("keeps a pending checkout claim in secure session storage until unlock", () => {
+    const state: PersistedWalletSessionState = {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      pendingCheckoutVerification: {
+        verificationRequestId: "verification-001",
+        claimToken: "single-use-claim-token",
+      },
+      session: { authStatus: "signedIn", lockStatus: "locked", pendingOfferIds: [] },
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
