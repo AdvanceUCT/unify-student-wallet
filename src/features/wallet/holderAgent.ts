@@ -51,6 +51,10 @@ type CredentialRecord = {
   credentialAttributes?: { name: string; value: string }[];
 };
 
+type CredentialFormatData = {
+  offerAttributes?: { name: string; value: string }[];
+};
+
 type ProofExchangeRecord = {
   id: string;
   state?: string;
@@ -108,6 +112,7 @@ export type HolderAgent = {
   declineOffer?: (credentialRecordId: string) => Promise<unknown>;
   getAll?: () => Promise<CredentialRecord[]>;
   getById?: (id: string) => Promise<CredentialRecord>;
+  getFormatData?: (credentialExchangeRecordId: string) => Promise<CredentialFormatData>;
 };
     mediationRecipient?: {
       findByConnectionId?: (connectionId: string) => Promise<DidCommMediationRecord | null>;
@@ -853,6 +858,31 @@ export async function declineCredentialOffer(credentialRecordId: string): Promis
   await credentials.declineOffer(credentialRecordId);
 }
 
+async function withOfferAttributes(
+  credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
+  record: CredentialRecord,
+): Promise<CredentialRecord> {
+  if (record.credentialAttributes?.length || !credentials.getFormatData) {
+    return record;
+  }
+
+  try {
+    const formatData = await credentials.getFormatData(record.id);
+    if (!formatData.offerAttributes?.length) return record;
+
+    return {
+      ...record,
+      credentialAttributes: formatData.offerAttributes.map((attribute) => ({
+        name: String(attribute.name),
+        value: String(attribute.value),
+      })),
+    };
+  } catch (error) {
+    console.warn("[holder-agent] Unable to load credential offer details.", error);
+    return record;
+  }
+}
+
 export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
   if (!agentRef) {
     return null;
@@ -864,7 +894,8 @@ export async function getCredentialRecord(credentialRecordId: string): Promise<C
     return null;
   }
 
-  return credentials.getById(credentialRecordId);
+  const record = await credentials.getById(credentialRecordId);
+  return withOfferAttributes(credentials, record);
 }
 
 export async function getStoredCredentials(): Promise<CredentialRecord[]> {

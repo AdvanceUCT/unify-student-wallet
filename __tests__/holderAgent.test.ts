@@ -3,6 +3,7 @@ import {
   clearActiveHolderAgent,
   exportEncryptedHolderWallet,
   acceptVerificationProof,
+  getCredentialRecord,
   receiveCredentialOffer,
   receiveVerificationProofRequest,
   selectVerificationCredentials,
@@ -40,6 +41,36 @@ describe("holder agent credential activation", () => {
       label: "UNIFY Student Wallet",
     });
     expect(result).toBe(newCredential);
+  });
+
+  it("loads offered attributes from Credo format data before acceptance", async () => {
+    const getFormatData = jest.fn(async () => ({
+      offerAttributes: [
+        { name: "studentNumber", value: "STU001" },
+        { name: "firstName", value: "Ada" },
+        { name: "faculty", value: "Engineering" },
+      ],
+    }));
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        credentials: {
+          getById: jest.fn(async () => ({ id: "offer-001", state: "offer-received" })),
+          getFormatData,
+        },
+      },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    await expect(getCredentialRecord("offer-001")).resolves.toMatchObject({
+      id: "offer-001",
+      credentialAttributes: [
+        { name: "studentNumber", value: "STU001" },
+        { name: "firstName", value: "Ada" },
+        { name: "faculty", value: "Engineering" },
+      ],
+    });
+    expect(getFormatData).toHaveBeenCalledWith("offer-001");
   });
 });
 
