@@ -24,6 +24,30 @@ export function parseQrPayload(rawPayload: string) {
 const PUBLIC_SERVICE_POINT_ID = /^[A-Za-z0-9_-]+$/;
 const CHECKOUT_CLAIM_TOKEN = /^[A-Za-z0-9_-]{20,256}$/;
 
+function allowedVerificationHosts() {
+  const configured: string =
+    process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS ??
+    process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOST ??
+    "voskuils.com";
+
+  return new Set(
+    configured
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function isTrustedHttpsVerificationUrl(url: URL) {
+  return (
+    url.protocol === "https:" &&
+    allowedVerificationHosts().has(url.hostname.toLowerCase()) &&
+    !url.port &&
+    !url.username &&
+    !url.password
+  );
+}
+
 export type CheckoutVerificationLink = {
   verificationRequestId: string;
   claimToken: string;
@@ -34,13 +58,7 @@ export function parseCheckoutVerificationLink(rawValue: string) {
     const url = new URL(rawValue.trim());
     let encodedId: string | undefined;
 
-    if (
-      url.protocol === "https:" &&
-      url.hostname.toLowerCase() === "voskuils.com" &&
-      !url.port &&
-      !url.username &&
-      !url.password
-    ) {
+    if (isTrustedHttpsVerificationUrl(url)) {
       const segments = url.pathname.split("/").filter(Boolean);
       if (segments.length === 3 && segments[0] === "verify" && segments[1] === "checkout") {
         encodedId = segments[2];
@@ -77,13 +95,7 @@ export function parseVerificationLink(rawValue: string) {
     const url = new URL(rawValue.trim());
     let encodedId: string | undefined;
 
-    if (
-      url.protocol === "https:" &&
-      url.hostname.toLowerCase() === "voskuils.com" &&
-      !url.port &&
-      !url.username &&
-      !url.password
-    ) {
+    if (isTrustedHttpsVerificationUrl(url)) {
       const segments = url.pathname.split("/").filter(Boolean);
       if (segments.length === 2 && segments[0] === "verify") encodedId = segments[1];
     } else if (url.protocol === "unifywallet:" && url.hostname === "verify") {

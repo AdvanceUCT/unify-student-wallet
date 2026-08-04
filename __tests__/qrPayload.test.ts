@@ -53,6 +53,23 @@ describe("parseVerificationLink", () => {
     });
   });
 
+  it("accepts a configured preview host", () => {
+    const previousHosts = process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS;
+    process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS =
+      "voskuils.com,unify-admin-portal-git-feature-ce99ae-caleb-s-projects-28b6762a.vercel.app";
+
+    try {
+      expect(
+        parseVerificationLink(
+          "https://unify-admin-portal-git-feature-ce99ae-caleb-s-projects-28b6762a.vercel.app/verify/sp-public-001",
+        ),
+      ).toEqual({ ok: true, publicServicePointId: "sp-public-001" });
+    } finally {
+      if (previousHosts === undefined) delete process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS;
+      else process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS = previousHosts;
+    }
+  });
+
   it.each([
     "http://voskuils.com/verify/sp-public-001",
     "https://evil.example/verify/sp-public-001",
@@ -76,6 +93,23 @@ describe("parseCheckoutVerificationLink", () => {
       verificationRequestId: "verification-001",
       claimToken: token,
     });
+  });
+
+  it("accepts checkout links from a configured preview host", () => {
+    const previousHosts = process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS;
+    process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS =
+      "voskuils.com,unify-admin-portal-git-feature-ce99ae-caleb-s-projects-28b6762a.vercel.app";
+
+    try {
+      expect(
+        parseCheckoutVerificationLink(
+          `https://unify-admin-portal-git-feature-ce99ae-caleb-s-projects-28b6762a.vercel.app/verify/checkout/verification-001?token=${token}`,
+        ),
+      ).toEqual({ ok: true, verificationRequestId: "verification-001", claimToken: token });
+    } finally {
+      if (previousHosts === undefined) delete process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS;
+      else process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS = previousHosts;
+    }
   });
 
   it.each([
