@@ -1,4 +1,4 @@
-import { apiClient } from "@/src/lib/api/apiClient";
+import { ApiClientError, apiClient } from "@/src/lib/api/apiClient";
 
 export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired" | "Failed";
 export type VerificationFailureCode =
@@ -41,8 +41,32 @@ const FAILURE_MESSAGES: Record<VerificationFailureCode, string> = {
   UNTRUSTED_CREDENTIAL_DEFINITION: "The credential was not issued by a trusted institution.",
 };
 
+const REQUEST_ERROR_MESSAGES: Record<string, string> = {
+  CLIENT_REQUEST_EXPIRED: "The previous verification attempt expired. Scan the QR code again.",
+  INVALID_SESSION_CAPABILITY: "This checkout verification link is invalid. Return to the checkout for a new link.",
+  INVALID_VERIFICATION_RESULT_TOKEN: "The verification result link is invalid. Start a new verification.",
+  SERVICE_POINT_DISABLED: "This service point is not accepting verifications right now.",
+  SERVICE_POINT_NOT_FOUND: "This verification QR code is no longer valid.",
+  VERIFICATION_REQUEST_NOT_FOUND: "This verification request is no longer available.",
+  VERIFICATION_RESULT_EXPIRED: "This verification result is no longer available. Start a new verification.",
+  VERIFICATION_SERVICE_POINT_BUSY: "This service point is busy. Wait a moment and scan again.",
+  VERIFICATION_SESSION_EXPIRED: "This checkout verification link expired. Return to the checkout for a new link.",
+  VERIFICATION_SESSION_NOT_FOUND: "This checkout verification link is no longer valid.",
+  VERIFICATION_SESSION_REUSED: "This checkout verification link has already been used.",
+  VERIFIER_NOT_CONFIGURED: "Verification is temporarily unavailable at this service point.",
+};
+
 export function verificationFailureMessage(code: VerificationFailureCode) {
-  return FAILURE_MESSAGES[code];
+  return FAILURE_MESSAGES[code] ?? "The verifier could not complete this verification.";
+}
+
+export function verificationRequestErrorMessage(error: unknown) {
+  if (!(error instanceof ApiClientError)) return "Verification could not be completed. Try again.";
+  if (error.code && REQUEST_ERROR_MESSAGES[error.code]) return REQUEST_ERROR_MESSAGES[error.code];
+  if (error.kind === "timeout") return "Verification timed out. Check your connection and try again.";
+  if (error.kind === "network") return "The verification service is unavailable. Check your connection and try again.";
+  if (error.kind === "cancelled") return "Verification was cancelled.";
+  return "Verification could not be completed. Try again or request a new verification link.";
 }
 
 export function startVerificationSession(
@@ -53,6 +77,18 @@ export function startVerificationSession(
   return apiClient.post<StartVerificationSessionResult>(
     "/api/wallet/verification/sessions",
     { publicServicePointId, clientRequestId },
+    { signal, timeoutMs: 10_000 },
+  );
+}
+
+export function claimCheckoutVerificationSession(
+  verificationRequestId: string,
+  claimToken: string,
+  signal?: AbortSignal,
+) {
+  return apiClient.post<StartVerificationSessionResult>(
+    `/api/wallet/verification/sessions/${encodeURIComponent(verificationRequestId)}/claim`,
+    { claimToken },
     { signal, timeoutMs: 10_000 },
   );
 }

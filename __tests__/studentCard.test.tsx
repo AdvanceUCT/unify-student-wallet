@@ -3,6 +3,27 @@ import { render } from "@testing-library/react-native";
 import { StudentCard } from "@/src/components/StudentCard";
 
 describe("StudentCard", () => {
+  it("shows the issuing university and credential validity dates", () => {
+    const screen = render(
+      <StudentCard
+        credential={{
+          credentialAttributes: [
+            { name: "institution", value: "University of Cape Town" },
+            { name: "issuedAt", value: "2026-04-27T10:00:00.000Z" },
+            { name: "expiresAt", value: "2027-04-27T10:00:00.000Z" },
+          ],
+          connectionLabel: "Generic Issuer Connection",
+          id: "credential-validity",
+        }}
+        width={320}
+      />,
+    );
+
+    expect(screen.getByText("UNIVERSITY OF CAPE TOWN")).toBeTruthy();
+    expect(screen.getByText("2026-04-27")).toBeTruthy();
+    expect(screen.getByText("2027-04-27")).toBeTruthy();
+  });
+
   it("truncates long issuer and identifier values instead of letting them overflow", () => {
     const screen = render(
       <StudentCard

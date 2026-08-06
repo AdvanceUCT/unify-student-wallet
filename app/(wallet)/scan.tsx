@@ -11,7 +11,12 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { parseQrPayload, parseVerificationLink, type QrPayload } from "@/src/lib/validation/qrPayload";
+import {
+  parseCheckoutVerificationLink,
+  parseQrPayload,
+  parseVerificationLink,
+  type QrPayload,
+} from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
@@ -54,6 +59,20 @@ export default function ScanScreen() {
 
       setActionResult("Reviewing offer…");
       router.push("/(wallet)/offers");
+      return;
+    }
+
+    const checkoutVerificationLink = parseCheckoutVerificationLink(rawPayload);
+    if (checkoutVerificationLink.ok) {
+      setScanError(null);
+      setScanResult(null);
+      router.push({
+        pathname: "/verify/checkout/[verificationRequestId]",
+        params: {
+          verificationRequestId: checkoutVerificationLink.verificationRequestId,
+          token: checkoutVerificationLink.claimToken,
+        },
+      });
       return;
     }
 
