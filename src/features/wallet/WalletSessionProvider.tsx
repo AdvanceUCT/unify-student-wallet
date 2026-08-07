@@ -4,6 +4,10 @@ import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import {
+  upsertVerificationHistory,
+  type VerificationHistoryItem,
+} from "@/src/features/verification/history";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
@@ -52,6 +56,7 @@ type WalletSessionContextValue = {
   pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   processIncomingLink: (url: string) => Promise<ActionResult>;
+  recordVerificationHistory: (entry: VerificationHistoryItem) => Promise<void>;
   restoreWallet: (path: string, recoveryPassword: string) => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
@@ -61,6 +66,7 @@ type WalletSessionContextValue = {
   stashedActivationUrl?: string;
   unlockWithBiometric: () => Promise<ActionResult>;
   unlockWithPin: (pin: string) => Promise<ActionResult>;
+  verificationHistory: VerificationHistoryItem[];
 };
 
 const WalletSessionContext = createContext<WalletSessionContextValue | null>(null);
@@ -72,6 +78,7 @@ const initialState: WalletProviderState = {
   failedAttempts: 0,
   isHydrated: false,
   session: signedOutSession,
+  verificationHistory: [],
 };
 
 async function canUseBiometricUnlock() {
@@ -170,6 +177,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingCheckoutVerification")
         ? { pendingCheckoutVerification: stateRef.current.pendingCheckoutVerification }
         : {}),
+      ...(!Object.prototype.hasOwnProperty.call(nextState, "verificationHistory")
+        ? { verificationHistory: stateRef.current.verificationHistory }
+        : {}),
     };
     stateRef.current = { ...stateRef.current, ...mergedState };
     setState((current) => ({ ...current, ...mergedState }));
@@ -187,6 +197,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: publicServicePointId,
       session: current.session,
+      verificationHistory: current.verificationHistory,
     };
     stateRef.current = { ...current, ...nextState };
     setState((value) => ({ ...value, ...nextState }));
@@ -204,6 +215,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pendingCheckoutVerification: request,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: current.session,
+      verificationHistory: current.verificationHistory,
     };
     stateRef.current = { ...current, ...nextState };
     setState((value) => ({ ...value, ...nextState }));
@@ -251,6 +263,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         ...current.session,
         pendingOfferIds: [...current.session.pendingOfferIds, credentialRecordId],
       },
+      verificationHistory: current.verificationHistory,
     };
 
     stateRef.current = { ...stateRef.current, ...next };
@@ -277,6 +290,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         ...current.session,
         pendingOfferIds: current.session.pendingOfferIds.filter((id) => id !== credentialRecordId),
       },
+      verificationHistory: current.verificationHistory,
     };
 
     stateRef.current = { ...stateRef.current, ...next };
@@ -419,6 +433,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           pendingOfferIds: current.session.pendingOfferIds,
           walletId,
         },
+        verificationHistory: current.verificationHistory,
       };
 
       await persistState(nextState);
@@ -456,6 +471,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
             pendingOfferIds: [],
             walletId,
           },
+          verificationHistory: [],
         });
         return { ok: true };
       } catch (error) {
@@ -518,6 +534,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           pinHash: state.pinHash,
           pinSalt: state.pinSalt,
           session: state.session,
+          verificationHistory: state.verificationHistory,
         });
 
         if (isSessionHardLocked(nextAttempts)) {
@@ -549,6 +566,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         pinHash: state.pinHash,
         pinSalt: state.pinSalt,
         session: { ...state.session, lockStatus: "unlocked" },
+        verificationHistory: state.verificationHistory,
       });
 
       return { ok: true };
@@ -586,6 +604,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinHash: state.pinHash,
       pinSalt: state.pinSalt,
       session: { ...state.session, lockStatus: "unlocked" },
+      verificationHistory: state.verificationHistory,
     });
 
     return { ok: true };
@@ -636,6 +655,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           pinHash: state.pinHash,
           pinSalt: state.pinSalt,
           session: state.session,
+          verificationHistory: state.verificationHistory,
         });
 
         return { ok: true };
@@ -663,6 +683,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         pinHash: state.pinHash,
         pinSalt: state.pinSalt,
         session: state.session,
+        verificationHistory: state.verificationHistory,
       });
 
       return { ok: true };
@@ -694,6 +715,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           pinHash: state.pinHash,
           pinSalt: state.pinSalt,
           session: state.session,
+          verificationHistory: state.verificationHistory,
         });
 
         const remaining = MAX_CHANGE_PIN_ATTEMPTS - nextAttempts;
@@ -733,6 +755,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         pinHash: newHash,
         pinSalt: newSalt,
         session: state.session,
+        verificationHistory: state.verificationHistory,
       });
 
       return { ok: true };
@@ -748,8 +771,28 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinHash: state.pinHash,
       pinSalt: state.pinSalt,
       session: { ...state.session, lockStatus: "locked" },
+      verificationHistory: state.verificationHistory,
     });
   }, [persistState, state]);
+
+  const recordVerificationHistory = useCallback(async (entry: VerificationHistoryItem) => {
+    const current = stateRef.current;
+    const nextState: PersistedWalletSessionState = {
+      biometricEnabled: current.biometricEnabled,
+      changePinAttempts: current.changePinAttempts,
+      failedAttempts: current.failedAttempts,
+      pinHash: current.pinHash,
+      pinSalt: current.pinSalt,
+      pendingCheckoutVerification: current.pendingCheckoutVerification,
+      pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
+      session: current.session,
+      verificationHistory: upsertVerificationHistory(current.verificationHistory, entry),
+    };
+
+    stateRef.current = { ...current, ...nextState };
+    setState((value) => ({ ...value, ...nextState }));
+    await saveWalletSessionState(nextState);
+  }, []);
 
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
@@ -763,6 +806,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinSalt: undefined,
       session: signedOutSession,
       stashedActivationUrl: undefined,
+      verificationHistory: [],
     }));
   }, [resetAgent]);
 
@@ -784,6 +828,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pendingCheckoutVerification: state.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: state.pendingVerificationPublicServicePointId,
       processIncomingLink,
+      recordVerificationHistory,
       restoreWallet,
       session: state.session,
       setBiometricEnabled,
@@ -793,6 +838,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       stashedActivationUrl: state.stashedActivationUrl,
       unlockWithBiometric,
       unlockWithPin,
+      verificationHistory: state.verificationHistory,
     }),
     [
       acceptOffer,
@@ -802,6 +848,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       declineOffer,
       lockWallet,
       processIncomingLink,
+      recordVerificationHistory,
       restoreWallet,
       setBiometricEnabled,
       setPendingCheckoutVerification,

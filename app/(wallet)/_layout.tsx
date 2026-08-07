@@ -76,6 +76,7 @@ export default function WalletLayout() {
         name="offers"
         options={{ title: "Offers", tabBarIcon: tabIcon(MailIcon), tabBarBadge: offersBadge }}
       />
+      <Tabs.Screen name="activity" options={{ href: null }} />
       <Tabs.Screen name="payments" options={{ title: "Pay", tabBarIcon: tabIcon(ReceiptIcon) }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon(SettingsIcon) }} />
       <Tabs.Screen name="backup" options={{ href: null }} />

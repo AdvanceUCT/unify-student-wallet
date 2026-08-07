@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "@/app/(wallet)/home";
+import ActivityScreen from "@/app/(wallet)/activity";
 import ScanScreen from "@/app/(wallet)/scan";
 import SettingsScreen from "@/app/(wallet)/settings";
 
@@ -32,6 +33,7 @@ const mockWalletSession = {
   lockWallet: jest.fn(),
   pendingOfferIds: [] as string[],
   processIncomingLink: mockProcessIncomingLink,
+  recordVerificationHistory: jest.fn(),
   session: {
     authStatus: "signedIn" as const,
     lockStatus: "unlocked" as const,
@@ -40,6 +42,17 @@ const mockWalletSession = {
   },
   setBiometricEnabled: jest.fn().mockResolvedValue({ ok: true }),
   signOut: jest.fn(),
+  verificationHistory: [] as Array<{
+    verificationRequestId: string;
+    kind: "servicePoint" | "checkout";
+    vendorName: string;
+    servicePointName: string;
+    status: "Approved" | "Declined" | "Expired" | "Failed";
+    failureCode?: "CREDENTIAL_NOT_CURRENT";
+    expiresAt: string;
+    completedAt?: string;
+    recordedAt: string;
+  }>,
 };
 
 jest.mock("@tanstack/react-query", () => ({
@@ -72,6 +85,7 @@ describe("wallet screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWalletSession.pendingOfferIds = [];
+    mockWalletSession.verificationHistory = [];
   });
 
   it("shows the wallet masthead on the home screen", () => {
@@ -91,6 +105,58 @@ describe("wallet screens", () => {
 
     expect(screen.getByText("2 credential offers are waiting.")).toBeTruthy();
     expect(screen.getByText("Review offers")).toBeTruthy();
+  });
+
+  it("shows recent verification history on the home screen", () => {
+    mockWalletSession.verificationHistory = [
+      {
+        verificationRequestId: "verification-001",
+        kind: "servicePoint",
+        vendorName: "Campus Clinic",
+        servicePointName: "Main desk",
+        status: "Approved",
+        expiresAt: "2026-06-23T10:05:00.000Z",
+        completedAt: "2026-06-23T10:01:00.000Z",
+        recordedAt: "2026-06-23T10:01:01.000Z",
+      },
+    ];
+
+    const screen = render(<HomeScreen />);
+
+    expect(screen.getByText("Campus Clinic")).toBeTruthy();
+    expect(screen.getByText("Main desk")).toBeTruthy();
+    expect(screen.getByText("Approved")).toBeTruthy();
+    expect(screen.getByText("View all")).toBeTruthy();
+  });
+
+  it("shows the full verification activity list", () => {
+    mockWalletSession.verificationHistory = [
+      {
+        verificationRequestId: "verification-001",
+        kind: "checkout",
+        vendorName: "Campus Store",
+        servicePointName: "Online checkout",
+        status: "Declined",
+        failureCode: "CREDENTIAL_NOT_CURRENT",
+        expiresAt: "2026-06-23T10:05:00.000Z",
+        completedAt: "2026-06-23T10:01:00.000Z",
+        recordedAt: "2026-06-23T10:01:01.000Z",
+      },
+    ];
+
+    const screen = render(<ActivityScreen />);
+
+    expect(screen.getByText("Wallet activity")).toBeTruthy();
+    expect(screen.getByText("Campus Store")).toBeTruthy();
+    expect(screen.getByText("Online checkout")).toBeTruthy();
+    expect(screen.getByText("Declined")).toBeTruthy();
+  });
+
+  it("shows the empty activity state", () => {
+    const screen = render(<ActivityScreen />);
+
+    expect(screen.getByText("No verification history")).toBeTruthy();
+    expect(screen.getByText("Scan service QR")).toBeTruthy();
   });
 
   it("prompts the user to enable camera permission on the scan screen", () => {

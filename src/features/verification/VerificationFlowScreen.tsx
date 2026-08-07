@@ -15,6 +15,7 @@ import {
   type VerificationProofSelection,
 } from "@/src/features/wallet/holderAgent";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
+import { isVerificationHistoryStatus } from "@/src/features/verification/history";
 import { ApiClientError } from "@/src/lib/api/apiClient";
 import {
   claimCheckoutVerificationSession,
@@ -72,6 +73,7 @@ function resultMessage(result: VerificationResult) {
 
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
   const {
+    recordVerificationHistory,
     session,
     setPendingCheckoutVerification,
     setPendingVerificationPublicServicePointId,
@@ -165,12 +167,39 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         controller.signal,
       );
       if (controller.signal.aborted) return;
+      if (isVerificationHistoryStatus(authoritativeResult.status)) {
+        await recordVerificationHistory({
+          verificationRequestId: sessionInfo.verificationRequestId,
+          kind: target.kind,
+          vendorName: sessionInfo.vendorName,
+          servicePointName: sessionInfo.servicePointName,
+          status: authoritativeResult.status,
+          ...(authoritativeResult.failureCode ? { failureCode: authoritativeResult.failureCode } : {}),
+          expiresAt: authoritativeResult.expiresAt,
+          ...(authoritativeResult.completedAt ? { completedAt: authoritativeResult.completedAt } : {}),
+          recordedAt: new Date().toISOString(),
+        }).catch((historyError) => {
+          console.error("[verification-history] Unable to save verification result.", historyError);
+        });
+      }
       setResult(authoritativeResult);
       setPhase("result");
     } catch (caught) {
       if (controller.signal.aborted) return;
       if (caught instanceof ApiClientError && caught.status === 410) {
-        setResult({ status: "Expired", expiresAt: sessionInfo.expiresAt });
+        const expiredResult = { status: "Expired" as const, expiresAt: sessionInfo.expiresAt };
+        await recordVerificationHistory({
+          verificationRequestId: sessionInfo.verificationRequestId,
+          kind: target.kind,
+          vendorName: sessionInfo.vendorName,
+          servicePointName: sessionInfo.servicePointName,
+          status: "Expired",
+          expiresAt: sessionInfo.expiresAt,
+          recordedAt: new Date().toISOString(),
+        }).catch((historyError) => {
+          console.error("[verification-history] Unable to save expired verification result.", historyError);
+        });
+        setResult(expiredResult);
         setPhase("result");
         return;
       }
