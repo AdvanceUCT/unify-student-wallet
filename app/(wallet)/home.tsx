@@ -11,6 +11,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
 import { Tag } from "@/src/components/Tag";
+import { VerificationHistoryList } from "@/src/features/verification/VerificationHistoryList";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { getStudentCredential } from "@/src/lib/api/client";
@@ -27,7 +28,7 @@ function truncate(value: string, head = 6, tail = 4) {
 }
 
 export default function HomeScreen() {
-  const { pendingOfferIds, session } = useWalletSession();
+  const { pendingOfferIds, session, verificationHistory } = useWalletSession();
   const holderAgent = useHolderAgent();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
@@ -42,6 +43,7 @@ export default function HomeScreen() {
   const credential = credentialQuery.data;
   const hasCredential = Boolean(credential);
   const pendingCount = pendingOfferIds.length;
+  const recentVerificationHistory = verificationHistory.slice(0, 3);
 
   return (
     <AppScreen>
@@ -116,11 +118,20 @@ export default function HomeScreen() {
 
         <View style={{ gap: spacing.md }}>
           <Text style={typography.heading}>Activity</Text>
-          <EmptyState
-            icon={ActivityIcon}
-            eyebrow="No activity"
-            body="Payments and verification events will appear here once your wallet is in use."
-          />
+          {recentVerificationHistory.length === 0 ? (
+            <EmptyState
+              icon={ActivityIcon}
+              eyebrow="No activity"
+              body="Verification events will appear here after you present your credential."
+            />
+          ) : (
+            <View style={{ gap: spacing.md }}>
+              <VerificationHistoryList items={recentVerificationHistory} />
+              <View>
+                <AppButton label="View all" href="/(wallet)/activity" variant="ghost" />
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={{ gap: spacing.md }}>

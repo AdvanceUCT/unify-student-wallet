@@ -1,4 +1,5 @@
 import { ApiClientError, apiClient } from "@/src/lib/api/apiClient";
+import { createAbortError } from "@/src/lib/abortError";
 
 export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired" | "Failed";
 export type VerificationFailureCode =
@@ -109,7 +110,7 @@ function wait(ms: number, signal?: AbortSignal) {
     const timeout = setTimeout(resolve, ms);
     const cancel = () => {
       clearTimeout(timeout);
-      reject(new DOMException("The request was cancelled.", "AbortError"));
+      reject(createAbortError("The request was cancelled."));
     };
     signal?.addEventListener("abort", cancel, { once: true });
   });
@@ -126,5 +127,5 @@ export async function pollVerificationResult(
     await wait(1_000, signal);
   }
 
-  throw new DOMException("The request was cancelled.", "AbortError");
+  throw createAbortError("The request was cancelled.");
 }

@@ -1,3 +1,5 @@
+import type { VerificationHistoryItem } from "@/src/features/verification/history";
+
 export type WalletAuthStatus = "signedOut" | "signedIn";
 export type WalletLockStatus = "locked" | "unlocked";
 
@@ -22,6 +24,7 @@ export type PersistedWalletSessionState = {
   pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   session: WalletSession;
+  verificationHistory: VerificationHistoryItem[];
 };
 
 export const MAX_PIN_ATTEMPTS = 5;

@@ -1,4 +1,5 @@
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
+import { parseVerificationHistory } from "@/src/features/verification/history";
 
 import { type PersistedWalletSessionState, signedOutSession } from "./sessionTypes";
 
@@ -10,7 +11,13 @@ export function serializeWalletSessionState(state: PersistedWalletSessionState) 
 
 export function parseWalletSessionState(rawValue: string | null): PersistedWalletSessionState {
   if (!rawValue) {
-    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
+    return {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      session: signedOutSession,
+      verificationHistory: [],
+    };
   }
 
   try {
@@ -37,9 +44,16 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
         pendingOfferIds: Array.isArray(parsed.session?.pendingOfferIds) ? parsed.session.pendingOfferIds : [],
         walletId: parsed.session?.walletId,
       },
+      verificationHistory: parseVerificationHistory(parsed.verificationHistory),
     };
   } catch {
-    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
+    return {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      session: signedOutSession,
+      verificationHistory: [],
+    };
   }
 }
 
