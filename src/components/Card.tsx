@@ -23,7 +23,7 @@ export function Card({
   trailing,
   surface = "white",
   padded = true,
-  elevation = "sm",
+  elevation = "none",
   style,
   children,
 }: CardProps) {
@@ -33,7 +33,9 @@ export function Card({
     <View
       style={{
         backgroundColor,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
+        borderWidth: elevation === "none" ? 1 : 0,
+        borderColor: colors.rule,
         padding: padded ? spacing.lg : 0,
         ...shadows[elevation],
         ...style,

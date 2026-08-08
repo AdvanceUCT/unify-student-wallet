@@ -1,83 +1,70 @@
 import { Tabs } from "expo-router";
-import {
-  Home as HomeIcon,
-  IdCard as IdCardIcon,
-  Mail as MailIcon,
-  QrCode as QrCodeIcon,
-  Receipt as ReceiptIcon,
-  Settings as SettingsIcon,
-  type LucideIcon,
-} from "lucide-react-native";
-import { Platform, View } from "react-native";
+import { Activity, Home, IdCard, ScanLine, type LucideIcon } from "lucide-react-native";
+import { Platform, useWindowDimensions, View } from "react-native";
 
-import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
+import { typography } from "@/src/theme/typography";
 
-function tabIcon(Icon: LucideIcon) {
+function tabIcon(Icon: LucideIcon, emphasized = false) {
   return function TabIconRenderer({ color, focused, size }: { color: string; focused: boolean; size: number }) {
-    return (
-      <View style={{ alignItems: "center", justifyContent: "center", gap: 4 }}>
-        <Icon color={color} size={size} strokeWidth={focused ? 2 : 1.5} />
+    if (emphasized) {
+      return (
         <View
           style={{
-            width: 4,
-            height: 4,
+            width: 52,
+            height: 52,
             borderRadius: radii.pill,
-            backgroundColor: focused ? colors.primary : "transparent",
+            backgroundColor: focused ? colors.primaryDeep : colors.ink,
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: -14,
+            borderWidth: 4,
+            borderColor: colors.background,
           }}
-        />
-      </View>
-    );
+        >
+          <Icon color={colors.white} size={24} strokeWidth={1.9} />
+        </View>
+      );
+    }
+
+    return <Icon color={color} size={size} strokeWidth={focused ? 2.1 : 1.6} />;
   };
 }
 
 export default function WalletLayout() {
-  const { pendingOfferIds } = useWalletSession();
-  // Keep the offer count in the tab bar so students know there is something to review.
-  const offersBadge = pendingOfferIds.length > 0 ? String(pendingOfferIds.length) : undefined;
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
   return (
     <Tabs
       screenOptions={{
+        animation: "shift",
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.inkSubtle,
-        tabBarShowLabel: false,
-        tabBarItemStyle: { paddingTop: 8 },
+        tabBarLabelStyle: { ...typography.caption, fontFamily: "IBMPlexSans_600SemiBold", fontSize: 11 },
+        tabBarPosition: isWide ? "left" : "bottom",
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopWidth: 0,
-          borderTopLeftRadius: radii.lg,
-          borderTopRightRadius: radii.lg,
-          height: 78,
-          ...Platform.select({
-            ios: {
-              shadowColor: "#0F1411",
-              shadowOpacity: 0.08,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: -4 },
-            },
-            android: { elevation: 8 },
-            default: {},
-          }),
+          borderColor: colors.rule,
+          borderTopWidth: isWide ? 0 : 1,
+          borderRightWidth: isWide ? 1 : 0,
+          height: isWide ? undefined : 76,
+          width: isWide ? 92 : undefined,
+          paddingTop: isWide ? 24 : 8,
+          paddingBottom: isWide ? 24 : Platform.OS === "ios" ? 18 : 8,
         },
-        tabBarBadgeStyle: {
-          backgroundColor: colors.primary,
-          color: colors.surface,
-          fontSize: 11,
-        },
+        tabBarItemStyle: { minHeight: 56 },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(HomeIcon) }} />
-      <Tabs.Screen name="credential" options={{ title: "ID", tabBarIcon: tabIcon(IdCardIcon) }} />
-      <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(QrCodeIcon) }} />
-      <Tabs.Screen
-        name="offers"
-        options={{ title: "Offers", tabBarIcon: tabIcon(MailIcon), tabBarBadge: offersBadge }}
-      />
-      <Tabs.Screen name="payments" options={{ title: "Pay", tabBarIcon: tabIcon(ReceiptIcon) }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon(SettingsIcon) }} />
+      <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(Home) }} />
+      <Tabs.Screen name="credential" options={{ title: "ID", tabBarIcon: tabIcon(IdCard) }} />
+      <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(ScanLine, true) }} />
+      <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: tabIcon(Activity) }} />
+      <Tabs.Screen name="offers" options={{ href: null }} />
+      <Tabs.Screen name="payments" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="backup" options={{ href: null }} />
     </Tabs>
   );

@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useFonts as useSansFonts, IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold } from "@expo-google-fonts/ibm-plex-sans";
+import { useFonts as useMonoFonts, IBMPlexMono_500Medium } from "@expo-google-fonts/ibm-plex-mono";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
+import { useColorScheme } from "react-native";
 
 import { AutoLockProvider } from "@/src/features/wallet/AutoLockProvider";
 import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
@@ -10,6 +13,17 @@ import { colors } from "@/src/theme/colors";
 
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
+  const scheme = useColorScheme();
+  const [sansLoaded, sansError] = useSansFonts({
+    IBMPlexSans_400Regular,
+    IBMPlexSans_500Medium,
+    IBMPlexSans_600SemiBold,
+    IBMPlexSans_700Bold,
+  });
+  const [monoLoaded, monoError] = useMonoFonts({ IBMPlexMono_500Medium });
+
+  const fontsReady = process.env.NODE_ENV === "test" || ((sansLoaded || Boolean(sansError)) && (monoLoaded || Boolean(monoError)));
+  if (!fontsReady) return null;
 
   // Provider order matters: routing needs the agent and session ready above it.
   return (
@@ -18,7 +32,7 @@ export default function RootLayout() {
         <WalletSessionProvider>
           <AutoLockProvider>
             <WalletRouteGate>
-              <StatusBar style="dark" backgroundColor={colors.background} />
+              <StatusBar style={scheme === "dark" ? "light" : "dark"} backgroundColor={colors.background} />
               <Stack
                 screenOptions={{
                   headerShown: false,

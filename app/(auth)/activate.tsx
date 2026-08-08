@@ -1,27 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Check as CheckIcon, AlertCircle as AlertIcon } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
 
-import { AppButton } from "@/src/components/AppButton";
-import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
-import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { colors } from "@/src/theme/colors";
-import { radii } from "@/src/theme/radii";
-import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type Stage = "idle" | "resolving" | "awaitingOffer" | "redirecting" | "error";
 
 const AWAIT_OFFER_TIMEOUT_MS = 30_000;
-
-const STAGE_STEPS: { key: Exclude<Stage, "idle" | "error">; label: string }[] = [
-  { key: "resolving", label: "Resolving activation link" },
-  { key: "awaitingOffer", label: "Receiving credential offer" },
-  { key: "redirecting", label: "Opening credential" },
-];
 
 function firstParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
@@ -49,7 +34,7 @@ function activationUrlFromParams(params: { oob?: string | string[]; token?: stri
 }
 
 export default function ActivateScreen() {
-  const { isHydrated, pendingOfferIds, processIncomingLink } = useWalletSession();
+  const { isHydrated, onboardingCompleted, pendingOfferIds, processIncomingLink, session } = useWalletSession();
   const params = useLocalSearchParams<{ oob?: string | string[]; token?: string | string[] }>();
   const routeActivationUrl = useMemo(() => activationUrlFromParams(params), [params]);
   const processedActivationUrlRef = useRef<string | null>(null);
@@ -91,13 +76,13 @@ export default function ActivateScreen() {
 
       if (result.activationTarget === "stashed") {
         setStage("redirecting");
-        router.replace("/(auth)/set-pin");
+        router.replace(session.walletId && !onboardingCompleted ? "/(auth)/onboarding" : "/(auth)/set-pin");
         return;
       }
 
       setStage("awaitingOffer");
     })();
-  }, [isHydrated, pendingOfferIds.length, processIncomingLink, retryToken, routeActivationUrl]);
+  }, [isHydrated, onboardingCompleted, pendingOfferIds.length, processIncomingLink, retryToken, routeActivationUrl, session.walletId]);
 
   useEffect(() => {
     if (stage !== "awaitingOffer") {
@@ -132,102 +117,14 @@ export default function ActivateScreen() {
     setRetryToken((value) => value + 1);
   }
 
-  const stageIndex = STAGE_STEPS.findIndex((s) => s.key === stage);
+  if (!routeActivationUrl) return <OperationStateScreen tone="warning" eyebrow="Credential activation" title="Activation link missing" message="Open the secure activation link sent by your institution to receive a credential." primaryAction={{ label: "Back", onPress: () => router.back() }} />;
+  if (stage === "error" && error) return <OperationStateScreen tone="warning" eyebrow="Credential activation" title="Credential could not be received" message={error} primaryAction={{ label: "Try again", onPress: handleRetry }} secondaryAction={{ label: "Cancel", onPress: () => router.back() }} />;
 
-  return (
-    <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader
-          eyebrow="Activation"
-          title="Connecting credential."
-          meta={routeActivationUrl ? "Hold on — this only takes a moment." : "Open an activation link to begin."}
-        />
+  const stateCopy = stage === "awaitingOffer"
+    ? { title: "Receiving credential offer", message: "The secure connection is ready. Waiting for your institution to send the credential details." }
+    : stage === "redirecting"
+      ? { title: "Opening credential", message: "The offer arrived and is ready for your review." }
+      : { title: "Connecting to your institution", message: "Validating the activation link and opening a secure credential connection." };
 
-        {!isHydrated ? (
-          <Card>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={typography.body}>Loading wallet session…</Text>
-            </View>
-          </Card>
-        ) : null}
-
-        {isHydrated && !routeActivationUrl ? (
-          <Card>
-            <Text style={typography.bodyLg}>
-              Open the activation link from your university to receive your credential.
-            </Text>
-          </Card>
-        ) : null}
-
-        {isHydrated && routeActivationUrl && stage !== "error" ? (
-          <Card>
-            <View style={{ gap: spacing.md }}>
-              {STAGE_STEPS.map((entry, index) => {
-                const isActive = index === stageIndex;
-                const isDone = stageIndex > index;
-                const isPending = stageIndex < index;
-
-                return (
-                  <View
-                    key={entry.key}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: spacing.md,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: radii.pill,
-                        backgroundColor: isDone
-                          ? colors.primary
-                          : isActive
-                            ? colors.primarySoft
-                            : colors.surfaceAlt,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {isDone ? (
-                        <CheckIcon color={colors.surface} size={16} strokeWidth={2.5} />
-                      ) : isActive ? (
-                        <ActivityIndicator color={colors.primary} size="small" />
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        typography.bodyStrong,
-                        {
-                          color: isPending ? colors.inkSubtle : colors.ink,
-                          flex: 1,
-                        },
-                      ]}
-                    >
-                      {entry.label}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          </Card>
-        ) : null}
-
-        {stage === "error" && error ? (
-          <Card>
-            <View style={{ gap: spacing.md }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                <AlertIcon color={colors.error} size={20} strokeWidth={1.8} />
-                <Text style={[typography.bodyStrong, { color: colors.error }]}>Activation failed</Text>
-              </View>
-              <Text style={typography.body}>{error}</Text>
-              <AppButton label="Try again" onPress={handleRetry} size="lg" />
-            </View>
-          </Card>
-        ) : null}
-      </View>
-    </AppScreen>
-  );
+  return <OperationStateScreen tone="loading" eyebrow="Credential activation" title={stateCopy.title} message={stateCopy.message} detail="No credential is accepted without your review." />;
 }

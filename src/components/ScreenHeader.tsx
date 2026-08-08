@@ -24,7 +24,7 @@ export function ScreenHeader({ eyebrow, title, meta, variant = "title", trailing
         marginBottom: spacing.xl,
       }}
     >
-      <View style={{ flex: 1, gap: spacing.xs }}>
+      <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
         {eyebrow ? <Text style={typography.caption}>{eyebrow}</Text> : null}
         <Text style={titleStyle}>{title}</Text>
         {meta ? <Text style={typography.body}>{meta}</Text> : null}

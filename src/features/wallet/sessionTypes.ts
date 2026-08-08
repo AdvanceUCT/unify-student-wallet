@@ -1,10 +1,17 @@
 export type WalletAuthStatus = "signedOut" | "signedIn";
 export type WalletLockStatus = "locked" | "unlocked";
+export type FirstRunSetupStatus = "idle" | "preparing" | "creating" | "ready" | "error";
 
 export type PendingCheckoutVerification = {
   verificationRequestId: string;
   claimToken: string;
 };
+
+export type PendingFlowKind = "checkout" | "servicePoint" | "activation" | "offer" | "home";
+
+export type PendingFlowContinuation =
+  | { ok: true; kind: PendingFlowKind; href: string }
+  | { ok: false; kind: Exclude<PendingFlowKind, "home">; error: string };
 
 export type WalletSession = {
   authStatus: WalletAuthStatus;
@@ -17,8 +24,10 @@ export type PersistedWalletSessionState = {
   biometricEnabled: boolean;
   changePinAttempts: number;
   failedAttempts: number;
+  onboardingCompleted: boolean;
   pinHash?: string;
   pinSalt?: string;
+  pendingActivationUrl?: string;
   pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   session: WalletSession;

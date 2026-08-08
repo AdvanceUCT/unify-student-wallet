@@ -3,6 +3,7 @@ import * as Linking from "expo-linking";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
@@ -17,7 +18,10 @@ import {
   isSessionHardLocked,
   MAX_CHANGE_PIN_ATTEMPTS,
   MAX_PIN_ATTEMPTS,
+  type FirstRunSetupStatus,
   type PendingCheckoutVerification,
+  type PendingFlowContinuation,
+  type PendingFlowKind,
   type PersistedWalletSessionState,
   signedOutSession,
   type WalletSession,
@@ -32,7 +36,12 @@ type BiometricToggleResult =
 type WalletProviderState = PersistedWalletSessionState & {
   biometricAvailable: boolean;
   isHydrated: boolean;
-  stashedActivationUrl?: string;
+};
+
+type FirstRunSetupDraft = {
+  pinHash: string;
+  pinSalt: string;
+  walletId?: string;
 };
 
 type WalletSessionContextValue = {
@@ -44,21 +53,30 @@ type WalletSessionContextValue = {
   createWallet: (pin: string, confirmation: string) => Promise<ActionResult>;
   declineOffer: (credentialRecordId: string) => Promise<ActionResult>;
   failedAttempts: number;
+  firstRunSetupError?: string;
+  firstRunSetupStatus: FirstRunSetupStatus;
   hasPin: boolean;
   isHardLocked: boolean;
   isHydrated: boolean;
   lockWallet: () => Promise<void>;
+  onboardingCompleted: boolean;
+  pendingActivationUrl?: string;
   pendingOfferIds: string[];
   pendingCheckoutVerification?: PendingCheckoutVerification;
   pendingVerificationPublicServicePointId?: string;
   processIncomingLink: (url: string) => Promise<ActionResult>;
+  completeOnboarding: () => Promise<void>;
+  continuePendingFlow: () => Promise<PendingFlowContinuation>;
+  clearPendingFlow: (kind: Exclude<PendingFlowKind, "home">) => Promise<void>;
   restoreWallet: (path: string, recoveryPassword: string) => Promise<ActionResult>;
+  resetFirstRunSetup: () => Promise<void>;
+  retryFirstRunSetup: () => Promise<ActionResult>;
   session: WalletSession;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricToggleResult>;
   setPendingCheckoutVerification: (request?: PendingCheckoutVerification) => Promise<void>;
   setPendingVerificationPublicServicePointId: (publicServicePointId?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  stashedActivationUrl?: string;
+  startFirstRunSetup: (pin: string, confirmation: string) => ActionResult;
   unlockWithBiometric: () => Promise<ActionResult>;
   unlockWithPin: (pin: string) => Promise<ActionResult>;
 };
@@ -71,6 +89,7 @@ const initialState: WalletProviderState = {
   changePinAttempts: 0,
   failedAttempts: 0,
   isHydrated: false,
+  onboardingCompleted: true,
   session: signedOutSession,
 };
 
@@ -111,9 +130,15 @@ function isStoredCredential(record: { state?: string }) {
   return record.state === "credential-received" || record.state === "done";
 }
 
+function persistedStateFromProvider(state: WalletProviderState): PersistedWalletSessionState {
+  const { biometricAvailable: _biometricAvailable, isHydrated: _isHydrated, ...persisted } = state;
+  return persisted;
+}
+
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const {
     createWallet: createHolderWallet,
+    error: holderAgentError,
     resetAgent,
     restoreWallet: restoreHolderWallet,
     resumeWallet,
@@ -121,6 +146,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
   const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
+  const firstRunSetupDraftRef = useRef<FirstRunSetupDraft | null>(null);
+  const firstRunSetupPromiseRef = useRef<Promise<ActionResult> | null>(null);
+  const [firstRunSetupStatus, setFirstRunSetupStatus] = useState<FirstRunSetupStatus>("idle");
+  const [firstRunSetupError, setFirstRunSetupError] = useState<string | undefined>();
 
   useEffect(() => {
     stateRef.current = state;
@@ -158,9 +187,13 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const persistState = useCallback(async (nextState: PersistedWalletSessionState) => {
+  const persistState = useCallback(async (
+    nextState: Omit<PersistedWalletSessionState, "onboardingCompleted"> &
+      Partial<Pick<PersistedWalletSessionState, "onboardingCompleted">>,
+  ) => {
     const mergedState: PersistedWalletSessionState = {
       ...nextState,
+      onboardingCompleted: nextState.onboardingCompleted ?? stateRef.current.onboardingCompleted,
       ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingVerificationPublicServicePointId")
         ? {
             pendingVerificationPublicServicePointId:
@@ -169,6 +202,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         : {}),
       ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingCheckoutVerification")
         ? { pendingCheckoutVerification: stateRef.current.pendingCheckoutVerification }
+        : {}),
+      ...(!Object.prototype.hasOwnProperty.call(nextState, "pendingActivationUrl")
+        ? { pendingActivationUrl: stateRef.current.pendingActivationUrl }
         : {}),
     };
     stateRef.current = { ...stateRef.current, ...mergedState };
@@ -182,8 +218,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       biometricEnabled: current.biometricEnabled,
       changePinAttempts: current.changePinAttempts,
       failedAttempts: current.failedAttempts,
+      onboardingCompleted: current.onboardingCompleted,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingActivationUrl: current.pendingActivationUrl,
       pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: publicServicePointId,
       session: current.session,
@@ -193,14 +231,124 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     await saveWalletSessionState(nextState);
   }, []);
 
+  const continueFirstRunSetup = useCallback(async (): Promise<ActionResult> => {
+    if (firstRunSetupPromiseRef.current) {
+      return firstRunSetupPromiseRef.current;
+    }
+
+    const task = (async (): Promise<ActionResult> => {
+      setFirstRunSetupError(undefined);
+      const current = stateRef.current;
+
+      try {
+        if (current.session.walletId) {
+          setFirstRunSetupStatus("creating");
+          await resumeWallet(current.session.walletId);
+          setFirstRunSetupStatus("ready");
+          return { ok: true };
+        }
+
+        const draft = firstRunSetupDraftRef.current;
+        if (!draft) {
+          const error = "Return to PIN setup to restart secure wallet creation.";
+          setFirstRunSetupError(error);
+          setFirstRunSetupStatus("error");
+          return { ok: false, error };
+        }
+
+        setFirstRunSetupStatus("creating");
+        if (!draft.walletId) {
+          const result = await createHolderWallet();
+          draft.walletId = result.walletId;
+        }
+
+        const latest = stateRef.current;
+        await persistState({
+          biometricEnabled: latest.biometricEnabled,
+          changePinAttempts: latest.changePinAttempts,
+          failedAttempts: 0,
+          onboardingCompleted: false,
+          pinHash: draft.pinHash,
+          pinSalt: draft.pinSalt,
+          pendingActivationUrl: latest.pendingActivationUrl,
+          pendingCheckoutVerification: latest.pendingCheckoutVerification,
+          pendingVerificationPublicServicePointId: latest.pendingVerificationPublicServicePointId,
+          session: {
+            authStatus: "signedIn",
+            lockStatus: "unlocked",
+            pendingOfferIds: latest.session.pendingOfferIds,
+            walletId: draft.walletId,
+          },
+        });
+
+        setFirstRunSetupStatus("ready");
+        return { ok: true };
+      } catch (error) {
+        const result = actionErrorFromUnknown(error, "Wallet could not be created.");
+        setFirstRunSetupError(result.error);
+        setFirstRunSetupStatus("error");
+        return result;
+      } finally {
+        firstRunSetupPromiseRef.current = null;
+      }
+    })();
+
+    firstRunSetupPromiseRef.current = task;
+    return task;
+  }, [createHolderWallet, persistState, resumeWallet]);
+
+  const startFirstRunSetup = useCallback((pin: string, confirmation: string): ActionResult => {
+    const validation = validatePinConfirmation(pin, confirmation);
+    if (!validation.ok) return validation;
+
+    setFirstRunSetupError(undefined);
+    setFirstRunSetupStatus("preparing");
+
+    const pinSalt = createPinSalt();
+    void hashPin(pin, pinSalt)
+      .then((pinHash) => {
+        firstRunSetupDraftRef.current = { pinHash, pinSalt };
+        return continueFirstRunSetup();
+      })
+      .catch((error: unknown) => {
+        const result = actionErrorFromUnknown(error, "PIN protection could not be prepared.");
+        setFirstRunSetupError(result.error);
+        setFirstRunSetupStatus("error");
+      });
+
+    return { ok: true };
+  }, [continueFirstRunSetup]);
+
+  const retryFirstRunSetup = useCallback(async (): Promise<ActionResult> => {
+    setFirstRunSetupError(undefined);
+    return continueFirstRunSetup();
+  }, [continueFirstRunSetup]);
+
+  const resetFirstRunSetup = useCallback(async () => {
+    firstRunSetupDraftRef.current = null;
+    firstRunSetupPromiseRef.current = null;
+    setFirstRunSetupError(undefined);
+    setFirstRunSetupStatus("idle");
+    if (!stateRef.current.session.walletId) {
+      await resetAgent();
+    }
+  }, [resetAgent]);
+
+  const setPendingActivationUrl = useCallback(async (url?: string) => {
+    const current = stateRef.current;
+    await persistState({ ...persistedStateFromProvider(current), pendingActivationUrl: url });
+  }, [persistState]);
+
   const setPendingCheckoutVerification = useCallback(async (request?: PendingCheckoutVerification) => {
     const current = stateRef.current;
     const nextState: PersistedWalletSessionState = {
       biometricEnabled: current.biometricEnabled,
       changePinAttempts: current.changePinAttempts,
       failedAttempts: current.failedAttempts,
+      onboardingCompleted: current.onboardingCompleted,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingActivationUrl: current.pendingActivationUrl,
       pendingCheckoutVerification: request,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: current.session,
@@ -243,8 +391,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       biometricEnabled: current.biometricEnabled,
       changePinAttempts: current.changePinAttempts,
       failedAttempts: current.failedAttempts,
+      onboardingCompleted: current.onboardingCompleted,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingActivationUrl: current.pendingActivationUrl,
       pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
@@ -269,8 +419,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       biometricEnabled: current.biometricEnabled,
       changePinAttempts: current.changePinAttempts,
       failedAttempts: current.failedAttempts,
+      onboardingCompleted: current.onboardingCompleted,
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
+      pendingActivationUrl: current.pendingActivationUrl,
       pendingCheckoutVerification: current.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: {
@@ -340,11 +492,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       const processActivation = (async (): Promise<ActionResult> => {
         const current = stateRef.current;
 
-        if (!current.session.walletId) {
-          // If a student opens an email link before setting up the wallet, hold
-          // the URL and replay it after PIN setup finishes.
-          stateRef.current = { ...stateRef.current, stashedActivationUrl: url };
-          setState((curr) => ({ ...curr, stashedActivationUrl: url }));
+        if (!current.session.walletId || !current.onboardingCompleted) {
+          // Links opened before first-run setup completes stay in encrypted
+          // session storage so process death cannot lose the activation.
+          await setPendingActivationUrl(url);
           return { ok: true, activationTarget: "stashed" };
         }
 
@@ -378,8 +529,72 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         activationProcessingRef.current.delete(key);
       }
     },
-    [addPendingOfferId, removePendingOfferId],
+    [addPendingOfferId, removePendingOfferId, setPendingActivationUrl],
   );
+
+  const completeOnboarding = useCallback(async () => {
+    const current = stateRef.current;
+    if (current.onboardingCompleted) return;
+    await persistState({ ...persistedStateFromProvider(current), onboardingCompleted: true });
+  }, [persistState]);
+
+  const clearPendingFlow = useCallback(
+    async (kind: Exclude<PendingFlowKind, "home">) => {
+      if (kind === "checkout") {
+        await setPendingCheckoutVerification(undefined);
+        return;
+      }
+      if (kind === "servicePoint") {
+        await setPendingVerificationPublicServicePointId(undefined);
+        return;
+      }
+      if (kind === "activation") {
+        await setPendingActivationUrl(undefined);
+      }
+      // Credential offers are wallet records and must never be destroyed by
+      // dismissing the resume screen. Students can review them later from Home.
+    },
+    [setPendingActivationUrl, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId],
+  );
+
+  const continuePendingFlow = useCallback(async (): Promise<PendingFlowContinuation> => {
+    const current = stateRef.current;
+
+    if (current.pendingCheckoutVerification) {
+      const { verificationRequestId, claimToken } = current.pendingCheckoutVerification;
+      return {
+        ok: true,
+        kind: "checkout",
+        href: `/verify/checkout/${encodeURIComponent(verificationRequestId)}?token=${encodeURIComponent(claimToken)}`,
+      };
+    }
+
+    if (current.pendingVerificationPublicServicePointId) {
+      return {
+        ok: true,
+        kind: "servicePoint",
+        href: `/verify/${encodeURIComponent(current.pendingVerificationPublicServicePointId)}`,
+      };
+    }
+
+    if (current.pendingActivationUrl) {
+      const result = await processIncomingLink(current.pendingActivationUrl);
+      if (!result.ok) return { ok: false, kind: "activation", error: result.error };
+
+      await setPendingActivationUrl(undefined);
+      return {
+        ok: true,
+        kind: "activation",
+        href: result.activationTarget === "offers" ? "/(wallet)/offers" : "/(wallet)/credential",
+      };
+    }
+
+    if (current.session.pendingOfferIds.length > 0) {
+      return { ok: true, kind: "offer", href: "/(wallet)/offers" };
+    }
+
+    return { ok: true, kind: "home", href: "/(wallet)/home" };
+  }, [processIncomingLink, setPendingActivationUrl]);
 
   const createWallet = useCallback(
     async (pin: string, confirmation: string): Promise<ActionResult> => {
@@ -392,6 +607,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       const pinSalt = createPinSalt();
       const pinHash = await hashPin(pin, pinSalt);
       const current = stateRef.current;
+      const isRestoredPinSetup = Boolean(current.session.walletId && !hasStoredPin(current));
 
       let walletId: string;
       try {
@@ -411,8 +627,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         biometricEnabled: current.biometricEnabled,
         changePinAttempts: current.changePinAttempts,
         failedAttempts: 0,
+        onboardingCompleted: isRestoredPinSetup,
         pinHash,
         pinSalt,
+        pendingActivationUrl: current.pendingActivationUrl,
+        pendingCheckoutVerification: current.pendingCheckoutVerification,
+        pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
         session: {
           authStatus: "signedIn",
           lockStatus: "unlocked",
@@ -423,17 +643,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       await persistState(nextState);
 
-      const stashedUrl = current.stashedActivationUrl;
-
-      if (stashedUrl) {
-        stateRef.current = { ...stateRef.current, stashedActivationUrl: undefined };
-        setState((curr) => ({ ...curr, stashedActivationUrl: undefined }));
-        void processIncomingLink(stashedUrl);
-      }
-
       return { ok: true };
     },
-    [createHolderWallet, persistState, processIncomingLink],
+    [createHolderWallet, persistState],
   );
 
   const restoreWallet = useCallback(
@@ -450,6 +662,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           biometricEnabled: false,
           changePinAttempts: 0,
           failedAttempts: 0,
+          onboardingCompleted: true,
+          pendingActivationUrl: current.pendingActivationUrl,
+          pendingCheckoutVerification: current.pendingCheckoutVerification,
+          pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
           session: {
             authStatus: "signedIn",
             lockStatus: "unlocked",
@@ -534,14 +750,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         };
       }
 
-      if (state.session.walletId) {
-        try {
-          await resumeWallet(state.session.walletId);
-        } catch (error) {
-          return actionErrorFromUnknown(error, "Wallet could not be resumed.");
-        }
-      }
-
       await persistState({
         biometricEnabled: state.biometricEnabled,
         changePinAttempts: state.changePinAttempts,
@@ -550,6 +758,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         pinSalt: state.pinSalt,
         session: { ...state.session, lockStatus: "unlocked" },
       });
+
+      if (state.session.walletId) {
+        void resumeWallet(state.session.walletId).catch(() => {
+          // HolderAgentProvider exposes the failure inline without extending PIN confirmation.
+        });
+      }
 
       return { ok: true };
     },
@@ -571,14 +785,6 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       return { ok: false, error: "Biometric unlock was not completed." };
     }
 
-    if (state.session.walletId) {
-      try {
-        await resumeWallet(state.session.walletId);
-      } catch (error) {
-        return actionErrorFromUnknown(error, "Wallet could not be resumed.");
-      }
-    }
-
     await persistState({
       biometricEnabled: state.biometricEnabled,
       changePinAttempts: state.changePinAttempts,
@@ -587,6 +793,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinSalt: state.pinSalt,
       session: { ...state.session, lockStatus: "unlocked" },
     });
+
+    if (state.session.walletId) {
+      void resumeWallet(state.session.walletId).catch(() => {
+        // HolderAgentProvider exposes the failure inline without extending biometric confirmation.
+      });
+    }
 
     return { ok: true };
   }, [persistState, resumeWallet, state]);
@@ -754,15 +966,22 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
     await resetAgent();
+    firstRunSetupDraftRef.current = null;
+    firstRunSetupPromiseRef.current = null;
+    setFirstRunSetupError(undefined);
+    setFirstRunSetupStatus("idle");
     setState((current) => ({
       ...current,
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       pinHash: undefined,
       pinSalt: undefined,
+      pendingActivationUrl: undefined,
+      pendingCheckoutVerification: undefined,
+      pendingVerificationPublicServicePointId: undefined,
       session: signedOutSession,
-      stashedActivationUrl: undefined,
     }));
   }, [resetAgent]);
 
@@ -772,41 +991,59 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       biometricAvailable: state.biometricAvailable,
       biometricEnabled: state.biometricEnabled,
       changePin,
+      clearPendingFlow,
+      completeOnboarding,
       confirmPinToDisableBiometric,
+      continuePendingFlow,
       createWallet,
       declineOffer,
       failedAttempts: state.failedAttempts,
+      firstRunSetupError: firstRunSetupError ?? holderAgentError,
+      firstRunSetupStatus,
       hasPin: hasStoredPin(state),
       isHardLocked: isSessionHardLocked(state.failedAttempts),
       isHydrated: state.isHydrated,
       lockWallet,
+      onboardingCompleted: state.onboardingCompleted,
+      pendingActivationUrl: state.pendingActivationUrl,
       pendingOfferIds: state.session.pendingOfferIds,
       pendingCheckoutVerification: state.pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: state.pendingVerificationPublicServicePointId,
       processIncomingLink,
+      resetFirstRunSetup,
       restoreWallet,
+      retryFirstRunSetup,
       session: state.session,
       setBiometricEnabled,
       setPendingCheckoutVerification,
       setPendingVerificationPublicServicePointId,
       signOut,
-      stashedActivationUrl: state.stashedActivationUrl,
+      startFirstRunSetup,
       unlockWithBiometric,
       unlockWithPin,
     }),
     [
       acceptOffer,
       changePin,
+      clearPendingFlow,
+      completeOnboarding,
       confirmPinToDisableBiometric,
+      continuePendingFlow,
       createWallet,
       declineOffer,
+      firstRunSetupError,
+      firstRunSetupStatus,
+      holderAgentError,
       lockWallet,
       processIncomingLink,
+      resetFirstRunSetup,
       restoreWallet,
+      retryFirstRunSetup,
       setBiometricEnabled,
       setPendingCheckoutVerification,
       setPendingVerificationPublicServicePointId,
       signOut,
+      startFirstRunSetup,
       state,
       unlockWithBiometric,
       unlockWithPin,
@@ -819,8 +1056,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 export function WalletRouteGate({ children }: PropsWithChildren) {
   const {
     hasPin,
+    firstRunSetupStatus,
     isHydrated,
+    onboardingCompleted,
+    pendingActivationUrl,
     pendingCheckoutVerification,
+    pendingOfferIds,
     pendingVerificationPublicServicePointId,
     session,
   } = useWalletSession();
@@ -831,9 +1072,38 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
       return;
     }
 
-    const routeAccess = getWalletRouteAccess(session, hasPin);
+    const routeAccess = getWalletRouteAccess(session, hasPin, onboardingCompleted, firstRunSetupStatus);
+    const onOnboardingRoute = segments.includes("onboarding");
+    const onResumeRoute = segments.includes("resume");
+    const onWalletRoute = segments.includes("(wallet)");
+    const onVerificationRoute = segments.includes("verify");
+    const hasPendingFlow = Boolean(
+      pendingCheckoutVerification ||
+      pendingVerificationPublicServicePointId ||
+      pendingActivationUrl ||
+      pendingOfferIds.length > 0,
+    );
 
-    if (routeAccess === "wallet" && pendingCheckoutVerification && !segments.includes("verify")) {
+    if (
+      routeAccess === "wallet" &&
+      hasPendingFlow &&
+      !onWalletRoute &&
+      !onVerificationRoute &&
+      !segments.includes("activate") &&
+      !onOnboardingRoute &&
+      !onResumeRoute
+    ) {
+      router.replace("/(auth)/resume");
+      return;
+    }
+
+    if (
+      routeAccess === "wallet" &&
+      pendingCheckoutVerification &&
+      !onVerificationRoute &&
+      !onOnboardingRoute &&
+      !onResumeRoute
+    ) {
       router.replace({
         pathname: "/verify/checkout/[verificationRequestId]",
         params: {
@@ -847,7 +1117,9 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     if (
       routeAccess === "wallet" &&
       pendingVerificationPublicServicePointId &&
-      !segments.includes("verify")
+      !onVerificationRoute &&
+      !onOnboardingRoute &&
+      !onResumeRoute
     ) {
       router.replace(`/verify/${encodeURIComponent(pendingVerificationPublicServicePointId)}`);
       return;
@@ -856,7 +1128,11 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     if (!isRouteAllowedForAccess(segments, routeAccess)) {
       router.replace(getWalletRouteHref(routeAccess));
     }
-  }, [hasPin, isHydrated, pendingCheckoutVerification, pendingVerificationPublicServicePointId, segments, session]);
+  }, [firstRunSetupStatus, hasPin, isHydrated, onboardingCompleted, pendingActivationUrl, pendingCheckoutVerification, pendingOfferIds.length, pendingVerificationPublicServicePointId, segments, session]);
+
+  if (!isHydrated) {
+    return <OperationStateScreen tone="secure" eyebrow="UNIFY wallet" title="Checking secure storage" message="Reading the encrypted wallet state on this device." />;
+  }
 
   return children;
 }

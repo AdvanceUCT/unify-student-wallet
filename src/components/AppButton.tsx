@@ -30,8 +30,8 @@ export function AppButton({
   const isOutline = variant === "outline" || variant === "secondary";
   const isGhost = variant === "ghost";
 
-  const backgroundColor = isPrimary ? colors.primary : isOutline ? colors.surfaceAlt : "transparent";
-  const textColor = isPrimary ? colors.surface : isGhost ? colors.primary : colors.ink;
+  const backgroundColor = isPrimary ? colors.primaryDeep : isOutline ? colors.surfaceAlt : "transparent";
+  const textColor = isPrimary ? colors.white : isGhost ? colors.primary : colors.ink;
   const paddingVertical = size === "lg" ? spacing.lg : spacing.md + 2;
   const fontSize = size === "lg" ? 16 : 15;
 
@@ -45,7 +45,9 @@ export function AppButton({
         alignItems: "center",
         justifyContent: "center",
         backgroundColor,
-        borderRadius: radii.pill,
+        borderRadius: radii.md,
+        borderWidth: isOutline ? 1 : 0,
+        borderColor: colors.rule,
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
         paddingHorizontal: spacing.xl,
         paddingVertical,
@@ -57,7 +59,7 @@ export function AppButton({
           color: textColor,
           fontSize,
           fontWeight: "600",
-          letterSpacing: 0.1,
+          fontFamily: "IBMPlexSans_600SemiBold",
         }}
       >
         {label}

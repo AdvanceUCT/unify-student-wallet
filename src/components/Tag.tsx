@@ -18,7 +18,7 @@ function toneStyles(tone: TagTone) {
     case "warning":
       return { bg: colors.warningSoft, fg: colors.warning };
     case "error":
-      return { bg: "#FBE5E2", fg: colors.error };
+      return { bg: colors.errorSoft, fg: colors.error };
     case "muted":
       return { bg: colors.surfaceAlt, fg: colors.inkMuted };
     case "ink":
@@ -45,7 +45,7 @@ export function Tag({ label, tone = "ink" }: TagProps) {
           color: fg,
           fontSize: 12,
           lineHeight: 16,
-          fontWeight: "600",
+          fontFamily: "IBMPlexSans_600SemiBold",
         }}
       >
         {label}

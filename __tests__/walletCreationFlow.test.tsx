@@ -64,9 +64,14 @@ jest.mock("expo-router", () => ({
 let walletContext:
   | {
       createWallet: (pin: string, confirmation: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+      firstRunSetupStatus: "idle" | "preparing" | "creating" | "ready" | "error";
       restoreWallet: (path: string, recoveryPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+      retryFirstRunSetup: () => Promise<{ ok: true } | { ok: false; error: string }>;
+      startFirstRunSetup: (pin: string, confirmation: string) => { ok: true } | { ok: false; error: string };
+      unlockWithPin: (pin: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       hasPin: boolean;
       isHydrated: boolean;
+      onboardingCompleted: boolean;
       session: WalletSession;
     }
   | undefined;
@@ -113,10 +118,112 @@ describe("wallet creation flow", () => {
     expect(mockCreateLocalHolderWallet).toHaveBeenCalledTimes(1);
     expect(walletContext?.session.lockStatus).toBe("unlocked");
     expect(walletContext?.session.pendingOfferIds).toEqual([]);
+    expect(walletContext?.onboardingCompleted).toBe(false);
 
     const persistedValues = Array.from(mockSecureValues.values()).join("\n");
     expect(persistedValues).not.toContain("raw-secret-token");
     expect(persistedValues).not.toContain("https://issuer.advanceuct.test/oob");
+  });
+
+  it("keeps first-run setup transient while Credo creates the wallet in the background", async () => {
+    let resolveWallet!: (value: { walletId: string; agent: typeof mockHolderAgent }) => void;
+    mockCreateLocalHolderWallet.mockReturnValueOnce(new Promise((resolve) => {
+      resolveWallet = resolve;
+    }));
+
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+
+    act(() => {
+      expect(walletContext?.startFirstRunSetup("2468", "2468")).toEqual({ ok: true });
+    });
+
+    await waitFor(() => expect(walletContext?.firstRunSetupStatus).toBe("creating"));
+    expect(walletContext?.session.walletId).toBeUndefined();
+
+    resolveWallet({ walletId: "wallet-uuid-001", agent: mockHolderAgent });
+
+    await waitFor(() => expect(walletContext?.firstRunSetupStatus).toBe("ready"));
+    expect(walletContext?.session.walletId).toBe("wallet-uuid-001");
+    expect(walletContext?.onboardingCompleted).toBe(false);
+  });
+
+  it("retries failed first-run setup without creating another wallet after readiness", async () => {
+    mockCreateLocalHolderWallet
+      .mockRejectedValueOnce(new Error("Credo unavailable"))
+      .mockResolvedValueOnce({ walletId: "wallet-uuid-001", agent: mockHolderAgent });
+
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    act(() => {
+      expect(walletContext?.startFirstRunSetup("2468", "2468")).toEqual({ ok: true });
+    });
+    await waitFor(() => expect(walletContext?.firstRunSetupStatus).toBe("error"));
+
+    await act(async () => {
+      expect(await walletContext?.retryFirstRunSetup()).toEqual({ ok: true });
+    });
+    expect(mockCreateLocalHolderWallet).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      expect(await walletContext?.retryFirstRunSetup()).toEqual({ ok: true });
+    });
+    expect(mockCreateLocalHolderWallet).toHaveBeenCalledTimes(2);
+  });
+
+  it("unlocks before the returning Credo session finishes resuming", async () => {
+    mockSecureValues.set("unify.wallet.session.v1", JSON.stringify({
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      pinHash: "hash:salt-1:2468",
+      pinSalt: "salt-1",
+      session: {
+        authStatus: "signedIn",
+        lockStatus: "locked",
+        pendingOfferIds: [],
+        walletId: "wallet-uuid-001",
+      },
+    }));
+    let resolveResume!: (agent: typeof mockHolderAgent) => void;
+    mockResumeHolderAgentSession.mockReturnValueOnce(new Promise((resolve) => {
+      resolveResume = resolve;
+    }));
+
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+
+    await act(async () => {
+      expect(await walletContext?.unlockWithPin("2468")).toEqual({ ok: true });
+    });
+
+    expect(walletContext?.session.lockStatus).toBe("unlocked");
+    expect(mockResumeHolderAgentSession).toHaveBeenCalledWith("wallet-uuid-001");
+    await act(async () => {
+      resolveResume(mockHolderAgent);
+      await Promise.resolve();
+    });
   });
 
   it("rejects mismatched PIN entries without creating a wallet", async () => {
@@ -169,5 +276,6 @@ describe("wallet creation flow", () => {
 
     expect(mockCreateLocalHolderWallet).not.toHaveBeenCalled();
     expect(walletContext?.hasPin).toBe(true);
+    expect(walletContext?.onboardingCompleted).toBe(true);
   });
 });

@@ -8,9 +8,20 @@ import { spacing } from "@/src/theme/spacing";
 type AppScreenProps = PropsWithChildren<{
   scrollable?: boolean;
   contentContainerStyle?: ScrollViewProps["contentContainerStyle"];
+  contentWidth?: "standard" | "full";
 }>;
 
-export function AppScreen({ children, scrollable = true, contentContainerStyle }: AppScreenProps) {
+const STANDARD_CONTENT_WIDTH = 720;
+
+export function AppScreen({ children, scrollable = true, contentContainerStyle, contentWidth = "standard" }: AppScreenProps) {
+  const contentStyle = {
+    flex: 1,
+    minWidth: 0,
+    width: "100%" as const,
+    maxWidth: contentWidth === "standard" ? STANDARD_CONTENT_WIDTH : undefined,
+    alignSelf: "center" as const,
+  };
+
   const inner = scrollable ? (
     <ScrollView
       contentContainerStyle={[
@@ -19,22 +30,25 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle }
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={{ flex: 1 }}>{children}</View>
+      <View style={contentStyle}>{children}</View>
     </ScrollView>
   ) : (
     <View
-      style={{
-        flex: 1,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.xl,
-        paddingBottom: spacing["2xl"],
-      }}
+      style={[
+        {
+          flex: 1,
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.xl,
+          paddingBottom: spacing["2xl"],
+        },
+        contentContainerStyle,
+      ]}
     >
-      {children}
+      <View style={contentStyle}>{children}</View>
     </View>
   );
 
   return (
-    <SafeAreaView style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
   );
 }

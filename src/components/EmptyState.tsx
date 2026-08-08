@@ -19,8 +19,9 @@ export function EmptyState({ icon: Icon, eyebrow, heading, body, action }: Empty
   return (
     <View
       style={{
-        backgroundColor: colors.surfaceAlt,
-        borderRadius: radii.lg,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.rule,
         paddingVertical: spacing["2xl"],
         paddingHorizontal: spacing.xl,
         alignItems: "center",

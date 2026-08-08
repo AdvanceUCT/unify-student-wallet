@@ -1,143 +1,144 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { QrCode as QrCodeIcon, Activity as ActivityIcon } from "lucide-react-native";
-import { Text, View, useWindowDimensions } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { Activity as ActivityIcon, ArrowRight, QrCode, Settings } from "lucide-react-native";
+import { useCallback, useState } from "react";
+import { Pressable, Text, View } from "react-native";
 
+import { AnimatedEntry } from "@/src/components/AnimatedEntry";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
+import { CredentialSkeleton } from "@/src/components/Skeleton";
 import { EmptyState } from "@/src/components/EmptyState";
-import { InfoRow } from "@/src/components/InfoRow";
+import { IconButton } from "@/src/components/IconButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { StudentCard } from "@/src/components/StudentCard";
-import { Tag } from "@/src/components/Tag";
+import { StatusPill } from "@/src/components/StatusPill";
+import { CredentialCarousel } from "@/src/components/CredentialCarousel";
+import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
+import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { getStudentCredential } from "@/src/lib/api/client";
 import { colors } from "@/src/theme/colors";
-import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-
-const MAX_CARD_WIDTH = 360;
-
-function truncate(value: string, head = 6, tail = 4) {
-  if (value.length <= head + tail + 1) return value;
-  return `${value.slice(0, head)}…${value.slice(-tail)}`;
-}
 
 export default function HomeScreen() {
   const { pendingOfferIds, session } = useWalletSession();
   const holderAgent = useHolderAgent();
-  const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
+  const [recentActivity, setRecentActivity] = useState<VerificationActivityRecord>();
 
-  const credentialQuery = useQuery({
-    // Cache this per wallet so a fresh test wallet does not show the previous
-    // wallet's credential on the home screen.
-    queryKey: ["student-credential", session.walletId ?? "no-wallet"],
-    queryFn: getStudentCredential,
+  const credentialsQuery = useQuery({
+    queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
+    queryFn: getStoredCredentials,
+    enabled: holderAgent.status === "ready",
   });
 
-  const credential = credentialQuery.data;
-  const hasCredential = Boolean(credential);
-  const pendingCount = pendingOfferIds.length;
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (session.walletId) void getVerificationActivity(session.walletId).then((records) => active && setRecentActivity(records[0]));
+    return () => { active = false; };
+  }, [session.walletId]));
+
+  const credentials = credentialsQuery.data ?? [];
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader
-          eyebrow="Welcome to Unify"
-          title="Wallet."
-          trailing={
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: radii.pill,
-                backgroundColor: colors.primarySoft,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: colors.primaryDeep, fontSize: 16, fontWeight: "700" }}>U</Text>
-            </View>
-          }
-        />
+      <ScreenHeader
+        eyebrow="UNIFY student wallet"
+        title="Your identity"
+        meta={holderAgent.status === "ready" ? "Wallet ready" : `Wallet ${holderAgent.status}`}
+        trailing={<IconButton accessibilityLabel="Open settings" icon={Settings} onPress={() => router.push("/(wallet)/settings")} />}
+      />
 
-        {pendingCount > 0 ? (
-          <Card
-            eyebrow={`${pendingCount} New offer${pendingCount === 1 ? "" : "s"}`}
-            heading={
-              pendingCount === 1
-                ? "A credential offer is waiting."
-                : `${pendingCount} credential offers are waiting.`
-            }
-            trailing={<Tag label="Review" tone="primary" />}
-            elevation="md"
-          >
-            <View style={{ paddingTop: spacing.sm }}>
-              <AppButton label="Review offers" onPress={() => router.push("/(wallet)/offers")} />
-            </View>
-          </Card>
+      <View style={{ gap: spacing["2xl"] }}>
+        {pendingOfferIds.length > 0 ? (
+          <AnimatedEntry>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(wallet)/offers")}
+              style={({ pressed }) => ({
+                backgroundColor: colors.focusSoft,
+                borderLeftWidth: 4,
+                borderLeftColor: colors.focus,
+                padding: spacing.lg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.md,
+                opacity: pressed ? 0.78 : 1,
+              })}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[typography.eyebrow, { color: colors.focus }]}>{pendingOfferIds.length} new credential offer{pendingOfferIds.length === 1 ? "" : "s"}</Text>
+                <Text style={typography.bodyStrong}>Review what your institution issued</Text>
+              </View>
+              <ArrowRight color={colors.focus} size={20} />
+            </Pressable>
+          </AnimatedEntry>
         ) : null}
 
         <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Credential</Text>
-          {credentialQuery.isLoading ? (
-            <Card>
-              <Text style={typography.body}>Loading credential…</Text>
-            </Card>
-          ) : hasCredential && credential ? (
-            <View style={{ gap: spacing.md }}>
-              <StudentCard
-                credential={credential}
-                width={cardWidth}
-                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
+          <Text style={typography.sectionTitle}>Student ID</Text>
+          {holderAgent.status === "idle" || holderAgent.status === "initializing" ? (
+            <CredentialSkeleton />
+          ) : holderAgent.status === "error" ? (
+            <EmptyState
+              icon={QrCode}
+              eyebrow="Wallet still opening"
+              heading="Credentials are temporarily unavailable"
+              body={holderAgent.error ?? "Secure wallet services could not be started."}
+              action={<AppButton label="Try again" onPress={() => session.walletId && void holderAgent.resumeWallet(session.walletId)} />}
+            />
+          ) : credentialsQuery.isLoading ? (
+            <CredentialSkeleton />
+          ) : credentialsQuery.isError ? (
+            <EmptyState
+              icon={QrCode}
+              eyebrow="Could not load credentials"
+              heading="Your wallet is still protected"
+              body="Try reading the encrypted wallet again."
+              action={<AppButton label="Try again" onPress={() => void credentialsQuery.refetch()} />}
+            />
+          ) : credentials.length ? (
+            <AnimatedEntry delay={55}>
+              <CredentialCarousel
+                accessibilityLabel="Student credentials"
+                credentials={credentials}
+                onCredentialPress={(credential) => router.push(`/(wallet)/credential/${credential.id}`)}
               />
-              <AppButton
-                label="View details"
-                variant="ghost"
-                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
-              />
-            </View>
+            </AnimatedEntry>
           ) : (
             <EmptyState
-              icon={QrCodeIcon}
-              eyebrow="No credentials yet"
-              heading="Receive your first credential."
-              body="Open an activation link from your university, or scan an issuer QR code."
-              action={
-                <AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />
-              }
+              icon={QrCode}
+              eyebrow="Wallet empty"
+              heading="Receive your student identity"
+              body="Open an activation link from your institution or scan its QR code."
+              action={<AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />}
             />
           )}
         </View>
 
         <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Activity</Text>
-          <EmptyState
-            icon={ActivityIcon}
-            eyebrow="No activity"
-            body="Payments and verification events will appear here once your wallet is in use."
-          />
-        </View>
-
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Wallet status</Text>
-          <Card>
-            <InfoRow
-              label="Lock"
-              value={session.lockStatus === "unlocked" ? "Unlocked" : "Locked"}
-              tone={session.lockStatus === "unlocked" ? "success" : "warning"}
-              divider
-            />
-            <InfoRow label="Holder agent" value={holderAgent.status} divider />
-            <InfoRow
-              label="Wallet ID"
-              value={session.walletId ? truncate(session.walletId, 8, 6) : "—"}
-            />
-          </Card>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={[typography.sectionTitle, { flex: 1 }]}>Latest presentation</Text>
+            {recentActivity ? <AppButton label="View all" variant="ghost" onPress={() => router.push("/(wallet)/activity")} /> : null}
+          </View>
+          {recentActivity ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(wallet)/activity")}
+              style={({ pressed }) => ({ paddingVertical: spacing.lg, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.rule, opacity: pressed ? 0.72 : 1 })}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+                <ActivityIcon color={colors.primary} size={22} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={typography.bodyStrong}>{recentActivity.verifierName}</Text>
+                  <Text style={typography.caption}>{recentActivity.servicePointName} · {new Date(recentActivity.occurredAt).toLocaleString()}</Text>
+                </View>
+                <StatusPill label={recentActivity.status} tone={recentActivity.status === "Approved" ? "success" : recentActivity.status === "Expired" ? "warning" : "error"} />
+              </View>
+            </Pressable>
+          ) : (
+            <EmptyState icon={ActivityIcon} eyebrow="No presentations" body="Your approved credential presentations will appear here." />
+          )}
         </View>
       </View>
     </AppScreen>

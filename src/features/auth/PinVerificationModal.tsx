@@ -47,8 +47,8 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
   return (
     <Modal animationType="slide" onRequestClose={onCancel} transparent visible={visible}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+          <View style={[styles.handle, { backgroundColor: colors.rule }]} />
           <View style={{ gap: spacing.xs, marginBottom: spacing.xl }}>
             <Text style={typography.caption}>Security check</Text>
             <Text style={typography.title}>Enter your PIN</Text>
@@ -60,7 +60,7 @@ export function PinVerificationModal({ errorMessage, onCancel, onSubmit, phase, 
 
             <View style={styles.errorContainer}>
               {phase === "error" && errorMessage ? (
-                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                <Text accessibilityLiveRegion="polite" style={[styles.errorText, { color: colors.error }]}>
                   {errorMessage}
                 </Text>
               ) : null}
@@ -104,21 +104,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   errorText: {
-    color: colors.error,
+    fontFamily: "IBMPlexSans_600SemiBold",
     fontSize: 13,
-    fontWeight: "600",
     textAlign: "center",
   },
   handle: {
     alignSelf: "center",
-    backgroundColor: colors.rule,
     borderRadius: 999,
     height: 4,
     marginBottom: spacing.lg,
     width: 44,
   },
   sheet: {
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     paddingBottom: spacing["2xl"],

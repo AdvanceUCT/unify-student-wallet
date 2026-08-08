@@ -4,6 +4,19 @@ import { Text as mockText } from "react-native";
 import { render } from "@testing-library/react-native";
 import RootLayout from "@/app/_layout";
 
+jest.mock("@expo-google-fonts/ibm-plex-sans", () => ({
+  IBMPlexSans_400Regular: "sans-regular",
+  IBMPlexSans_500Medium: "sans-medium",
+  IBMPlexSans_600SemiBold: "sans-semibold",
+  IBMPlexSans_700Bold: "sans-bold",
+  useFonts: () => [true, null],
+}));
+
+jest.mock("@expo-google-fonts/ibm-plex-mono", () => ({
+  IBMPlexMono_500Medium: "mono-medium",
+  useFonts: () => [true, null],
+}));
+
 jest.mock("@tanstack/react-query", () => ({
   QueryClient: jest.fn(),
   QueryClientProvider: ({ children }: { children: ReactNode }) => children,

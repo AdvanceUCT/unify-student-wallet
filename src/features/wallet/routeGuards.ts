@@ -1,8 +1,17 @@
-import type { WalletSession } from "./sessionTypes";
+import type { FirstRunSetupStatus, WalletSession } from "./sessionTypes";
 
-export type WalletRouteAccess = "welcome" | "pinSetup" | "unlock" | "wallet";
+export type WalletRouteAccess = "welcome" | "pinSetup" | "unlock" | "onboarding" | "wallet";
 
-export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): WalletRouteAccess {
+export function getWalletRouteAccess(
+  session: WalletSession,
+  hasPin: boolean,
+  onboardingCompleted = true,
+  firstRunSetupStatus: FirstRunSetupStatus = "idle",
+): WalletRouteAccess {
+  if (firstRunSetupStatus !== "idle" && !session.walletId) {
+    return "onboarding";
+  }
+
   if (!session.walletId) {
     if (hasPin) {
       return "pinSetup";
@@ -18,6 +27,10 @@ export function getWalletRouteAccess(session: WalletSession, hasPin: boolean): W
     return "unlock";
   }
 
+  if (!onboardingCompleted) {
+    return "onboarding";
+  }
+
   return "wallet";
 }
 
@@ -29,6 +42,8 @@ export function getWalletRouteHref(access: WalletRouteAccess) {
       return "/(auth)/set-pin" as const;
     case "unlock":
       return "/(auth)/unlock" as const;
+    case "onboarding":
+      return "/(auth)/onboarding" as const;
     case "wallet":
       return "/(wallet)/home" as const;
   }
@@ -44,11 +59,13 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
       return lastSegment === "set-pin" || lastSegment === "activate";
     case "unlock":
       return lastSegment === "unlock" || lastSegment === "activate";
+    case "onboarding":
+      return lastSegment === "onboarding" || lastSegment === "activate";
     case "wallet":
       return (
         segments.includes("(wallet)") ||
         segments.includes("verify") ||
-        ["home", "credential", "scan", "payments", "settings", "offers", "change-pin", "activate"].includes(
+        ["home", "credential", "scan", "payments", "settings", "offers", "change-pin", "activate", "onboarding", "resume"].includes(
           lastSegment ?? "",
         )
       );

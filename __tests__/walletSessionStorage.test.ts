@@ -7,8 +7,10 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: true,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: false,
       pinHash: "hash",
       pinSalt: "salt",
+      pendingActivationUrl: "unifywallet://activate?token=activation-001",
       pendingCheckoutVerification: {
         verificationRequestId: "verification-001",
         claimToken: "single-use-claim-token",
@@ -30,6 +32,7 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       pendingCheckoutVerification: {
         verificationRequestId: "verification-001",
         claimToken: "single-use-claim-token",
@@ -45,6 +48,7 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       pendingVerificationPublicServicePointId: "sp-public-001",
       session: { authStatus: "signedOut", lockStatus: "locked", pendingOfferIds: [] },
     };
@@ -56,6 +60,7 @@ describe("wallet session storage serialization", () => {
 
   it("falls back to signed-out state for missing or invalid storage", () => {
     expect(parseWalletSessionState(null).session.authStatus).toBe("signedOut");
+    expect(parseWalletSessionState(null).onboardingCompleted).toBe(true);
     expect(parseWalletSessionState("not-json").session.authStatus).toBe("signedOut");
   });
 
@@ -73,6 +78,7 @@ describe("wallet session storage serialization", () => {
 
     const parsed = parseWalletSessionState(JSON.stringify(legacyState));
     expect(parsed.failedAttempts).toBe(0);
+    expect(parsed.onboardingCompleted).toBe(true);
     expect(parsed.session.pendingOfferIds).toEqual([]);
   });
 
@@ -81,6 +87,7 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 3,
+      onboardingCompleted: true,
       pinHash: "hash",
       pinSalt: "salt",
       session: {
@@ -94,11 +101,12 @@ describe("wallet session storage serialization", () => {
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
   });
 
-  it("does not require raw activation tokens or out-of-band URLs in persisted state", () => {
+  it("keeps activation URLs optional when there is no pending activation", () => {
     const state: PersistedWalletSessionState = {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       session: {
         authStatus: "signedIn",
         lockStatus: "locked",

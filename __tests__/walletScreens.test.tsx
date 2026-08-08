@@ -6,8 +6,8 @@ import SettingsScreen from "@/app/(wallet)/settings";
 
 const mockRequestPermission = jest.fn();
 const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
-  if (queryKey[0] === "student-credential") {
-    return { data: null, isError: false, isLoading: false };
+  if (queryKey[0] === "stored-credentials") {
+    return { data: [], isError: false, isLoading: false };
   }
 
   if (queryKey[0] === "wallet-summary") {
@@ -22,6 +22,11 @@ const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
 });
 
 const mockProcessIncomingLink = jest.fn().mockResolvedValue({ ok: true });
+let mockHolderAgent = {
+  error: undefined as string | undefined,
+  resumeWallet: jest.fn(async () => null),
+  status: "ready" as "idle" | "initializing" | "ready" | "error",
+};
 
 const mockWalletSession = {
   acceptOffer: jest.fn().mockResolvedValue({ ok: true }),
@@ -65,22 +70,23 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
 }));
 
 jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
-  useHolderAgent: () => ({ status: "ready" }),
+  useHolderAgent: () => mockHolderAgent,
 }));
 
 describe("wallet screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWalletSession.pendingOfferIds = [];
+    mockHolderAgent = { error: undefined, resumeWallet: jest.fn(async () => null), status: "ready" };
   });
 
   it("shows the wallet masthead on the home screen", () => {
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("Wallet.")).toBeTruthy();
+    expect(screen.getByText("Your identity")).toBeTruthy();
     expect(screen.getByText("Open scanner")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["student-credential", "wallet-uuid-001"] }),
+      expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
     );
   });
 
@@ -89,8 +95,18 @@ describe("wallet screens", () => {
 
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("2 credential offers are waiting.")).toBeTruthy();
-    expect(screen.getByText("Review offers")).toBeTruthy();
+    expect(screen.getByText("2 new credential offers")).toBeTruthy();
+    expect(screen.getByText("Review what your institution issued")).toBeTruthy();
+  });
+
+  it("shows Home immediately with a credential placeholder while the agent resumes", () => {
+    mockHolderAgent.status = "initializing";
+
+    const screen = render(<HomeScreen />);
+
+    expect(screen.getByText("Your identity")).toBeTruthy();
+    expect(screen.getByLabelText("Loading credential")).toBeTruthy();
+    expect(mockUseQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
   });
 
   it("prompts the user to enable camera permission on the scan screen", () => {
@@ -106,6 +122,6 @@ describe("wallet screens", () => {
 
     expect(screen.getByText("Holder agent")).toBeTruthy();
     expect(screen.getByText("Sign out")).toBeTruthy();
-    await waitFor(() => expect(screen.getByText("Create wallet backup")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Create encrypted backup")).toBeTruthy());
   });
 });

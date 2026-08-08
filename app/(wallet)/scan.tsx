@@ -1,206 +1,112 @@
+import * as Haptics from "expo-haptics";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
-import { Camera as CameraIcon } from "lucide-react-native";
-import { useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Camera, Flashlight, FlashlightOff, ScanLine, X } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
-import { InfoRow } from "@/src/components/InfoRow";
-import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import {
-  parseCheckoutVerificationLink,
-  parseQrPayload,
-  parseVerificationLink,
-  type QrPayload,
-} from "@/src/lib/validation/qrPayload";
+import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
-import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-type ScanResult = {
-  payload: QrPayload;
-  rawPayload: string;
-};
-
-function looksLikeActivationLink(value: string) {
-  return parseActivationLink(value).ok;
-}
-
 export default function ScanScreen() {
-  const { processIncomingLink, session } = useWalletSession();
+  const { processIncomingLink } = useWalletSession();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
-  const [actionResult, setActionResult] = useState<string | null>(null);
+  const [torch, setTorch] = useState(false);
   const scanLockedRef = useRef(false);
+  const scanProgress = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!reducedMotion) scanProgress.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad), reduceMotion: ReduceMotion.System }), -1, true);
+  }, [reducedMotion, scanProgress]);
+
+  const scanLineStyle = useAnimatedStyle(() => ({ transform: [{ translateY: scanProgress.value * 214 }] }));
+
+  function resetScanner() {
+    scanLockedRef.current = false;
+    setScanError(null);
+  }
 
   async function handleRawPayload(rawPayload: string) {
     if (scanLockedRef.current) return;
     scanLockedRef.current = true;
-    setActionResult(null);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Activation links and service requests share the scanner, so route links first.
-    if (looksLikeActivationLink(rawPayload)) {
-      setScanError(null);
-      setScanResult(null);
+    if (parseActivationLink(rawPayload).ok) {
       const result = await processIncomingLink(rawPayload);
-
       if (!result.ok) {
         setScanError(result.error);
-        scanLockedRef.current = false;
         return;
       }
-
-      setActionResult("Reviewing offer…");
       router.push("/(wallet)/offers");
       return;
     }
 
-    const checkoutVerificationLink = parseCheckoutVerificationLink(rawPayload);
-    if (checkoutVerificationLink.ok) {
-      setScanError(null);
-      setScanResult(null);
-      router.push({
-        pathname: "/verify/checkout/[verificationRequestId]",
-        params: {
-          verificationRequestId: checkoutVerificationLink.verificationRequestId,
-          token: checkoutVerificationLink.claimToken,
-        },
-      });
+    const checkout = parseCheckoutVerificationLink(rawPayload);
+    if (checkout.ok) {
+      router.push({ pathname: "/verify/checkout/[verificationRequestId]", params: { verificationRequestId: checkout.verificationRequestId, token: checkout.claimToken } });
       return;
     }
 
-    const verificationLink = parseVerificationLink(rawPayload);
-    if (verificationLink.ok) {
-      setScanError(null);
-      setScanResult(null);
-      router.push(`/verify/${encodeURIComponent(verificationLink.publicServicePointId)}`);
+    const verification = parseVerificationLink(rawPayload);
+    if (verification.ok) {
+      router.push(`/verify/${encodeURIComponent(verification.publicServicePointId)}`);
       return;
     }
 
-    const result = parseQrPayload(rawPayload);
-
-    if (!result.ok) {
-      setScanResult(null);
-      setScanError("This QR payload is not a valid UNIFY service request.");
-      scanLockedRef.current = false;
-      return;
-    }
-
-    setScanError(null);
-    setScanResult({ payload: result.data, rawPayload });
-  }
-
-  async function handleServiceAction() {
-    if (!scanResult) {
-      return;
-    }
-
-    // Payment QR actions are simulated until the payment backend is connected.
-    setActionResult(`Payment approved for ${scanResult.payload.servicePointId}.`);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setScanError("This is not a supported UNIFY activation or verification QR code.");
   }
 
   return (
-    <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader
-          eyebrow="Scan"
-          title="Service QR."
-          meta="Activation, payment, or verification — the wallet picks the right action."
-        />
+    <AppScreen contentWidth="full" scrollable={false} contentContainerStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, backgroundColor: colors.camera }}>
+      <View style={{ flex: 1, backgroundColor: colors.camera }}>
+        {permission?.granted ? (
+          <CameraView enableTorch={torch} onBarcodeScanned={({ data }) => void handleRawPayload(data)} style={{ flex: 1 }} />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.lg }}>
+            <View style={{ width: 72, height: 72, borderRadius: radii.pill, borderWidth: 1, borderColor: "#496058", alignItems: "center", justifyContent: "center" }}><Camera color={colors.cameraInk} size={30} /></View>
+            <Text style={[typography.title, { color: colors.cameraInk, textAlign: "center" }]}>Camera access needed</Text>
+            <Text style={[typography.body, { color: "#C5D0CB", textAlign: "center", maxWidth: 320 }]}>UNIFY uses the camera only to read activation and verification QR codes.</Text>
+            <AppButton label="Allow camera" onPress={() => void requestPermission()} />
+          </View>
+        )}
 
-        <View style={{ gap: spacing.sm }}>
-          <View
-            style={{
-              aspectRatio: 1,
-              backgroundColor: colors.ink,
-              borderRadius: radii.xl,
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-              ...shadows.md,
-            }}
-          >
-            {permission?.granted ? (
-              <>
-                <CameraView
-                  onBarcodeScanned={({ data }: { data: string }) => void handleRawPayload(data)}
-                  style={{ height: "100%", width: "100%" }}
-                />
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: "absolute",
-                    top: "14%",
-                    left: "14%",
-                    right: "14%",
-                    bottom: "14%",
-                    borderRadius: radii.lg,
-                    borderColor: colors.surface,
-                    borderWidth: 2,
-                  }}
-                />
-              </>
-            ) : (
-              <View style={{ alignItems: "center", gap: spacing.md, padding: spacing.xl }}>
-                <CameraIcon color={colors.surface} size={28} strokeWidth={1.6} />
-                <Text style={[typography.bodyStrong, { color: colors.surface, textAlign: "center" }]}>
-                  Camera access needed
-                </Text>
-                <Text style={[typography.body, { color: colors.surface, textAlign: "center", opacity: 0.85 }]}>
-                  Allow camera permission to scan service QR codes.
-                </Text>
-                <AppButton label="Allow camera" onPress={requestPermission} />
+        <View pointerEvents="box-none" style={{ position: "absolute", inset: 0, padding: spacing.xl, justifyContent: "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ gap: 2 }}><Text style={[typography.eyebrow, { color: "#9BCBB7" }]}>UNIFY scanner</Text><Text style={[typography.heading, { color: colors.cameraInk }]}>Scan a secure QR</Text></View>
+            <Pressable accessibilityLabel={torch ? "Turn flashlight off" : "Turn flashlight on"} accessibilityRole="button" onPress={() => setTorch((value) => !value)} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: radii.pill, backgroundColor: "rgba(5, 8, 6, 0.58)", alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 })}>
+              {torch ? <FlashlightOff color={colors.cameraInk} size={21} /> : <Flashlight color={colors.cameraInk} size={21} />}
+            </Pressable>
+          </View>
+
+          {permission?.granted ? (
+            <View pointerEvents="none" style={{ alignSelf: "center", width: 260, height: 260 }}>
+              {[{ top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 }, { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 }, { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 }, { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 }].map((position, index) => <View key={index} style={{ position: "absolute", width: 46, height: 46, borderColor: colors.white, ...position }} />)}
+              {!reducedMotion ? <Animated.View style={[{ height: 2, left: 12, right: 12, backgroundColor: "#76D4AC", position: "absolute", top: 22 }, scanLineStyle]} /> : <ScanLine color="#76D4AC" size={32} style={{ alignSelf: "center", marginTop: 114 }} />}
+            </View>
+          ) : <View />}
+
+          <View style={{ gap: spacing.md }}>
+            {scanError ? (
+              <View style={{ backgroundColor: colors.surface, padding: spacing.lg, gap: spacing.md }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}><X color={colors.warning} size={22} /><Text accessibilityLiveRegion="assertive" style={[typography.bodyStrong, { flex: 1 }]}>{scanError}</Text></View>
+                <AppButton label="Scan another code" onPress={resetScanner} />
               </View>
+            ) : (
+              <Text style={[typography.body, { color: colors.cameraInk, textAlign: "center" }]}>Place the complete QR code inside the frame.</Text>
             )}
           </View>
-          <Text style={[typography.caption, { textAlign: "center" }]}>
-            Align QR within the frame — activation, payment, or verification.
-          </Text>
         </View>
-
-        {scanError ? (
-          <Card>
-            <Text style={[typography.bodyStrong, { color: colors.error }]}>{scanError}</Text>
-          </Card>
-        ) : null}
-
-        {actionResult ? (
-          <Card>
-            <Text style={[typography.bodyStrong, { color: colors.primary }]}>{actionResult}</Text>
-          </Card>
-        ) : null}
-
-        {scanResult ? (
-          <Card heading="Parsed service request">
-            <InfoRow label="Type" value={scanResult.payload.type} tone="success" divider />
-            <InfoRow label="Vendor" value={scanResult.payload.vendorId} divider />
-            <InfoRow label="Service point" value={scanResult.payload.servicePointId} divider />
-            <InfoRow
-              label="Amount"
-              value={`R ${scanResult.payload.amount.toFixed(2)}`}
-              divider
-            />
-            <InfoRow label="Nonce" value={scanResult.payload.nonce} divider />
-            <InfoRow label="Wallet" value={session.walletId ?? "—"} />
-            <View style={{ paddingTop: spacing.lg }}>
-              <AppButton
-                label={
-                  "Approve payment"
-                }
-                onPress={handleServiceAction}
-                size="lg"
-              />
-            </View>
-          </Card>
-        ) : null}
-
       </View>
     </AppScreen>
   );

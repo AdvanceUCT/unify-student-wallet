@@ -10,7 +10,13 @@ export function serializeWalletSessionState(state: PersistedWalletSessionState) 
 
 export function parseWalletSessionState(rawValue: string | null): PersistedWalletSessionState {
   if (!rawValue) {
-    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
+    return {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      session: signedOutSession,
+    };
   }
 
   try {
@@ -20,8 +26,13 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       biometricEnabled: Boolean(parsed.biometricEnabled),
       changePinAttempts: parsed.changePinAttempts ?? 0,
       failedAttempts: parsed.failedAttempts ?? 0,
+      // Existing wallets must never be surprised by first-run education after an update.
+      onboardingCompleted:
+        typeof parsed.onboardingCompleted === "boolean" ? parsed.onboardingCompleted : true,
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
+      pendingActivationUrl:
+        typeof parsed.pendingActivationUrl === "string" ? parsed.pendingActivationUrl : undefined,
       pendingCheckoutVerification:
         typeof parsed.pendingCheckoutVerification?.verificationRequestId === "string" &&
         typeof parsed.pendingCheckoutVerification.claimToken === "string"
@@ -39,7 +50,13 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       },
     };
   } catch {
-    return { biometricEnabled: false, changePinAttempts: 0, failedAttempts: 0, session: signedOutSession };
+    return {
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      session: signedOutSession,
+    };
   }
 }
 

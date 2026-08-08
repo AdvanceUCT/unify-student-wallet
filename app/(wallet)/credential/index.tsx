@@ -1,120 +1,56 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { IdCard as IdCardIcon, ChevronRight } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { IdCard } from "lucide-react-native";
+import { Text, View } from "react-native";
 
+import { AnimatedEntry } from "@/src/components/AnimatedEntry";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
+import { CredentialSkeleton } from "@/src/components/Skeleton";
 import { EmptyState } from "@/src/components/EmptyState";
+import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { Tag } from "@/src/components/Tag";
 import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-type CredentialAttribute = { name: string; value: string };
-
-function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: string[]) {
-  if (!attributes) return undefined;
-  for (const name of names) {
-    const match = attributes.find((a) => a.name === name)?.value;
-    if (match) return match;
-  }
-  return undefined;
-}
-
 export default function CredentialIndexScreen() {
   const { session } = useWalletSession();
-
-  // Poll while empty because a credential can arrive a few moments after activation.
+  const holderAgent = useHolderAgent();
   const credentialsQuery = useQuery({
     queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
     queryFn: getStoredCredentials,
+    enabled: holderAgent.status === "ready",
     refetchInterval: (query) => ((query.state.data ?? []).length === 0 ? 2000 : false),
   });
-
   const credentials = credentialsQuery.data ?? [];
 
   return (
     <AppScreen>
-      <ScreenHeader eyebrow="Wallet" title="Credentials." />
-
-      {credentialsQuery.isLoading ? (
-        <Card>
-          <Text style={typography.body}>Loading credentials…</Text>
-        </Card>
+      <ScreenHeader eyebrow="Encrypted on this device" title="Credentials" meta={credentials.length ? `${credentials.length} available` : undefined} />
+      {holderAgent.status === "idle" || holderAgent.status === "initializing" ? (
+        <CredentialSkeleton />
+      ) : holderAgent.status === "error" ? (
+        <EmptyState icon={IdCard} eyebrow="Wallet still opening" heading="Credentials are temporarily unavailable" body={holderAgent.error ?? "Secure wallet services could not be started."} action={<AppButton label="Try again" onPress={() => session.walletId && void holderAgent.resumeWallet(session.walletId)} />} />
+      ) : credentialsQuery.isLoading ? (
+        <CredentialSkeleton />
       ) : credentialsQuery.isError ? (
-        <Card>
-          <Text style={[typography.bodyStrong, { color: colors.error }]}>
-            Credentials could not be loaded.
-          </Text>
-        </Card>
+        <EmptyState icon={IdCard} eyebrow="Could not load credentials" heading="Your wallet is still protected" body="Check the wallet agent and try again." action={<AppButton label="Try again" onPress={() => void credentialsQuery.refetch()} />} />
       ) : credentials.length === 0 ? (
-        <EmptyState
-          icon={IdCardIcon}
-          eyebrow="No credentials yet"
-          heading="Your wallet is empty."
-          body="Open an activation link from your university to receive your first credential."
-          action={<AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />}
-        />
+        <EmptyState icon={IdCard} eyebrow="No credentials" heading="Your wallet is empty" body="Open an activation link from your institution to receive your first credential." action={<AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />} />
       ) : (
-        <View style={{ gap: spacing.md }}>
-          {credentials.map((credential) => {
-            const attributes = credential.credentialAttributes;
-            // Issuers may use slightly different names for the same student fields.
-            const issuer =
-              findAttribute(attributes, "issuerName", "issuer", "institution", "university") ??
-              "Issuer";
-            const firstName = findAttribute(attributes, "firstName", "first_name", "givenName");
-            const lastName = findAttribute(attributes, "lastName", "last_name", "familyName", "surname");
-            const programme = findAttribute(
-              attributes,
-              "programme",
-              "program",
-              "faculty",
-              "school",
-              "department",
-            );
-            const holder = [firstName, lastName].filter(Boolean).join(" ").trim() || "Holder pending";
-
-            return (
-              <Pressable
-                key={credential.id}
-                accessibilityRole="button"
-                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
-                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-              >
-                <Card>
-                  <View style={{ gap: spacing.sm }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={typography.eyebrow}>{issuer}</Text>
-                      {credential.state ? <Tag label={credential.state} tone="primary" /> : null}
-                    </View>
-                    <Text style={typography.heading}>{programme ?? "Student credential"}</Text>
-                    <Text style={typography.body}>{holder}</Text>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "flex-end",
-                        marginTop: spacing.sm,
-                      }}
-                    >
-                      <ChevronRight color={colors.inkSubtle} size={20} strokeWidth={1.5} />
-                    </View>
-                  </View>
-                </Card>
-              </Pressable>
-            );
-          })}
+        <View style={{ gap: spacing.xl, alignItems: "center" }}>
+          <AnimatedEntry>
+            <CredentialCarousel
+              accessibilityLabel="Stored credentials"
+              credentials={credentials}
+              onCredentialPress={(credential) => router.push(`/(wallet)/credential/${credential.id}`)}
+            />
+          </AnimatedEntry>
+          <Text style={[typography.caption, { color: colors.inkSubtle, textAlign: "center" }]}>Credentials remain encrypted inside this wallet.</Text>
         </View>
       )}
     </AppScreen>
