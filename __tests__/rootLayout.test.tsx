@@ -1,7 +1,7 @@
 import * as mockReact from "react";
 import type { ReactNode } from "react";
 import { Text as mockText } from "react-native";
-import { render } from "@testing-library/react-native";
+import { render, waitFor } from "@testing-library/react-native";
 import RootLayout from "@/app/_layout";
 
 jest.mock("@expo-google-fonts/ibm-plex-sans", () => ({
@@ -50,10 +50,10 @@ jest.mock("@/src/features/wallet/AutoLockProvider", () => ({
 }));
 
 describe("root layout", () => {
-  it("mounts auto-lock around routed app content", () => {
+  it("mounts auto-lock around routed app content", async () => {
     const screen = render(<RootLayout />);
 
-    expect(screen.getByText("auto-lock-mounted")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("auto-lock-mounted")).toBeTruthy());
     expect(screen.getByText("stack-mounted")).toBeTruthy();
   });
 });

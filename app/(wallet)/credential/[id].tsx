@@ -11,7 +11,7 @@ import { EmptyState } from "@/src/components/EmptyState";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
-import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
+import { getCredentialRecordLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { colors } from "@/src/theme/colors";
 import { motion } from "@/src/theme/motion";
 import { spacing } from "@/src/theme/spacing";
@@ -37,7 +37,7 @@ export default function CredentialDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - spacing.xl * 2, 430);
-  const credentialQuery = useQuery({ queryKey: ["credential", id], queryFn: () => getCredentialRecord(id), enabled: Boolean(id) });
+  const credentialQuery = useQuery({ queryKey: ["credential", id], queryFn: () => getCredentialRecordLazy(id), enabled: Boolean(id) });
   const credential = credentialQuery.data;
   const attributes = credential?.credentialAttributes ?? [];
   const groups = ["Holder", "Student record", "Issuer", "Additional information"].map((title) => ({ title, attributes: attributes.filter((attribute) => category(attribute) === title) })).filter((group) => group.attributes.length);

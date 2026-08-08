@@ -4,6 +4,7 @@ import {
   exportEncryptedHolderWallet,
   acceptVerificationProof,
   getCredentialRecord,
+  getStoredCredentials,
   receiveCredentialOffer,
   receiveVerificationProofRequest,
   selectVerificationCredentials,
@@ -71,6 +72,104 @@ describe("holder agent credential activation", () => {
       ],
     });
     expect(getFormatData).toHaveBeenCalledWith("offer-001");
+  });
+
+  it("enriches stored credentials with signed offer attributes", async () => {
+    const getFormatData = jest.fn(async (id: string) => ({
+      offerAttributes: id === "credential-001"
+        ? [
+            { name: "validFrom", value: "2026-08-01T00:00:00.000Z" },
+            { name: "expiresAt", value: "2027-08-01T00:00:00.000Z" },
+          ]
+        : [],
+    }));
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        credentials: {
+          getAll: jest.fn(async () => [
+            { id: "credential-001", state: "done" },
+            {
+              id: "credential-002",
+              state: "credential-received",
+              credentialAttributes: [
+                { name: "studentNumber", value: "STU002" },
+                { name: "validFrom", value: "2026-08-02T00:00:00.000Z" },
+                { name: "expiresAt", value: "2027-08-02T00:00:00.000Z" },
+              ],
+            },
+            { id: "offer-001", state: "offer-received" },
+          ]),
+          getFormatData,
+        },
+      },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    await expect(getStoredCredentials()).resolves.toEqual([
+      {
+        id: "credential-001",
+        state: "done",
+        credentialAttributes: [
+          { name: "validFrom", value: "2026-08-01T00:00:00.000Z" },
+          { name: "expiresAt", value: "2027-08-01T00:00:00.000Z" },
+        ],
+      },
+      {
+        id: "credential-002",
+        state: "credential-received",
+        credentialAttributes: [
+          { name: "studentNumber", value: "STU002" },
+          { name: "validFrom", value: "2026-08-02T00:00:00.000Z" },
+          { name: "expiresAt", value: "2027-08-02T00:00:00.000Z" },
+        ],
+      },
+    ]);
+    expect(getFormatData).toHaveBeenCalledTimes(1);
+    expect(getFormatData).toHaveBeenCalledWith("credential-001");
+  });
+
+  it("prefers signed attributes from the stored AnonCreds credential", async () => {
+    const getCredential = jest.fn(async () => ({
+      credentialId: "stored-credential-001",
+      attributes: {
+        studentNumber: "STU001",
+        validFrom: "2026-08-01T00:00:00.000Z",
+        expiresAt: "2027-08-01T00:00:00.000Z",
+      },
+    }));
+    const getFormatData = jest.fn();
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        credentials: {
+          getAll: jest.fn(async () => [{
+            id: "exchange-001",
+            state: "done",
+            credentials: [{ credentialRecordId: "stored-credential-001", credentialRecordType: "w3c" }],
+            credentialAttributes: [
+              { name: "studentNumber", value: "PREVIEW-STUDENT" },
+              { name: "validFrom", value: "2025-01-01T00:00:00.000Z" },
+            ],
+          }]),
+          getFormatData,
+        },
+      },
+      initialize: jest.fn(),
+      modules: { anoncreds: { getCredential } },
+    } as unknown as HolderAgent);
+
+    await expect(getStoredCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        credentialAttributes: expect.arrayContaining([
+          { name: "studentNumber", value: "STU001" },
+          { name: "validFrom", value: "2026-08-01T00:00:00.000Z" },
+          { name: "expiresAt", value: "2027-08-01T00:00:00.000Z" },
+        ]),
+      }),
+    ]);
+    expect(getCredential).toHaveBeenCalledWith("stored-credential-001");
+    expect(getFormatData).not.toHaveBeenCalled();
   });
 });
 
@@ -209,6 +308,67 @@ describe("holder agent proof presentation", () => {
     expect(acceptRequest).toHaveBeenCalledWith({
       proofExchangeRecordId: "proof-001",
       proofFormats: selection.proofFormats,
+    });
+  });
+
+  it("detects a revoked credential and declines without presenting it", async () => {
+    const declineRequest = jest.fn(async () => ({ id: "proof-revoked", state: "declined" }));
+    const selectCredentialsForRequest = jest
+      .fn()
+      .mockResolvedValueOnce({ proofFormats: { anoncreds: { attributes: {} } } })
+      .mockResolvedValueOnce({
+        proofFormats: {
+          anoncreds: {
+            attributes: {
+              student: {
+                revoked: true,
+                credentialInfo: { attributes: { studentNumber: "STU001" } },
+              },
+            },
+          },
+        },
+      });
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: { proofs: { declineRequest, selectCredentialsForRequest } },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    await expect(selectVerificationCredentials("proof-revoked", ["studentNumber"]))
+      .rejects.toMatchObject({ code: "CREDENTIAL_REVOKED", proofRecordId: "proof-revoked" });
+    expect(selectCredentialsForRequest).toHaveBeenNthCalledWith(1, {
+      proofExchangeRecordId: "proof-revoked",
+      proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
+    });
+    expect(selectCredentialsForRequest).toHaveBeenNthCalledWith(2, {
+      proofExchangeRecordId: "proof-revoked",
+      proofFormats: { anoncreds: { filterByNonRevocationRequirements: false } },
+    });
+    expect(declineRequest).toHaveBeenCalledWith({
+      proofExchangeRecordId: "proof-revoked",
+      problemReportDescription: "Credential is revoked",
+      sendProblemReport: true,
+    });
+  });
+
+  it("separates a revocation registry outage from a revoked credential", async () => {
+    const declineRequest = jest.fn(async () => ({ id: "proof-status-outage", state: "declined" }));
+    const selectCredentialsForRequest = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("Unable to download tails file for revocation status"))
+      .mockRejectedValueOnce(new Error("Revocation registry is unavailable"));
+
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: { proofs: { declineRequest, selectCredentialsForRequest } },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    await expect(selectVerificationCredentials("proof-status-outage", ["studentNumber"]))
+      .rejects.toMatchObject({ code: "REVOCATION_CHECK_FAILED", proofRecordId: "proof-status-outage" });
+    expect(declineRequest).toHaveBeenCalledWith({
+      proofExchangeRecordId: "proof-status-outage",
+      problemReportDescription: "Revocation status list unavailable",
+      sendProblemReport: true,
     });
   });
 });

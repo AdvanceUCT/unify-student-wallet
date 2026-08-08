@@ -1,33 +1,12 @@
 import { Tabs } from "expo-router";
-import { Activity, Home, IdCard, ScanLine, type LucideIcon } from "lucide-react-native";
-import { Platform, useWindowDimensions, View } from "react-native";
+import { Activity, Home, Inbox, ScanLine, type LucideIcon } from "lucide-react-native";
+import { Platform, useWindowDimensions } from "react-native";
 
 import { colors } from "@/src/theme/colors";
-import { radii } from "@/src/theme/radii";
 import { typography } from "@/src/theme/typography";
 
-function tabIcon(Icon: LucideIcon, emphasized = false) {
+function tabIcon(Icon: LucideIcon) {
   return function TabIconRenderer({ color, focused, size }: { color: string; focused: boolean; size: number }) {
-    if (emphasized) {
-      return (
-        <View
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: radii.pill,
-            backgroundColor: focused ? colors.primaryDeep : colors.ink,
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: -14,
-            borderWidth: 4,
-            borderColor: colors.background,
-          }}
-        >
-          <Icon color={colors.white} size={24} strokeWidth={1.9} />
-        </View>
-      );
-    }
-
     return <Icon color={color} size={size} strokeWidth={focused ? 2.1 : 1.6} />;
   };
 }
@@ -59,9 +38,10 @@ export default function WalletLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(Home) }} />
-      <Tabs.Screen name="credential" options={{ title: "ID", tabBarIcon: tabIcon(IdCard) }} />
-      <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(ScanLine, true) }} />
+      <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: tabIcon(Inbox) }} />
+      <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(ScanLine) }} />
       <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: tabIcon(Activity) }} />
+      <Tabs.Screen name="credential" options={{ href: null }} />
       <Tabs.Screen name="offers" options={{ href: null }} />
       <Tabs.Screen name="payments" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />

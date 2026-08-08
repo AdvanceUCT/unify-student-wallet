@@ -2,6 +2,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as Linking from "expo-linking";
 import { router, useSegments } from "expo-router";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
@@ -138,10 +139,11 @@ function persistedStateFromProvider(state: WalletProviderState): PersistedWallet
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const {
     createWallet: createHolderWallet,
+    ensureWalletReady,
     error: holderAgentError,
+    preloadRuntime,
     resetAgent,
     restoreWallet: restoreHolderWallet,
-    resumeWallet,
   } = useHolderAgent();
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
@@ -231,6 +233,34 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     await saveWalletSessionState(nextState);
   }, []);
 
+  useEffect(() => {
+    if (!state.isHydrated) return;
+
+    const shouldWarmRuntime = Boolean(
+      state.session.walletId ||
+      state.pendingActivationUrl ||
+      state.pendingCheckoutVerification ||
+      state.pendingVerificationPublicServicePointId ||
+      firstRunSetupStatus !== "idle",
+    );
+    if (!shouldWarmRuntime) return;
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      void preloadRuntime().catch(() => {
+        // The active wallet operation owns user-visible retry messaging.
+      });
+    });
+    return () => task.cancel();
+  }, [
+    firstRunSetupStatus,
+    preloadRuntime,
+    state.isHydrated,
+    state.pendingActivationUrl,
+    state.pendingCheckoutVerification,
+    state.pendingVerificationPublicServicePointId,
+    state.session.walletId,
+  ]);
+
   const continueFirstRunSetup = useCallback(async (): Promise<ActionResult> => {
     if (firstRunSetupPromiseRef.current) {
       return firstRunSetupPromiseRef.current;
@@ -243,7 +273,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       try {
         if (current.session.walletId) {
           setFirstRunSetupStatus("creating");
-          await resumeWallet(current.session.walletId);
+          await ensureWalletReady(current.session.walletId);
           setFirstRunSetupStatus("ready");
           return { ok: true };
         }
@@ -295,7 +325,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
     firstRunSetupPromiseRef.current = task;
     return task;
-  }, [createHolderWallet, persistState, resumeWallet]);
+  }, [createHolderWallet, ensureWalletReady, persistState]);
 
   const startFirstRunSetup = useCallback((pin: string, confirmation: string): ActionResult => {
     const validation = validatePinConfirmation(pin, confirmation);
@@ -760,14 +790,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       });
 
       if (state.session.walletId) {
-        void resumeWallet(state.session.walletId).catch(() => {
+        void ensureWalletReady(state.session.walletId).catch(() => {
           // HolderAgentProvider exposes the failure inline without extending PIN confirmation.
         });
       }
 
       return { ok: true };
     },
-    [persistState, resumeWallet, state],
+    [ensureWalletReady, persistState, state],
   );
 
   const unlockWithBiometric = useCallback(async (): Promise<ActionResult> => {
@@ -795,13 +825,13 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     });
 
     if (state.session.walletId) {
-      void resumeWallet(state.session.walletId).catch(() => {
+      void ensureWalletReady(state.session.walletId).catch(() => {
         // HolderAgentProvider exposes the failure inline without extending biometric confirmation.
       });
     }
 
     return { ok: true };
-  }, [persistState, resumeWallet, state]);
+  }, [ensureWalletReady, persistState, state]);
 
   const setBiometricEnabled = useCallback(
     async (enabled: boolean): Promise<BiometricToggleResult> => {

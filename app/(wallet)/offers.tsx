@@ -11,7 +11,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Tag } from "@/src/components/Tag";
-import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
+import { getCredentialRecordLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -45,7 +45,7 @@ export default function OffersScreen() {
   const offersQuery = useQuery({
     queryKey: ["pending-offers", pendingOfferIds.join(",")],
     queryFn: async () => {
-      const records = await Promise.all(pendingOfferIds.map((id) => getCredentialRecord(id)));
+      const records = await Promise.all(pendingOfferIds.map((id) => getCredentialRecordLazy(id)));
       // If Credo has not exposed the full record yet, keep a placeholder row visible.
       return records.map((record, index) => record ?? { id: pendingOfferIds[index] });
     },

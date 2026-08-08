@@ -14,6 +14,15 @@ describe("wallet session storage serialization", () => {
       pendingCheckoutVerification: {
         verificationRequestId: "verification-001",
         claimToken: "single-use-claim-token",
+        claimedSession: {
+          verificationRequestId: "verification-001",
+          invitationUrl: "https://agent.example/oob/claimed",
+          resultToken: "result-capability",
+          vendorName: "Campus Store",
+          servicePointName: "Main Branch",
+          requestedAttributes: ["studentNumber", "faculty"],
+          expiresAt: "2026-08-08T12:05:00.000Z",
+        },
       },
       pendingVerificationPublicServicePointId: "sp-public-001",
       session: {
@@ -41,6 +50,26 @@ describe("wallet session storage serialization", () => {
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
+  });
+
+  it("drops malformed claimed session data without losing the original claim capability", () => {
+    const parsed = parseWalletSessionState(JSON.stringify({
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      pendingCheckoutVerification: {
+        verificationRequestId: "verification-001",
+        claimToken: "single-use-claim-token",
+        claimedSession: { invitationUrl: 42, resultToken: "result-capability" },
+      },
+      session: { authStatus: "signedIn", lockStatus: "locked", pendingOfferIds: [] },
+    }));
+
+    expect(parsed.pendingCheckoutVerification).toEqual({
+      verificationRequestId: "verification-001",
+      claimToken: "single-use-claim-token",
+    });
   });
 
   it("persists a pending verification service point without result capabilities", () => {

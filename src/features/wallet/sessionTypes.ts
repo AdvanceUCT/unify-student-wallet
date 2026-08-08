@@ -5,6 +5,15 @@ export type FirstRunSetupStatus = "idle" | "preparing" | "creating" | "ready" | 
 export type PendingCheckoutVerification = {
   verificationRequestId: string;
   claimToken: string;
+  claimedSession?: {
+    verificationRequestId: string;
+    invitationUrl: string;
+    resultToken: string;
+    vendorName: string;
+    servicePointName: string;
+    requestedAttributes: string[];
+    expiresAt: string;
+  };
 };
 
 export type PendingFlowKind = "checkout" | "servicePoint" | "activation" | "offer" | "home";

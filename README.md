@@ -13,8 +13,8 @@
 React Native wallet app for students to receive, store, and present their
 university digital credential.
 
-Built as an Expo development build because the wallet uses native Credo,
-Askar, AnonCreds, and Indy VDR modules.
+Built as a native Expo Android app because the wallet uses Credo, Askar,
+AnonCreds, and Indy VDR modules that are unavailable in Expo Go.
 </div>
 
 ---
@@ -79,7 +79,9 @@ unify-student-wallet/
 │   ├── features/             # Wallet, auth, credential, payment, and QR logic
 │   ├── lib/                  # API client, storage wrappers, validation helpers
 │   └── theme/                # Shared colors, spacing, typography, shadows
-├── android/                  # Native Android project generated for dev/release builds
+├── android/                  # Generated native Android project
+├── plugins/                  # Tracked Expo native build configuration
+├── scripts/                  # Repeatable local release build commands
 ├── patches/                  # patch-package fixes for native dependencies
 ├── __tests__/                # Jest and React Native Testing Library tests
 ├── package.json              # Scripts and dependencies
@@ -95,11 +97,11 @@ git clone https://github.com/AdvanceUCT/unify-student-wallet.git
 cd unify-student-wallet
 corepack enable
 corepack yarn install --frozen-lockfile
-npx yarn@1.22.22 expo run:android
+npx yarn@1.22.22 android:release-apk
 ```
 
-Use an Expo development build, not Expo Go. The app needs native Credo, Askar,
-AnonCreds, Indy VDR, SecureStore, and dev-client modules to run the wallet flow.
+Expo Go cannot run this app because the holder wallet requires native Credo,
+Askar, AnonCreds, Indy VDR, and SecureStore modules.
 
 ---
 
@@ -120,7 +122,7 @@ AnonCreds, Indy VDR, SecureStore, and dev-client modules to run the wallet flow.
 - **Android emulator or physical Android device**
 
 Expo Go is not enough for this app because the holder-agent flow uses native
-Credo, Askar, AnonCreds, Indy VDR, SecureStore, and Expo dev-client modules.
+Credo, Askar, AnonCreds, Indy VDR, and SecureStore modules.
 
 ### Installation
 
@@ -150,7 +152,37 @@ Credo, Askar, AnonCreds, Indy VDR, SecureStore, and Expo dev-client modules.
    $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
    ```
 
-4. **Start an Android emulator**
+4. **Configure release signing**
+
+   Keep the keystore in the ignored `credentials/` directory. Add these values
+   to `C:\Users\<you>\.gradle\gradle.properties`:
+
+   ```properties
+   UNIFY_RELEASE_STORE_FILE=C:/absolute/path/to/unify-student-wallet/credentials/unify-student-wallet-release.keystore
+   UNIFY_RELEASE_STORE_PASSWORD=your-store-password
+   UNIFY_RELEASE_KEY_ALIAS=your-key-alias
+   UNIFY_RELEASE_KEY_PASSWORD=your-key-password
+   ```
+
+   Do not commit the keystore or these values.
+
+5. **Build the signed release APK**
+
+   ```powershell
+   npx yarn@1.22.22 android:release-apk
+   ```
+
+   The APK is written to `android/app/build/outputs/apk/release/app-release.apk`.
+
+6. **Install the release APK**
+
+   Start an emulator or connect an Android device, then run:
+
+   ```powershell
+   adb install -r android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+7. **Confirm the device connection when needed**
 
    Open Android Studio, start an Android Virtual Device, then confirm it is
    visible:
@@ -159,27 +191,7 @@ Credo, Askar, AnonCreds, Indy VDR, SecureStore, and Expo dev-client modules.
    adb devices
    ```
 
-5. **Build and run the development app**
-   ```powershell
-   npx yarn@1.22.22 expo run:android
-   ```
-
-   The first build can take several minutes. Leave Metro running after the app
-   installs.
-
-6. **Run the app after the first build**
-   ```powershell
-   npx yarn@1.22.22 start:dev-client
-   ```
-
-   Open the installed development build and select the running Metro server.
-   On an emulator, it usually appears as:
-
-   ```text
-   http://10.0.2.2:8081
-   ```
-
-7. **Test a local activation link**
+8. **Test a local activation link**
    ```powershell
    adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
    ```
@@ -192,7 +204,7 @@ Credo, Askar, AnonCreds, Indy VDR, SecureStore, and Expo dev-client modules.
    - Credo initializes the local holder wallet
    - The wallet opens to the credential or offers flow
 
-8. **Reset local app state**
+9. **Reset local app state**
    ```powershell
    adb shell pm clear com.advanceuct.unifystudentwallet
    ```

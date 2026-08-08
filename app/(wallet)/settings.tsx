@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from "expo-router";
-import { Alert, Switch, Text, View } from "react-native";
+import { Alert, Pressable, Switch, Text, View } from "react-native";
 import { useCallback, useState, type PropsWithChildren } from "react";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -7,15 +7,23 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
-import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
+import { type ThemePreference, useThemePreference } from "@/src/features/theme/ThemePreferenceProvider";
+import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { loadBackupMetadata, shouldRemindToBackUp, type BackupMetadata } from "@/src/features/wallet/walletBackup";
 import { colors } from "@/src/theme/colors";
+import { brandGradientEnd } from "@/src/theme/brand";
+import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type PinVerificationPhase = "idle" | "verifying" | "error" | "success";
+const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+];
 
 function SettingsSection({ title, children }: PropsWithChildren<{ title: string }>) {
   return <View style={{ gap: spacing.sm }}><Text style={typography.sectionTitle}>{title}</Text><View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.rule, paddingVertical: spacing.xs }}>{children}</View></View>;
@@ -33,6 +41,7 @@ function formatBackupDate(value?: string) {
 }
 
 export default function SettingsScreen() {
+  const { preference: themePreference, setPreference: setThemePreference } = useThemePreference();
   const { biometricAvailable, biometricEnabled, confirmPinToDisableBiometric, lockWallet, session, setBiometricEnabled, signOut } = useWalletSession();
   const holderAgent = useHolderAgent();
   const [message, setMessage] = useState<string | null>(null);
@@ -44,7 +53,7 @@ export default function SettingsScreen() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    void Promise.all([loadBackupMetadata(), getStoredCredentials()]).then(([metadata, credentials]) => {
+    void Promise.all([loadBackupMetadata(), getStoredCredentialsLazy()]).then(([metadata, credentials]) => {
       if (active) { setBackupMetadata(metadata); setCredentialCount(credentials.length); }
     }).catch(() => undefined);
     return () => { active = false; };
@@ -86,10 +95,41 @@ export default function SettingsScreen() {
     <AppScreen>
       <ScreenHeader eyebrow="Profile" title="Wallet settings" meta="Security, recovery and connection status" />
       <View style={{ gap: spacing["2xl"] }}>
+        <SettingsSection title="Appearance">
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.md }}>
+            {THEME_OPTIONS.map((option) => {
+              const selected = themePreference === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => void setThemePreference(option.value)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: selected ? colors.primaryDeep : colors.surfaceAlt,
+                    borderRadius: radii.sm,
+                    borderWidth: 1,
+                    borderColor: selected ? brandGradientEnd : colors.rule,
+                    opacity: pressed ? 0.72 : 1,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.md,
+                  })}
+                >
+                  <Text style={[typography.label, { color: selected ? colors.white : colors.ink }]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[typography.caption, { paddingBottom: spacing.md }]}>System follows your device appearance.</Text>
+        </SettingsSection>
+
         <SettingsSection title="Security">
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md }}>
             <View style={{ flex: 1, gap: 2 }}><Text style={typography.bodyStrong}>Biometric unlock</Text><Text style={typography.body}>{biometricAvailable ? "Use device biometrics after your PIN is set." : "Unavailable on this device."}</Text></View>
-            <Switch accessibilityLabel="Toggle biometric unlock" disabled={!biometricAvailable || pinPhase === "verifying"} onValueChange={(value) => void handleBiometricChange(value)} trackColor={{ true: colors.primary, false: colors.rule }} thumbColor={colors.surface} value={biometricAvailable && biometricEnabled} />
+            <Switch accessibilityLabel="Toggle biometric unlock" disabled={!biometricAvailable || pinPhase === "verifying"} onValueChange={(value) => void handleBiometricChange(value)} trackColor={{ true: brandGradientEnd, false: colors.rule }} thumbColor={colors.surface} value={biometricAvailable && biometricEnabled} />
           </View>
           {message ? <Text accessibilityLiveRegion="polite" style={[typography.body, { color: colors.error, paddingBottom: spacing.md }]}>{message}</Text> : null}
           <View style={{ paddingBottom: spacing.md }}><AppButton label="Change PIN" variant="outline" onPress={() => router.push("/(auth)/change-pin")} /></View>

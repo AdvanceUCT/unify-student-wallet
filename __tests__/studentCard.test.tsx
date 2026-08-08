@@ -8,6 +8,8 @@ describe("StudentCard", () => {
       <StudentCard
         credential={{
           credentialAttributes: [
+            { name: "firstName", value: "Ada" },
+            { name: "lastName", value: "Lovelace" },
             { name: "institution", value: "University of Cape Town" },
             { name: "issuedAt", value: "2026-04-27T10:00:00.000Z" },
             { name: "expiresAt", value: "2027-04-27T10:00:00.000Z" },
@@ -22,6 +24,8 @@ describe("StudentCard", () => {
     expect(screen.getByText("UNIVERSITY OF CAPE TOWN")).toBeTruthy();
     expect(screen.getByText("2026-04-27")).toBeTruthy();
     expect(screen.getByText("2027-04-27")).toBeTruthy();
+    expect(screen.queryByText("AL")).toBeNull();
+    expect(screen.queryByText("DONE")).toBeNull();
   });
 
   it("truncates long issuer and identifier values instead of letting them overflow", () => {
@@ -47,5 +51,26 @@ describe("StudentCard", () => {
     ).toBe(1);
     expect(screen.getByText("VERY-LONG-STUDENT-NUMBER-1234567890").props.numberOfLines).toBe(1);
     expect(screen.getByText("Postgraduate Extended Study Year").props.numberOfLines).toBe(1);
+  });
+
+  it("normalizes signed date aliases and labels genuinely missing dates", () => {
+    const dated = render(
+      <StudentCard
+        credential={{
+          credentialAttributes: [
+            { name: "valid_from", value: "2026-08-01T00:00:00.000Z" },
+            { name: "expiration-date", value: "2027-08-01T00:00:00.000Z" },
+          ],
+          id: "credential-aliases",
+        }}
+        width={320}
+      />,
+    );
+
+    expect(dated.getByText("2026-08-01")).toBeTruthy();
+    expect(dated.getByText("2027-08-01")).toBeTruthy();
+
+    const missing = render(<StudentCard credential={{ id: "credential-missing-dates" }} width={320} />);
+    expect(missing.getAllByText("Not provided")).toHaveLength(2);
   });
 });

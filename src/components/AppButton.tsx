@@ -1,6 +1,7 @@
 import { Link, type Href } from "expo-router";
-import { Pressable, Text } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 
+import { BrandGradient } from "@/src/components/BrandGradient";
 import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
@@ -30,7 +31,7 @@ export function AppButton({
   const isOutline = variant === "outline" || variant === "secondary";
   const isGhost = variant === "ghost";
 
-  const backgroundColor = isPrimary ? colors.primaryDeep : isOutline ? colors.surfaceAlt : "transparent";
+  const backgroundColor = isPrimary ? "transparent" : isOutline ? colors.surfaceAlt : "transparent";
   const textColor = isPrimary ? colors.white : isGhost ? colors.primary : colors.ink;
   const paddingVertical = size === "lg" ? spacing.lg : spacing.md + 2;
   const fontSize = size === "lg" ? 16 : 15;
@@ -51,9 +52,11 @@ export function AppButton({
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
         paddingHorizontal: spacing.xl,
         paddingVertical,
+        overflow: "hidden",
         ...(isPrimary ? shadows.sm : null),
       })}
     >
+      {isPrimary ? <BrandGradient style={StyleSheet.absoluteFillObject} /> : null}
       <Text
         style={{
           color: textColor,

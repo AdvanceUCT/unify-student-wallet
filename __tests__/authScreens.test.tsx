@@ -78,6 +78,10 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
   useHolderAgent: () => mockHolderAgent,
 }));
 
+jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
+  useThemePreference: () => ({ preference: "system", setPreference: jest.fn(async () => undefined) }),
+}));
+
 function createMockWalletSession() {
   mockWalletSession = {
     acceptOffer: jest.fn().mockResolvedValue({ ok: true }),

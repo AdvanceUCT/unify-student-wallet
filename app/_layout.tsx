@@ -4,16 +4,20 @@ import { useFonts as useMonoFonts, IBMPlexMono_500Medium } from "@expo-google-fo
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import { useColorScheme } from "react-native";
 
+import { ThemePreferenceProvider, useThemePreference } from "@/src/features/theme/ThemePreferenceProvider";
 import { AutoLockProvider } from "@/src/features/wallet/AutoLockProvider";
 import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
 import { WalletRouteGate, WalletSessionProvider } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
 
 export default function RootLayout() {
+  return <ThemePreferenceProvider><RootNavigator /></ThemePreferenceProvider>;
+}
+
+function RootNavigator() {
   const [queryClient] = useState(() => new QueryClient());
-  const scheme = useColorScheme();
+  const { hydrated, resolvedScheme } = useThemePreference();
   const [sansLoaded, sansError] = useSansFonts({
     IBMPlexSans_400Regular,
     IBMPlexSans_500Medium,
@@ -23,7 +27,7 @@ export default function RootLayout() {
   const [monoLoaded, monoError] = useMonoFonts({ IBMPlexMono_500Medium });
 
   const fontsReady = process.env.NODE_ENV === "test" || ((sansLoaded || Boolean(sansError)) && (monoLoaded || Boolean(monoError)));
-  if (!fontsReady) return null;
+  if (!fontsReady || !hydrated) return null;
 
   // Provider order matters: routing needs the agent and session ready above it.
   return (
@@ -32,7 +36,7 @@ export default function RootLayout() {
         <WalletSessionProvider>
           <AutoLockProvider>
             <WalletRouteGate>
-              <StatusBar style={scheme === "dark" ? "light" : "dark"} backgroundColor={colors.background} />
+              <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} backgroundColor={colors.background} />
               <Stack
                 screenOptions={{
                   headerShown: false,

@@ -10,7 +10,7 @@ import { CredentialSkeleton } from "@/src/components/Skeleton";
 import { EmptyState } from "@/src/components/EmptyState";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
+import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
@@ -22,7 +22,7 @@ export default function CredentialIndexScreen() {
   const holderAgent = useHolderAgent();
   const credentialsQuery = useQuery({
     queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
-    queryFn: getStoredCredentials,
+    queryFn: getStoredCredentialsLazy,
     enabled: holderAgent.status === "ready",
     refetchInterval: (query) => ((query.state.data ?? []).length === 0 ? 2000 : false),
   });

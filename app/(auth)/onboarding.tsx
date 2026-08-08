@@ -380,11 +380,15 @@ export default function OnboardingScreen() {
   const activeIndexRef = useRef(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(Math.min(windowWidth - spacing.xl * 2, MAX_CONTENT_WIDTH));
+  const [pagerHeight, setPagerHeight] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [completionError, setCompletionError] = useState<string>();
   const [completionAttempt, setCompletionAttempt] = useState(0);
   const completionStartedRef = useRef(false);
-  const previewHeight = Math.max(228, Math.min(338, windowHeight * 0.42));
+  const previewHeight = Math.max(
+    180,
+    Math.min(338, pagerHeight > 0 ? pagerHeight - 88 - spacing.lg : windowHeight * 0.42),
+  );
 
   const goToPage = useCallback((index: number) => {
     const next = Math.max(0, Math.min(PAGES.length - 1, index));
@@ -478,7 +482,7 @@ export default function OnboardingScreen() {
   }
 
   const renderPage = useCallback(({ item, index }: ListRenderItemInfo<Page>) => (
-    <View style={{ width: viewportWidth, paddingHorizontal: 1 }}>
+    <View style={{ width: viewportWidth, height: pagerHeight || undefined, paddingHorizontal: 1 }} testID={`onboarding-page-${item.key}`}>
       <View accessible accessibilityLabel={`Page ${index + 1} of ${PAGES.length}. ${item.title} ${item.body}`} style={{ flex: 1, gap: spacing.lg }}>
         <View style={{ minHeight: 88, gap: spacing.xs }}>
           <Text style={typography.eyebrow}>Wallet introduction</Text>
@@ -488,7 +492,7 @@ export default function OnboardingScreen() {
         {item.key === "identity" ? <IdentityScene height={previewHeight} /> : item.key === "scan" ? <ScanScene active={activeIndex === index} height={previewHeight} reducedMotion={reducedMotion} /> : <ControlScene height={previewHeight} />}
       </View>
     </View>
-  ), [activeIndex, previewHeight, reducedMotion, viewportWidth, windowHeight]);
+  ), [activeIndex, pagerHeight, previewHeight, reducedMotion, viewportWidth, windowHeight]);
 
   const getItemLayout = useCallback((_data: ArrayLike<Page> | null | undefined, index: number) => ({ index, length: viewportWidth, offset: viewportWidth * index }), [viewportWidth]);
 
@@ -531,11 +535,12 @@ export default function OnboardingScreen() {
           horizontal
           keyExtractor={(item) => item.key}
           onAccessibilityAction={handleAccessibilityAction}
+          onLayout={(event) => setPagerHeight(event.nativeEvent.layout.height)}
           onViewableItemsChanged={onViewableItemsChanged}
           pagingEnabled
           renderItem={renderPage}
           showsHorizontalScrollIndicator={false}
-          style={{ width: viewportWidth, flexGrow: 0, flexShrink: 1 }}
+          style={{ width: viewportWidth, flex: 1, minHeight: 0 }}
           viewabilityConfig={viewabilityConfig}
         />
 

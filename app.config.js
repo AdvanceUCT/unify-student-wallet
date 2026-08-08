@@ -5,6 +5,10 @@ const autoVerify = activationHost !== "localhost" && activationHost !== "127.0.0
 
 module.exports = {
   ...appJson.expo,
+  plugins: [
+    ...(appJson.expo.plugins ?? []),
+    "./plugins/withUnifyAndroidReleaseSigning",
+  ],
   android: {
     ...appJson.expo.android,
     intentFilters: [

@@ -1,5 +1,7 @@
 import { Appearance } from "react-native";
 
+import { brandGradientEnd, brandGradientStart } from "./brand";
+
 export type ColorPalette = {
   background: string;
   surface: string;
@@ -39,8 +41,8 @@ export const lightColors: ColorPalette = {
   ink: "#14201B",
   inkMuted: "#53615B",
   inkSubtle: "#7C8983",
-  primary: "#176B4B",
-  primaryDeep: "#0D3B2E",
+  primary: brandGradientEnd,
+  primaryDeep: brandGradientStart,
   primarySoft: "#DDECE5",
   focus: "#2457D6",
   focusSoft: "#E2E9FC",
@@ -70,8 +72,8 @@ export const darkColors: ColorPalette = {
   ink: "#F1F5F3",
   inkMuted: "#AAB6B0",
   inkSubtle: "#829089",
-  primary: "#63C49B",
-  primaryDeep: "#B8E8D3",
+  primary: "#86C9B1",
+  primaryDeep: brandGradientStart,
   primarySoft: "#203B30",
   focus: "#84A5FF",
   focusSoft: "#26365F",

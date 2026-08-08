@@ -21,6 +21,19 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<PersistedWalletSessionState>;
+    const pendingCheckout = parsed.pendingCheckoutVerification;
+    const claimedSession = pendingCheckout?.claimedSession;
+    const parsedClaimedSession =
+      typeof claimedSession?.verificationRequestId === "string" &&
+      typeof claimedSession.invitationUrl === "string" &&
+      typeof claimedSession.resultToken === "string" &&
+      typeof claimedSession.vendorName === "string" &&
+      typeof claimedSession.servicePointName === "string" &&
+      Array.isArray(claimedSession.requestedAttributes) &&
+      claimedSession.requestedAttributes.every((attribute: unknown) => typeof attribute === "string") &&
+      typeof claimedSession.expiresAt === "string"
+        ? claimedSession
+        : undefined;
 
     return {
       biometricEnabled: Boolean(parsed.biometricEnabled),
@@ -34,9 +47,13 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       pendingActivationUrl:
         typeof parsed.pendingActivationUrl === "string" ? parsed.pendingActivationUrl : undefined,
       pendingCheckoutVerification:
-        typeof parsed.pendingCheckoutVerification?.verificationRequestId === "string" &&
-        typeof parsed.pendingCheckoutVerification.claimToken === "string"
-          ? parsed.pendingCheckoutVerification
+        typeof pendingCheckout?.verificationRequestId === "string" &&
+        typeof pendingCheckout.claimToken === "string"
+          ? {
+              verificationRequestId: pendingCheckout.verificationRequestId,
+              claimToken: pendingCheckout.claimToken,
+              ...(parsedClaimedSession ? { claimedSession: parsedClaimedSession } : {}),
+            }
           : undefined,
       pendingVerificationPublicServicePointId:
         typeof parsed.pendingVerificationPublicServicePointId === "string"

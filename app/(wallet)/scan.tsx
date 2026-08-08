@@ -3,12 +3,13 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { Camera, Flashlight, FlashlightOff, ScanLine, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { InteractionManager, Pressable, Text, View } from "react-native";
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { colors } from "@/src/theme/colors";
@@ -18,6 +19,7 @@ import { typography } from "@/src/theme/typography";
 
 export default function ScanScreen() {
   const { processIncomingLink } = useWalletSession();
+  const { preloadRuntime } = useHolderAgent();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
   const [torch, setTorch] = useState(false);
@@ -28,6 +30,13 @@ export default function ScanScreen() {
   useEffect(() => {
     if (!reducedMotion) scanProgress.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad), reduceMotion: ReduceMotion.System }), -1, true);
   }, [reducedMotion, scanProgress]);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      void preloadRuntime().catch(() => undefined);
+    });
+    return () => task.cancel();
+  }, [preloadRuntime]);
 
   const scanLineStyle = useAnimatedStyle(() => ({ transform: [{ translateY: scanProgress.value * 214 }] }));
 

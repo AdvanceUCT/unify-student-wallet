@@ -14,7 +14,7 @@ import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StatusPill } from "@/src/components/StatusPill";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
-import { getStoredCredentials } from "@/src/features/wallet/holderAgent";
+import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { colors } from "@/src/theme/colors";
@@ -28,7 +28,7 @@ export default function HomeScreen() {
 
   const credentialsQuery = useQuery({
     queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
-    queryFn: getStoredCredentials,
+    queryFn: getStoredCredentialsLazy,
     enabled: holderAgent.status === "ready",
   });
 
@@ -43,9 +43,7 @@ export default function HomeScreen() {
   return (
     <AppScreen>
       <ScreenHeader
-        eyebrow="UNIFY student wallet"
         title="Your identity"
-        meta={holderAgent.status === "ready" ? "Wallet ready" : `Wallet ${holderAgent.status}`}
         trailing={<IconButton accessibilityLabel="Open settings" icon={Settings} onPress={() => router.push("/(wallet)/settings")} />}
       />
 

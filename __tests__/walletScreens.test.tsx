@@ -1,13 +1,20 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "@/app/(wallet)/home";
+import InboxScreen from "@/app/(wallet)/inbox";
 import ScanScreen from "@/app/(wallet)/scan";
 import SettingsScreen from "@/app/(wallet)/settings";
 
 const mockRequestPermission = jest.fn();
+const mockSetThemePreference = jest.fn(async () => undefined);
+let mockStoredCredentials: Array<{
+  id: string;
+  state?: string;
+  credentialAttributes?: Array<{ name: string; value: string }>;
+}> = [];
 const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
   if (queryKey[0] === "stored-credentials") {
-    return { data: [], isError: false, isLoading: false };
+    return { data: mockStoredCredentials, isError: false, isLoading: false };
   }
 
   if (queryKey[0] === "wallet-summary") {
@@ -23,7 +30,9 @@ const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
 
 const mockProcessIncomingLink = jest.fn().mockResolvedValue({ ok: true });
 let mockHolderAgent = {
+  ensureWalletReady: jest.fn(async () => null),
   error: undefined as string | undefined,
+  preloadRuntime: jest.fn(async () => undefined),
   resumeWallet: jest.fn(async () => null),
   status: "ready" as "idle" | "initializing" | "ready" | "error",
 };
@@ -73,17 +82,30 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
   useHolderAgent: () => mockHolderAgent,
 }));
 
+jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
+  useThemePreference: () => ({ preference: "system", setPreference: mockSetThemePreference }),
+}));
+
 describe("wallet screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWalletSession.pendingOfferIds = [];
-    mockHolderAgent = { error: undefined, resumeWallet: jest.fn(async () => null), status: "ready" };
+    mockStoredCredentials = [];
+    mockHolderAgent = {
+      ensureWalletReady: jest.fn(async () => null),
+      error: undefined,
+      preloadRuntime: jest.fn(async () => undefined),
+      resumeWallet: jest.fn(async () => null),
+      status: "ready",
+    };
   });
 
   it("shows the wallet masthead on the home screen", () => {
     const screen = render(<HomeScreen />);
 
     expect(screen.getByText("Your identity")).toBeTruthy();
+    expect(screen.queryByText("UNIFY student wallet")).toBeNull();
+    expect(screen.queryByText("Wallet ready")).toBeNull();
     expect(screen.getByText("Open scanner")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
@@ -97,6 +119,29 @@ describe("wallet screens", () => {
 
     expect(screen.getByText("2 new credential offers")).toBeTruthy();
     expect(screen.getByText("Review what your institution issued")).toBeTruthy();
+  });
+
+  it("uses Inbox for credential offers and validity warnings", () => {
+    mockWalletSession.pendingOfferIds = ["offer-1"];
+    mockStoredCredentials = [{
+      id: "credential-expired",
+      state: "done",
+      credentialAttributes: [{ name: "expiresAt", value: "2020-01-01T00:00:00.000Z" }],
+    }];
+
+    const screen = render(<InboxScreen />);
+
+    expect(screen.getByText("Inbox")).toBeTruthy();
+    expect(screen.getByText("1 credential offer")).toBeTruthy();
+    expect(screen.getByText("Credential expired")).toBeTruthy();
+    expect(screen.getByText("2 items need attention")).toBeTruthy();
+  });
+
+  it("shows an all-caught-up Inbox when there are no actions", () => {
+    const screen = render(<InboxScreen />);
+
+    expect(screen.getByText("Nothing needs your attention")).toBeTruthy();
+    expect(screen.getByText("No action needed")).toBeTruthy();
   });
 
   it("shows Home immediately with a credential placeholder while the agent resumes", () => {
@@ -123,5 +168,13 @@ describe("wallet screens", () => {
     expect(screen.getByText("Holder agent")).toBeTruthy();
     expect(screen.getByText("Sign out")).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Create encrypted backup")).toBeTruthy());
+  });
+
+  it("changes the persisted appearance preference from settings", async () => {
+    const screen = render(<SettingsScreen />);
+
+    await waitFor(() => expect(screen.getByText("Create encrypted backup")).toBeTruthy());
+    fireEvent.press(screen.getByText("Dark"));
+    expect(mockSetThemePreference).toHaveBeenCalledWith("dark");
   });
 });

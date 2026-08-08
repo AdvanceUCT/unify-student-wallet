@@ -67,6 +67,7 @@ describe("wallet onboarding", () => {
     const screen = render(<OnboardingScreen />);
 
     expect(screen.getByText("Your identity, at a glance.")).toBeTruthy();
+    expect(screen.getByTestId("onboarding-page-identity")).toBeTruthy();
     expect(screen.getByText("UNIVERSITY OF CAPE TOWN")).toBeTruthy();
     fireEvent.press(screen.getByText("Skip"));
 
@@ -79,7 +80,9 @@ describe("wallet onboarding", () => {
     const pager = screen.getByLabelText("Wallet introduction, page 1 of 3");
 
     fireEvent(pager, "accessibilityAction", { nativeEvent: { actionName: "increment" } });
+    expect(screen.getByTestId("onboarding-page-scan")).toBeTruthy();
     fireEvent(screen.getByLabelText("Wallet introduction, page 2 of 3"), "accessibilityAction", { nativeEvent: { actionName: "increment" } });
+    expect(screen.getByTestId("onboarding-page-control")).toBeTruthy();
     fireEvent.press(screen.getByText("Enter wallet"));
 
     await waitFor(() => expect(mockCompleteOnboarding).toHaveBeenCalledTimes(1));

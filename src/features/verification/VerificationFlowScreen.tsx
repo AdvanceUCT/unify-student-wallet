@@ -6,16 +6,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
+import { BrandGradient } from "@/src/components/BrandGradient";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { VerificationConsentPanel } from "@/src/components/VerificationConsentPanel";
 import { addVerificationActivity } from "@/src/features/verification/activityHistory";
+import { isAbortError, WalletVerificationError } from "@/src/features/verification/verificationErrors";
 import {
-  acceptVerificationProof,
-  receiveVerificationProofRequest,
-  selectVerificationCredentials,
-  type VerificationProofSelection,
-} from "@/src/features/wallet/holderAgent";
+  acceptVerificationProofLazy,
+  receiveVerificationProofRequestLazy,
+  selectVerificationCredentialsLazy,
+} from "@/src/features/wallet/holderAgentRuntime";
+import type { VerificationProofSelection } from "@/src/features/wallet/holderAgent";
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { ApiClientError } from "@/src/lib/api/apiClient";
 import {
@@ -32,6 +35,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type Phase = "idle" | "loading" | "review" | "presenting" | "polling" | "result" | "error";
+type FlowErrorKind = "before-sharing" | "after-sharing" | "cancelled" | "request";
 
 export type VerificationTarget =
   | { kind: "servicePoint"; publicServicePointId?: string }
@@ -63,23 +67,93 @@ function resultMessage(result: VerificationResult) {
   return "The verifier could not complete this credential presentation.";
 }
 
+function classifyFlowError(error: unknown, connectionStage: "before-sharing" | "after-sharing"): FlowErrorKind {
+  if (isAbortError(error) || (error instanceof ApiClientError && error.kind === "cancelled")) return "cancelled";
+  if (error instanceof ApiClientError && (error.kind === "network" || error.kind === "timeout")) return connectionStage;
+  return "request";
+}
+
+function interruptionCopy(kind: Exclude<FlowErrorKind, "request">, message: string) {
+  if (kind === "after-sharing") {
+    return {
+      title: "Result connection lost",
+      message,
+      detail: "Your proof may already have been sent. Check the existing result before trying another verification.",
+    };
+  }
+  if (kind === "cancelled") {
+    return {
+      title: "Verification was interrupted",
+      message,
+      detail: "The verification flow ended unexpectedly. You can safely resume or return to your wallet.",
+    };
+  }
+  return {
+    title: "Connection lost",
+    message,
+    detail: "No credential information was shared.",
+  };
+}
+
+async function persistVerificationActivity({
+  proofExchangeId,
+  result,
+  session,
+  values,
+  walletId,
+}: {
+  proofExchangeId?: string;
+  result: VerificationResult;
+  session?: StartVerificationSessionResult | null;
+  values: Record<string, string>;
+  walletId?: string;
+}) {
+  if (!session || !proofExchangeId || !walletId || result.status === "Pending") return;
+
+  await addVerificationActivity({
+    id: session.verificationRequestId,
+    walletId,
+    proofExchangeId,
+    verifierName: session.vendorName,
+    servicePointName: session.servicePointName,
+    status: result.status,
+    failureCode: result.failureCode,
+    disclosedValues: session.requestedAttributes.flatMap((name) =>
+      values[name] === undefined ? [] : [{ name: attributeLabel(name), value: values[name] }],
+    ),
+    occurredAt: result.completedAt ?? new Date().toISOString(),
+  });
+}
+
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
-  const { clearPendingFlow, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();
+  const { ensureWalletReady } = useHolderAgent();
+  const { clearPendingFlow, pendingCheckoutVerification, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();
   const clientRequestIdRef = useRef(Crypto.randomUUID());
   const controllerRef = useRef<AbortController | null>(null);
+  const preparationRef = useRef<Promise<void> | null>(null);
+  const autoPreparedTargetRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [sessionInfo, setSessionInfo] = useState<StartVerificationSessionResult | null>(null);
   const [selection, setSelection] = useState<VerificationProofSelection | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<FlowErrorKind>("request");
 
   const targetId = target.kind === "checkout" ? target.verificationRequestId : target.publicServicePointId;
   const claimToken = target.kind === "checkout" ? target.claimToken : undefined;
   const missingTargetMessage = target.kind === "checkout" ? "This checkout verification link is incomplete." : "This verification link is missing a service-point ID.";
 
   const preparePresentation = useCallback(async () => {
+    if (preparationRef.current) return preparationRef.current;
+
+    const preparation = (async () => {
     if (!targetId || (target.kind === "checkout" && !claimToken)) {
       setError(missingTargetMessage);
+      setPhase("error");
+      return;
+    }
+    if (!session.walletId) {
+      setError("Unlock this wallet before starting verification.");
       setPhase("error");
       return;
     }
@@ -87,28 +161,74 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     const controller = new AbortController();
     controllerRef.current = controller;
     setError(null);
+    setErrorKind("request");
     setResult(null);
     setSelection(null);
     setPhase("loading");
 
+    let started: StartVerificationSessionResult | undefined;
+    let proofRecordId: string | undefined;
     try {
-      const started = target.kind === "checkout"
-        ? await claimCheckoutVerificationSession(targetId, claimToken!, controller.signal)
-        : await startVerificationSession(targetId, clientRequestIdRef.current, controller.signal);
-      setSessionInfo(started);
-      const proof = await receiveVerificationProofRequest(started.invitationUrl, controller.signal);
-      const selected = await selectVerificationCredentials(proof.id, started.requestedAttributes);
+      await ensureWalletReady(session.walletId);
       if (controller.signal.aborted) return;
-      if (target.kind === "checkout") await setPendingCheckoutVerification(undefined);
-      else await setPendingVerificationPublicServicePointId(undefined);
+      const savedClaim =
+        target.kind === "checkout" &&
+        pendingCheckoutVerification?.verificationRequestId === targetId
+          ? pendingCheckoutVerification.claimedSession
+          : undefined;
+      started = target.kind === "checkout"
+        ? savedClaim ?? await claimCheckoutVerificationSession(targetId, claimToken!, controller.signal)
+        : await startVerificationSession(targetId, clientRequestIdRef.current, controller.signal);
+      if (target.kind === "checkout" && !savedClaim) {
+        await setPendingCheckoutVerification({
+          verificationRequestId: targetId,
+          claimToken: claimToken!,
+          claimedSession: started,
+        });
+      }
+      setSessionInfo(started);
+      const proof = await receiveVerificationProofRequestLazy(started.invitationUrl, controller.signal);
+      proofRecordId = proof.id;
+      const selected = await selectVerificationCredentialsLazy(proof.id, started.requestedAttributes);
+      if (controller.signal.aborted) return;
+      if (target.kind === "servicePoint") await setPendingVerificationPublicServicePointId(undefined);
       setSelection(selected);
       setPhase("review");
     } catch (caught) {
       if (controller.signal.aborted) return;
+      if (caught instanceof WalletVerificationError && started) {
+        const revoked = caught.code === "CREDENTIAL_REVOKED";
+        const verificationResult: VerificationResult = {
+          status: revoked ? "Declined" : "Failed",
+          failureCode: revoked ? "CREDENTIAL_NOT_CURRENT" : "REVOCATION_CHECK_FAILED",
+          expiresAt: started.expiresAt,
+          completedAt: new Date().toISOString(),
+        };
+        await persistVerificationActivity({
+          proofExchangeId: caught.proofRecordId ?? proofRecordId,
+          result: verificationResult,
+          session: started,
+          values: {},
+          walletId: session.walletId,
+        });
+        await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+        setResult(verificationResult);
+        setPhase("result");
+        return;
+      }
       setError(verificationRequestErrorMessage(caught));
+      setErrorKind(classifyFlowError(caught, "before-sharing"));
       setPhase("error");
     }
-  }, [claimToken, missingTargetMessage, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
+    })();
+
+    preparationRef.current = preparation;
+    try {
+      await preparation;
+    } finally {
+      preparationRef.current = null;
+    }
+  }, [claimToken, clearPendingFlow, ensureWalletReady, missingTargetMessage, pendingCheckoutVerification, session.walletId, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
 
   useEffect(() => {
     if (!targetId || (target.kind === "checkout" && !claimToken)) {
@@ -121,22 +241,30 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       else void setPendingVerificationPublicServicePointId(targetId);
       return;
     }
+    const preparationKey = `${target.kind}:${targetId}`;
+    if (autoPreparedTargetRef.current === preparationKey) return;
+    autoPreparedTargetRef.current = preparationKey;
     void preparePresentation();
     return () => controllerRef.current?.abort();
   }, [claimToken, missingTargetMessage, preparePresentation, session.lockStatus, session.walletId, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
 
-  async function saveResult(authoritativeResult: VerificationResult) {
-    if (!selection || !sessionInfo || !session.walletId || authoritativeResult.status === "Pending") return;
-    await addVerificationActivity({
-      id: sessionInfo.verificationRequestId,
+  async function saveResult(
+    authoritativeResult: VerificationResult,
+    context?: {
+      proofRecordId?: string;
+      session: StartVerificationSessionResult;
+      values: Record<string, string>;
+    },
+  ) {
+    const activeSession = context?.session ?? sessionInfo;
+    const proofExchangeId = context?.proofRecordId ?? selection?.proofRecordId;
+    const values = context?.values ?? selection?.values ?? {};
+    await persistVerificationActivity({
+      proofExchangeId,
+      result: authoritativeResult,
+      session: activeSession,
+      values,
       walletId: session.walletId,
-      proofExchangeId: selection.proofRecordId,
-      verifierName: sessionInfo.vendorName,
-      servicePointName: sessionInfo.servicePointName,
-      status: authoritativeResult.status,
-      failureCode: authoritativeResult.failureCode,
-      disclosedValues: sessionInfo.requestedAttributes.map((name) => ({ name: attributeLabel(name), value: selection.values[name] ?? "Missing" })),
-      occurredAt: authoritativeResult.completedAt ?? new Date().toISOString(),
     });
   }
 
@@ -146,16 +274,20 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     const controller = new AbortController();
     controllerRef.current = controller;
     setError(null);
+    setErrorKind("request");
     setPhase("presenting");
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    let shared = false;
     try {
-      await acceptVerificationProof(selection);
+      await acceptVerificationProofLazy(selection);
+      shared = true;
       if (controller.signal.aborted) return;
       setPhase("polling");
       const authoritativeResult = await pollVerificationResult(sessionInfo.verificationRequestId, sessionInfo.resultToken, controller.signal);
       if (controller.signal.aborted) return;
       await saveResult(authoritativeResult);
+      await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
       setResult(authoritativeResult);
       setPhase("result");
     } catch (caught) {
@@ -168,6 +300,36 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         return;
       }
       setError(verificationRequestErrorMessage(caught));
+      setErrorKind(classifyFlowError(caught, shared ? "after-sharing" : "before-sharing"));
+      setPhase("error");
+    }
+  }
+
+  async function checkExistingResult() {
+    if (!sessionInfo) {
+      await preparePresentation();
+      return;
+    }
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setError(null);
+    setPhase("polling");
+    try {
+      const authoritativeResult = await pollVerificationResult(
+        sessionInfo.verificationRequestId,
+        sessionInfo.resultToken,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      await saveResult(authoritativeResult);
+      await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+      setResult(authoritativeResult);
+      setPhase("result");
+    } catch (caught) {
+      if (controller.signal.aborted) return;
+      setError(verificationRequestErrorMessage(caught));
+      setErrorKind(classifyFlowError(caught, "after-sharing"));
       setPhase("error");
     }
   }
@@ -177,15 +339,31 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     router.replace("/(wallet)/home");
   }
 
+  async function dismissPresentation() {
+    controllerRef.current?.abort();
+    await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+    router.replace("/(wallet)/home");
+  }
+
   if (phase === "loading") return <OperationStateScreen tone="loading" eyebrow="Secure request" title="Preparing verification" message="Connecting to the verifier and finding a matching credential." detail="No information has been shared." />;
   if (phase === "presenting") return <OperationStateScreen tone="secure" eyebrow="Credential presentation" title="Sharing approved values" message="Creating a privacy-preserving proof from the credential you selected." detail="Keep UNIFY open while the proof is sent." />;
   if (phase === "polling") return <OperationStateScreen tone="loading" eyebrow="Verifier response" title="Checking the result" message="The proof was sent. Waiting for the verifier's authoritative decision." />;
   if (phase === "result" && result) {
     const approved = result.status === "Approved";
+    if (result.failureCode === "CREDENTIAL_NOT_CURRENT") {
+      return <OperationStateScreen tone="error" eyebrow="Credential status" title="Credential revoked" message="This credential is no longer valid and cannot be used for verification. Contact your institution if you believe this is incorrect." detail={sessionInfo ? `${sessionInfo.vendorName} · ${sessionInfo.servicePointName}` : undefined} primaryAction={{ label: "Done", onPress: () => router.replace("/(wallet)/activity") }} />;
+    }
+    if (result.failureCode === "REVOCATION_CHECK_FAILED") {
+      return <OperationStateScreen tone="warning" eyebrow="Status check unavailable" title="Credential status could not be confirmed" message="The revocation registry could not be reached. No verification decision was made." detail={sessionInfo ? `${sessionInfo.vendorName} · ${sessionInfo.servicePointName}` : undefined} primaryAction={{ label: "Done", onPress: () => router.replace("/(wallet)/activity") }} />;
+    }
     return <OperationStateScreen tone={approved ? "success" : result.status === "Expired" ? "warning" : "error"} eyebrow="Verification complete" title={approved ? "Credential verified" : result.status} message={resultMessage(result)} detail={sessionInfo ? `${sessionInfo.vendorName} · ${sessionInfo.servicePointName}` : undefined} primaryAction={{ label: "Done", onPress: () => router.replace("/(wallet)/activity") }} />;
   }
   if (phase === "error" && error) {
-    return <OperationStateScreen tone="warning" eyebrow="Verification interrupted" title="Could not complete verification" message={error} primaryAction={{ label: "Try again", onPress: () => void preparePresentation() }} secondaryAction={{ label: "Continue to wallet", onPress: () => void continueToWallet() }} />;
+    if (errorKind !== "request") {
+      const interruption = interruptionCopy(errorKind, error);
+      return <OperationStateScreen tone="warning" eyebrow="Verification interrupted" title={interruption.title} message={interruption.message} detail={interruption.detail} primaryAction={{ label: errorKind === "after-sharing" ? "Check result" : "Try again", onPress: () => void (errorKind === "after-sharing" ? checkExistingResult() : preparePresentation()) }} secondaryAction={{ label: "Continue to wallet", onPress: () => void continueToWallet() }} />;
+    }
+    return <OperationStateScreen tone="warning" eyebrow="Verification unavailable" title="Could not start verification" message={error} primaryAction={{ label: "Try again", onPress: () => void preparePresentation() }} secondaryAction={{ label: "Continue to wallet", onPress: () => void continueToWallet() }} />;
   }
 
   return (
@@ -194,7 +372,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       <ScreenHeader eyebrow="Credential presentation" title="Review before sharing" meta="Only the values listed below will be presented after you approve." />
       {sessionInfo && selection ? (
         <View style={{ gap: spacing["2xl"] }}>
-          <View style={{ backgroundColor: colors.primaryDeep, borderRadius: 20, padding: spacing.xl, gap: spacing.lg }}>
+          <BrandGradient style={{ borderRadius: 20, padding: spacing.xl, gap: spacing.lg }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
               <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft, borderRadius: 12 }}><Store color={colors.primary} size={23} /></View>
               <View style={{ flex: 1, gap: spacing.xs }}>
@@ -207,11 +385,11 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
               <Clock3 color="#B8D5C8" size={15} />
               <Text style={[typography.caption, { color: "#DDECE5" }]}>Request expires at {new Date(sessionInfo.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
             </View>
-          </View>
+          </BrandGradient>
 
           <VerificationConsentPanel
             primaryAction={{ label: "Present credential", onPress: () => void presentCredential() }}
-            secondaryAction={{ label: "Not now", onPress: () => router.back() }}
+            secondaryAction={{ label: "Not now", onPress: () => void dismissPresentation() }}
             servicePointName={sessionInfo.servicePointName}
             showContext={false}
             values={sessionInfo.requestedAttributes.map((attribute) => ({ name: attributeLabel(attribute), value: selection.values[attribute] ?? "Missing" }))}
