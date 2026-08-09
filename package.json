@@ -12,7 +12,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand",
+    "test": "jest",
+    "test:ci": "jest --maxWorkers=2",
     "build": "expo export"
   },
   "dependencies": {

@@ -8,10 +8,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-type-test:
     name: ci-lint-type-test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -69,7 +74,11 @@ jobs:
         shell: bash
         run: |
           if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
-            corepack yarn test
+            if node -e "process.exit(require('./package.json').scripts?.['test:ci'] ? 0 : 1)"; then
+              corepack yarn test:ci
+            else
+              corepack yarn test
+            fi
           else
             echo "No test script configured."
           fi
