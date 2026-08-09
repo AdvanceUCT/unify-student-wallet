@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 
 import HomeScreen from "@/app/(wallet)/home";
+import ActivityScreen from "@/app/(wallet)/activity";
 import InboxScreen from "@/app/(wallet)/inbox";
 import ScanScreen from "@/app/(wallet)/scan";
 import SettingsScreen from "@/app/(wallet)/settings";
@@ -272,6 +273,36 @@ describe("wallet screens", () => {
     expect(screen.getByText("Cached Student")).toBeTruthy();
     expect(screen.queryByLabelText("Loading credential")).toBeNull();
     expect(screen.queryByText("Scan to verify")).toBeNull();
+  });
+
+  it("shows the full verification activity list", async () => {
+    mockRecentActivity = [{
+      id: "verification-001",
+      walletId: "wallet-uuid-001",
+      proofExchangeId: "proof-001",
+      verifierName: "Campus Store",
+      servicePointName: "Online checkout",
+      status: "Declined",
+      disclosedValues: [{ name: "Faculty", value: "Science" }],
+      occurredAt: "2026-06-23T10:01:00.000Z",
+    }];
+    const screen = render(<ActivityScreen />);
+
+    await waitFor(() => expect(screen.getByText("Campus Store")).toBeTruthy());
+    expect(screen.getByText("Audit trail")).toBeTruthy();
+    expect(screen.getByText("Online checkout")).toBeTruthy();
+    expect(screen.getByText("Declined")).toBeTruthy();
+  });
+
+  it("shows the empty activity state", async () => {
+    const screen = render(<ActivityScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("No presentations yet")).toBeTruthy();
+    expect(screen.getByText("Your activity is private.")).toBeTruthy();
   });
 
   it("prompts the user to enable camera permission on the scan screen", () => {

@@ -121,19 +121,23 @@ async function persistVerificationActivity({
 }) {
   if (!session || !proofExchangeId || !walletId || result.status === "Pending") return;
 
-  await addVerificationActivity({
-    id: session.verificationRequestId,
-    walletId,
-    proofExchangeId,
-    verifierName: session.vendorName,
-    servicePointName: session.servicePointName,
-    status: result.status,
-    failureCode: result.failureCode,
-    disclosedValues: session.requestedAttributes.flatMap((name) =>
-      values[name] === undefined ? [] : [{ name: attributeLabel(name), value: values[name] }],
-    ),
-    occurredAt: result.completedAt ?? new Date().toISOString(),
-  });
+  try {
+    await addVerificationActivity({
+      id: session.verificationRequestId,
+      walletId,
+      proofExchangeId,
+      verifierName: session.vendorName,
+      servicePointName: session.servicePointName,
+      status: result.status,
+      failureCode: result.failureCode,
+      disclosedValues: session.requestedAttributes.flatMap((name) =>
+        values[name] === undefined ? [] : [{ name: attributeLabel(name), value: values[name] }],
+      ),
+      occurredAt: result.completedAt ?? new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[verification-activity] Unable to save verification result.", error);
+  }
 }
 
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
@@ -346,6 +350,13 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       setPhase("result");
     } catch (caught) {
       if (controller.signal.aborted) return;
+      if (caught instanceof ApiClientError && caught.status === 410) {
+        const expired: VerificationResult = { status: "Expired", expiresAt: sessionInfo.expiresAt };
+        await saveResult(expired);
+        setResult(expired);
+        setPhase("result");
+        return;
+      }
       setError(verificationRequestErrorMessage(caught));
       setErrorKind(classifyFlowError(caught, "after-sharing"));
       setPhase("error");

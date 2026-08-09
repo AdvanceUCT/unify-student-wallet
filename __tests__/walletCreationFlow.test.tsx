@@ -73,6 +73,7 @@ let walletContext:
       isHydrated: boolean;
       onboardingCompleted: boolean;
       session: WalletSession;
+      signOut: () => Promise<void>;
     }
   | undefined;
 
@@ -123,6 +124,33 @@ describe("wallet creation flow", () => {
     const persistedValues = Array.from(mockSecureValues.values()).join("\n");
     expect(persistedValues).not.toContain("raw-secret-token");
     expect(persistedValues).not.toContain("https://issuer.advanceuct.test/oob");
+  });
+
+  it("clears wallet session and private verification activity on sign-out", async () => {
+    mockSecureValues.set("unify.wallet.session.v1", JSON.stringify({
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      session: { authStatus: "signedIn", lockStatus: "unlocked", pendingOfferIds: [], walletId: "wallet-uuid-001" },
+    }));
+    mockSecureValues.set("unify.verification.activity.v1", "private activity");
+
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+
+    await act(async () => {
+      await walletContext?.signOut();
+    });
+
+    expect(mockSecureValues.has("unify.wallet.session.v1")).toBe(false);
+    expect(mockSecureValues.has("unify.verification.activity.v1")).toBe(false);
   });
 
   it("keeps first-run setup transient while Credo creates the wallet in the background", async () => {

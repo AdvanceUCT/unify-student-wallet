@@ -257,6 +257,66 @@ describe("checkout verification readiness", () => {
     expect(mockPollResult).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["Approved", "Declined", "Failed"] as const)("records a terminal %s result once", async (status) => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = { verificationRequestId: "verification-001", claimToken: "single-use-claim-token", claimedSession };
+    mockPollResult.mockResolvedValueOnce({
+      status,
+      ...(status === "Approved" ? {} : { failureCode: "CREDENTIAL_NOT_CURRENT" }),
+      expiresAt: claimedSession.expiresAt,
+      completedAt: "2026-08-08T12:01:00.000Z",
+    });
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+    await waitFor(() => expect(screen.getByText("Present credential")).toBeTruthy());
+    fireEvent.press(screen.getByText("Present credential"));
+
+    await waitFor(() => expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+      id: "verification-001",
+      proofExchangeId: "proof-001",
+      status,
+      disclosedValues: [{ name: "Student number", value: "STU001" }],
+    })));
+    expect(mockAddActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("records an expired result when the result capability has expired", async () => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = { verificationRequestId: "verification-001", claimToken: "single-use-claim-token", claimedSession };
+    mockPollResult.mockRejectedValueOnce(new ApiClientError("Expired", "http", 410));
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+    await waitFor(() => expect(screen.getByText("Present credential")).toBeTruthy());
+    fireEvent.press(screen.getByText("Present credential"));
+
+    await waitFor(() => expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({ status: "Expired" })));
+    expect(screen.getByText("Expired")).toBeTruthy();
+  });
+
+  it("keeps the authoritative result when local activity persistence fails", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = { verificationRequestId: "verification-001", claimToken: "single-use-claim-token", claimedSession };
+    mockAddActivity.mockRejectedValueOnce(new Error("Secure storage unavailable"));
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+    await waitFor(() => expect(screen.getByText("Present credential")).toBeTruthy());
+    fireEvent.press(screen.getByText("Present credential"));
+
+    await waitFor(() => expect(screen.getByText("Credential verified")).toBeTruthy());
+    expect(consoleError).toHaveBeenCalledWith(
+      "[verification-activity] Unable to save verification result.",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
+  });
+
   it("distinguishes an interrupted cancellation from a request failure", async () => {
     mockEnsureWalletReady.mockResolvedValue(null);
     mockClaimCheckoutSession.mockRejectedValueOnce(new ApiClientError("Request cancelled", "cancelled"));

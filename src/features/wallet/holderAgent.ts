@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 import { WalletVerificationError } from "@/src/features/verification/verificationErrors";
+import { createAbortError } from "@/src/lib/abortError";
 
 import { getMediatorInvitationUrl, getMediatorPickupStrategy } from "./mediatorService";
 import { isValidGenesisTransactions, readCachedGenesisTransactions, writeCachedGenesisTransactions } from "./genesisCache";
@@ -998,7 +999,7 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
 
 function throwIfCancelled(signal?: AbortSignal) {
   if (signal?.aborted) {
-    throw new DOMException("The verification was cancelled.", "AbortError");
+    throw createAbortError("The verification was cancelled.");
   }
 }
 

@@ -5,6 +5,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
+import { clearVerificationActivity } from "@/src/features/verification/activityHistory";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
@@ -995,6 +996,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     await clearWalletSessionState();
+    await clearVerificationActivity();
     await resetAgent();
     firstRunSetupDraftRef.current = null;
     firstRunSetupPromiseRef.current = null;
