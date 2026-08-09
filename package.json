@@ -13,7 +13,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:ci": "jest --maxWorkers=2",
+    "test:ci": "jest --runInBand",
     "build": "expo export"
   },
   "dependencies": {
