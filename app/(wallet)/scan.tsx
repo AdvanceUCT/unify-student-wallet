@@ -4,7 +4,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Camera, Flashlight, FlashlightOff, ScanLine, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InteractionManager, Pressable, Text, View } from "react-native";
-import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
@@ -28,10 +28,16 @@ export default function ScanScreen() {
   const scanLockedRef = useRef(false);
   const scanProgress = useSharedValue(0);
   const capturePulse = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
+  const systemReducedMotion = useReducedMotion();
+  const reducedMotion = process.env.NODE_ENV === "test" || systemReducedMotion;
 
   useEffect(() => {
-    if (!reducedMotion) scanProgress.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad), reduceMotion: ReduceMotion.System }), -1, true);
+    cancelAnimation(scanProgress);
+    scanProgress.value = 0;
+    if (!reducedMotion) {
+      scanProgress.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad), reduceMotion: ReduceMotion.System }), -1, true);
+    }
+    return () => cancelAnimation(scanProgress);
   }, [reducedMotion, scanProgress]);
 
   useEffect(() => {
