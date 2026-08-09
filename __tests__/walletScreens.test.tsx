@@ -322,7 +322,6 @@ describe("wallet screens", () => {
   });
 
   it("locks a valid QR capture and navigates only once", async () => {
-    jest.useFakeTimers();
     mockCameraGranted = true;
     const routerMock = jest.requireMock("expo-router").router as { push: jest.Mock };
     const screen = render(<ScanScreen />);
@@ -332,12 +331,7 @@ describe("wallet screens", () => {
     fireEvent(camera, "barcodeScanned", { data: "https://voskuils.com/verify/sp-public-001" });
     expect(screen.getByText("Code captured")).toBeTruthy();
 
-    await act(async () => {
-      jest.advanceTimersByTime(200);
-      await Promise.resolve();
-    });
-    expect(routerMock.push).toHaveBeenCalledTimes(1);
-    jest.useRealTimers();
+    await waitFor(() => expect(routerMock.push).toHaveBeenCalledTimes(1));
   });
 
   it("changes the persisted appearance preference from settings", async () => {
