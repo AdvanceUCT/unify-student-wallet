@@ -5,7 +5,9 @@ import { Pressable, Text, View } from "react-native";
 import { InfoRow } from "@/src/components/InfoRow";
 import { StatusPill } from "@/src/components/StatusPill";
 import type { VerificationActivityRecord } from "@/src/features/verification/activityHistory";
-import { colors } from "@/src/theme/colors";
+import { verificationOutcomeLabel } from "@/src/features/verification/verificationOutcome";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { formatCredentialLabel, formatCredentialValue } from "@/src/features/wallet/credentialDisplay";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -33,6 +35,7 @@ type ActivityLedgerProps = {
 };
 
 export function ActivityLedger({ compact = false, records }: ActivityLedgerProps) {
+  const colors = useThemePalette();
   const [expandedId, setExpandedId] = useState<string>();
   const groups = useMemo(() => {
     const grouped = new Map<string, VerificationActivityRecord[]>();
@@ -51,6 +54,8 @@ export function ActivityLedger({ compact = false, records }: ActivityLedgerProps
           {items.map((record) => {
             const expanded = !compact && expandedId === record.id;
             const Icon = record.status === "Approved" ? CheckCircle2 : record.status === "Expired" ? Clock3 : ShieldAlert;
+            const outcomeLabel = verificationOutcomeLabel(record);
+            const showOutcome = record.status !== "Approved" || Boolean(record.failureCode);
             const content = (
               <>
                 <View style={{ flexDirection: "row", gap: compact ? spacing.sm : spacing.md, alignItems: "center" }}>
@@ -60,14 +65,14 @@ export function ActivityLedger({ compact = false, records }: ActivityLedgerProps
                   <View style={{ flex: 1, gap: compact ? 0 : 2 }}>
                     <Text numberOfLines={1} style={[typography.bodyStrong, compact ? { fontSize: 10, lineHeight: 13 } : undefined]}>{record.verifierName}</Text>
                     <Text numberOfLines={1} style={[typography.body, compact ? { fontSize: 9, lineHeight: 12 } : undefined]}>{record.servicePointName}</Text>
+                    {showOutcome ? <Text numberOfLines={1} style={[typography.caption, { color: statusTone(record.status) === "warning" ? colors.warning : colors.error }]}>{outcomeLabel}</Text> : null}
                     {!compact ? <Text style={typography.caption}>{new Date(record.occurredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text> : null}
                   </View>
                   <StatusPill label={record.status} tone={statusTone(record.status)} />
                 </View>
                 {expanded ? (
                   <View style={{ marginLeft: 56, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderColor: colors.ruleSoft }}>
-                    {record.disclosedValues.map((attribute, index) => <InfoRow key={`${record.id}-${attribute.name}`} label={attribute.name} value={attribute.value} divider={index < record.disclosedValues.length - 1} />)}
-                    {record.failureCode ? <Text style={[typography.caption, { color: colors.error, marginTop: spacing.md }]}>{record.failureCode.replace(/_/g, " ")}</Text> : null}
+                    {record.disclosedValues.map((attribute, index) => <InfoRow key={`${record.id}-${attribute.name}`} label={formatCredentialLabel(attribute.name)} value={formatCredentialValue(attribute.name, attribute.value)} divider={index < record.disclosedValues.length - 1} />)}
                   </View>
                 ) : null}
               </>
@@ -80,7 +85,7 @@ export function ActivityLedger({ compact = false, records }: ActivityLedgerProps
             return (
               <Pressable
                 key={record.id}
-                accessibilityLabel={`${record.verifierName}, ${record.servicePointName}, ${record.status}`}
+                accessibilityLabel={`${record.verifierName}, ${record.servicePointName}, ${record.status}${showOutcome ? `, ${outcomeLabel}` : ""}`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
                 onPress={() => setExpandedId(expanded ? undefined : record.id)}

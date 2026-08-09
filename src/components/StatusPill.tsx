@@ -6,6 +6,5 @@ type StatusPillProps = {
 };
 
 export function StatusPill({ label, tone = "success" }: StatusPillProps) {
-  const tagTone = tone === "success" ? "primary" : tone;
-  return <Tag label={label} tone={tagTone} />;
+  return <Tag label={label} tone={tone} />;
 }

@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { Activity, Home, Inbox, ScanLine, type LucideIcon } from "lucide-react-native";
 import { Platform, useWindowDimensions } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { typography } from "@/src/theme/typography";
 
 function tabIcon(Icon: LucideIcon) {
@@ -13,6 +13,7 @@ function tabIcon(Icon: LucideIcon) {
 
 export default function WalletLayout() {
   const { width } = useWindowDimensions();
+  const colors = useThemePalette();
   const isWide = width >= 768;
 
   return (
@@ -35,6 +36,7 @@ export default function WalletLayout() {
           paddingBottom: isWide ? 24 : Platform.OS === "ios" ? 18 : 8,
         },
         tabBarItemStyle: { minHeight: 56 },
+        sceneStyle: { backgroundColor: colors.background },
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(Home) }} />

@@ -1,20 +1,23 @@
 import { Text, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import type { ColorPalette } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 
-type TagTone = "ink" | "primary" | "warning" | "error" | "muted";
+type TagTone = "ink" | "primary" | "success" | "warning" | "error" | "muted";
 
 type TagProps = {
   label: string;
   tone?: TagTone;
 };
 
-function toneStyles(tone: TagTone) {
+function toneStyles(tone: TagTone, colors: ColorPalette) {
   switch (tone) {
     case "primary":
       return { bg: colors.primarySoft, fg: colors.primaryDeep };
+    case "success":
+      return { bg: colors.successSoft, fg: colors.success };
     case "warning":
       return { bg: colors.warningSoft, fg: colors.warning };
     case "error":
@@ -28,7 +31,8 @@ function toneStyles(tone: TagTone) {
 }
 
 export function Tag({ label, tone = "ink" }: TagProps) {
-  const { bg, fg } = toneStyles(tone);
+  const colors = useThemePalette();
+  const { bg, fg } = toneStyles(tone, colors);
 
   return (
     <View

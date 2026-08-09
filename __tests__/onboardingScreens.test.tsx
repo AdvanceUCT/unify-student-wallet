@@ -23,7 +23,7 @@ jest.mock("expo-router", () => ({
 
 jest.mock("react-native-reanimated", () => {
   const actual = jest.requireActual("react-native-reanimated/mock");
-  return { ...actual, useReducedMotion: () => true, ReduceMotion: { System: "system" } };
+  return { ...actual, useReducedMotion: () => true, ReduceMotion: { Never: "never", System: "system" } };
 });
 
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
@@ -107,7 +107,7 @@ describe("wallet onboarding", () => {
 
     fireEvent.press(screen.getByText("Skip"));
 
-    expect(screen.getByText("Finishing setup")).toBeTruthy();
+    expect(screen.getByText("Creating encrypted wallet")).toBeTruthy();
     expect(screen.getByLabelText("Finishing secure wallet setup")).toBeTruthy();
     expect(mockCompleteOnboarding).not.toHaveBeenCalled();
   });

@@ -2,7 +2,7 @@ import { type ComponentType } from "react";
 import { Pressable } from "react-native";
 import { type LucideProps } from "lucide-react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { radii } from "@/src/theme/radii";
 
 type IconButtonProps = {
@@ -13,6 +13,7 @@ type IconButtonProps = {
 };
 
 export function IconButton({ accessibilityLabel, icon: Icon, onPress, selected = false }: IconButtonProps) {
+  const colors = useThemePalette();
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}

@@ -93,7 +93,7 @@ export default function SetPinScreen() {
   const isEnterStep = step === "enter";
 
   if (isSubmitting) {
-    return <OperationStateScreen tone="secure" eyebrow="Step 3 of 3 · Wallet readiness" title="Creating your wallet" message="Generating encrypted wallet storage and starting the credential agent." detail="Keep UNIFY open until setup is complete." />;
+    return <OperationStateScreen busy tone="secure" eyebrow="Step 3 of 3 · Wallet readiness" title="Creating your wallet" message="Generating encrypted wallet storage and starting the credential agent." detail="Keep UNIFY open until setup is complete." />;
   }
 
   return (

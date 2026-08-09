@@ -1161,7 +1161,7 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
   }, [firstRunSetupStatus, hasPin, isHydrated, onboardingCompleted, pendingActivationUrl, pendingCheckoutVerification, pendingOfferIds.length, pendingVerificationPublicServicePointId, segments, session]);
 
   if (!isHydrated) {
-    return <OperationStateScreen tone="secure" eyebrow="UNIFY wallet" title="Checking secure storage" message="Reading the encrypted wallet state on this device." />;
+    return <OperationStateScreen busy tone="secure" eyebrow="UNIFY wallet" title="Checking secure storage" message="Reading the encrypted wallet state on this device." />;
   }
 
   return children;

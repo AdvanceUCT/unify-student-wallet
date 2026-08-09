@@ -60,7 +60,7 @@ export default function RestoreWalletScreen() {
   }
 
   if (isRestoring) {
-    return <OperationStateScreen tone="secure" eyebrow="Wallet recovery" title="Restoring encrypted wallet" message="Validating the backup and rebuilding secure wallet storage on this device." detail="Do not close UNIFY during recovery." />;
+    return <OperationStateScreen busy tone="secure" eyebrow="Wallet recovery" title="Restoring encrypted wallet" message="Validating the backup and rebuilding secure wallet storage on this device." detail="Do not close UNIFY during recovery." />;
   }
 
   return (

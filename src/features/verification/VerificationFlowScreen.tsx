@@ -6,12 +6,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
+import { AppButton } from "@/src/components/AppButton";
 import { BrandGradient } from "@/src/components/BrandGradient";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { VerificationConsentPanel } from "@/src/components/VerificationConsentPanel";
 import { addVerificationActivity } from "@/src/features/verification/activityHistory";
 import { isAbortError, WalletVerificationError } from "@/src/features/verification/verificationErrors";
+import { formatCredentialLabel, formatCredentialValue } from "@/src/features/wallet/credentialDisplay";
 import {
   acceptVerificationProofLazy,
   receiveVerificationProofRequestLazy,
@@ -35,6 +37,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type Phase = "idle" | "loading" | "review" | "presenting" | "polling" | "result" | "error";
+export type VerificationProgressStep = "opening-request" | "receiving-request" | "matching-credential" | "building-proof" | "awaiting-verifier";
 type FlowErrorKind = "before-sharing" | "after-sharing" | "cancelled" | "request";
 
 export type VerificationTarget =
@@ -56,8 +59,16 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
 };
 
 function attributeLabel(attribute: string) {
-  return ATTRIBUTE_LABELS[attribute] ?? attribute.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (value) => value.toUpperCase());
+  return ATTRIBUTE_LABELS[attribute] ?? formatCredentialLabel(attribute);
 }
+
+const PROGRESS_COPY: Record<VerificationProgressStep, { eyebrow: string; title: string; message: string; detail?: string }> = {
+  "opening-request": { eyebrow: "Secure request", title: "Opening verification", message: "Connecting to the verifier and preparing this wallet.", detail: "No information has been shared." },
+  "receiving-request": { eyebrow: "Verifier request", title: "Receiving request", message: "Loading the exact values requested by the verifier.", detail: "No information has been shared." },
+  "matching-credential": { eyebrow: "Credential match", title: "Matching credential", message: "Checking this wallet for a credential that contains the requested values.", detail: "No information has been shared." },
+  "building-proof": { eyebrow: "Credential presentation", title: "Sharing approved values", message: "Building and sending a privacy-preserving proof from the credential you selected.", detail: "Keep UNIFY open while the proof is sent." },
+  "awaiting-verifier": { eyebrow: "Verifier response", title: "Checking the result", message: "The proof was sent. Waiting for the verifier's authoritative decision." },
+};
 
 function resultMessage(result: VerificationResult) {
   if (result.failureCode) return verificationFailureMessage(result.failureCode);
@@ -133,6 +144,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   const preparationRef = useRef<Promise<void> | null>(null);
   const autoPreparedTargetRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
+  const [progressStep, setProgressStep] = useState<VerificationProgressStep>("opening-request");
   const [sessionInfo, setSessionInfo] = useState<StartVerificationSessionResult | null>(null);
   const [selection, setSelection] = useState<VerificationProofSelection | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
@@ -164,6 +176,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     setErrorKind("request");
     setResult(null);
     setSelection(null);
+    setProgressStep("opening-request");
     setPhase("loading");
 
     let started: StartVerificationSessionResult | undefined;
@@ -187,8 +200,10 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         });
       }
       setSessionInfo(started);
+      setProgressStep("receiving-request");
       const proof = await receiveVerificationProofRequestLazy(started.invitationUrl, controller.signal);
       proofRecordId = proof.id;
+      setProgressStep("matching-credential");
       const selected = await selectVerificationCredentialsLazy(proof.id, started.requestedAttributes);
       if (controller.signal.aborted) return;
       if (target.kind === "servicePoint") await setPendingVerificationPublicServicePointId(undefined);
@@ -275,6 +290,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     controllerRef.current = controller;
     setError(null);
     setErrorKind("request");
+    setProgressStep("building-proof");
     setPhase("presenting");
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -283,6 +299,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       await acceptVerificationProofLazy(selection);
       shared = true;
       if (controller.signal.aborted) return;
+      setProgressStep("awaiting-verifier");
       setPhase("polling");
       const authoritativeResult = await pollVerificationResult(sessionInfo.verificationRequestId, sessionInfo.resultToken, controller.signal);
       if (controller.signal.aborted) return;
@@ -314,6 +331,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     const controller = new AbortController();
     controllerRef.current = controller;
     setError(null);
+    setProgressStep("awaiting-verifier");
     setPhase("polling");
     try {
       const authoritativeResult = await pollVerificationResult(
@@ -345,9 +363,10 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     router.replace("/(wallet)/home");
   }
 
-  if (phase === "loading") return <OperationStateScreen tone="loading" eyebrow="Secure request" title="Preparing verification" message="Connecting to the verifier and finding a matching credential." detail="No information has been shared." />;
-  if (phase === "presenting") return <OperationStateScreen tone="secure" eyebrow="Credential presentation" title="Sharing approved values" message="Creating a privacy-preserving proof from the credential you selected." detail="Keep UNIFY open while the proof is sent." />;
-  if (phase === "polling") return <OperationStateScreen tone="loading" eyebrow="Verifier response" title="Checking the result" message="The proof was sent. Waiting for the verifier's authoritative decision." />;
+  if (phase === "loading" || phase === "presenting" || phase === "polling") {
+    const progress = PROGRESS_COPY[progressStep];
+    return <OperationStateScreen busy tone={phase === "presenting" ? "secure" : "loading"} {...progress} />;
+  }
   if (phase === "result" && result) {
     const approved = result.status === "Approved";
     if (result.failureCode === "CREDENTIAL_NOT_CURRENT") {
@@ -367,7 +386,14 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   }
 
   return (
-    <AppScreen>
+    <AppScreen
+      footer={sessionInfo && selection ? (
+        <View style={{ gap: spacing.sm }}>
+          <AppButton label="Present credential" onPress={() => void presentCredential()} size="lg" />
+          <AppButton label="Not now" onPress={() => void dismissPresentation()} variant="ghost" />
+        </View>
+      ) : undefined}
+    >
       <Stack.Screen options={{ title: "Review verification" }} />
       <ScreenHeader eyebrow="Credential presentation" title="Review before sharing" meta="Only the values listed below will be presented after you approve." />
       {sessionInfo && selection ? (
@@ -388,11 +414,9 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
           </BrandGradient>
 
           <VerificationConsentPanel
-            primaryAction={{ label: "Present credential", onPress: () => void presentCredential() }}
-            secondaryAction={{ label: "Not now", onPress: () => void dismissPresentation() }}
             servicePointName={sessionInfo.servicePointName}
             showContext={false}
-            values={sessionInfo.requestedAttributes.map((attribute) => ({ name: attributeLabel(attribute), value: selection.values[attribute] ?? "Missing" }))}
+            values={sessionInfo.requestedAttributes.map((attribute) => ({ name: attribute, value: formatCredentialValue(attribute, selection.values[attribute] ?? "") }))}
             verifierName={sessionInfo.vendorName}
           />
         </View>

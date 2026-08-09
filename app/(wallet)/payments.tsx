@@ -8,12 +8,13 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { getPaymentHistory } from "@/src/lib/api/client";
-import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function PaymentsScreen() {
+  const colors = useThemePalette();
   // Payments are still a backend placeholder, but this keeps the screen ready to wire.
   const paymentsQuery = useQuery({
     queryKey: ["payment-history"],

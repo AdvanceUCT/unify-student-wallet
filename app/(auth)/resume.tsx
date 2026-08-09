@@ -1,16 +1,10 @@
 import { router } from "expo-router";
-import { AlertTriangle, ArrowRight, ShieldCheck } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
 
-import { AppButton } from "@/src/components/AppButton";
-import { AppScreen } from "@/src/components/AppScreen";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import type { PendingFlowKind } from "@/src/features/wallet/sessionTypes";
-import { colors } from "@/src/theme/colors";
-import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 const COPY: Record<PendingFlowKind, { eyebrow: string; title: string; message: string }> = {
   checkout: {
@@ -120,44 +114,19 @@ export default function ResumePendingFlowScreen() {
   }
 
   const copy = COPY[kind];
-  const Icon = error ? AlertTriangle : kind === "home" ? ArrowRight : ShieldCheck;
-  const tone = error ? colors.warning : colors.primary;
-  const toneSoft = error ? colors.warningSoft : colors.primarySoft;
 
-  return (
-    <AppScreen scrollable={false} contentContainerStyle={{ paddingTop: spacing["3xl"] }}>
-      <View style={{ flex: 1, justifyContent: "center", gap: spacing["2xl"], paddingBottom: spacing.xl }}>
-        <View style={{ alignItems: "center", gap: spacing.lg }}>
-          <View
-            style={{
-              width: 76,
-              height: 76,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: toneSoft,
-              borderRadius: 38,
-            }}
-          >
-            <Icon color={tone} size={30} strokeWidth={1.8} />
-          </View>
-          <View style={{ alignItems: "center", gap: spacing.sm, maxWidth: 340 }}>
-            <Text style={[typography.eyebrow, { color: tone }]}>{error ? "Resume interrupted" : copy.eyebrow}</Text>
-            <Text accessibilityRole="header" style={[typography.title, { textAlign: "center" }]}>
-              {error ? "Could not resume this request" : copy.title}
-            </Text>
-            <Text accessibilityLiveRegion="polite" style={[typography.bodyLg, { textAlign: "center" }]}>
-              {error ?? copy.message}
-            </Text>
-          </View>
-        </View>
+  if (error) {
+    return (
+      <OperationStateScreen
+        tone="warning"
+        eyebrow="Resume interrupted"
+        title="Could not resume this request"
+        message={error}
+        primaryAction={{ label: "Try again", onPress: handleRetry }}
+        secondaryAction={{ label: "Continue to wallet", onPress: () => void handleContinue() }}
+      />
+    );
+  }
 
-        {error ? (
-          <View style={{ gap: spacing.md }}>
-            <AppButton label="Try again" size="lg" onPress={handleRetry} />
-            <AppButton label="Continue to wallet" variant="ghost" onPress={() => void handleContinue()} />
-          </View>
-        ) : null}
-      </View>
-    </AppScreen>
-  );
+  return <OperationStateScreen busy tone="secure" eyebrow={copy.eyebrow} title={copy.title} message={copy.message} />;
 }

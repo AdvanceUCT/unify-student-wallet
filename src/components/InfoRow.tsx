@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { rules } from "@/src/theme/rules";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -13,6 +13,7 @@ type InfoRowProps = {
 };
 
 export function InfoRow({ label, value, tone = "default", divider = false }: InfoRowProps) {
+  const colors = useThemePalette();
   const valueColor =
     tone === "success"
       ? colors.primary

@@ -1,5 +1,3 @@
-import { Appearance } from "react-native";
-
 import { brandGradientEnd, brandGradientStart } from "./brand";
 
 export type ColorPalette = {
@@ -95,8 +93,14 @@ export const darkColors: ColorPalette = {
   cameraInk: "#F4F7F5",
 };
 
+let activeColorScheme: "light" | "dark" = "light";
+
+export function setActiveColorScheme(scheme: "light" | "dark") {
+  activeColorScheme = scheme;
+}
+
 export function currentColors() {
-  return Appearance.getColorScheme() === "dark" ? darkColors : lightColors;
+  return activeColorScheme === "dark" ? darkColors : lightColors;
 }
 
 // Keep existing imports source-compatible while resolving every colour at render time.

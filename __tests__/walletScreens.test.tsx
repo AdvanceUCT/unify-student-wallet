@@ -1,4 +1,5 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 
 import HomeScreen from "@/app/(wallet)/home";
 import InboxScreen from "@/app/(wallet)/inbox";
@@ -7,14 +8,26 @@ import SettingsScreen from "@/app/(wallet)/settings";
 
 const mockRequestPermission = jest.fn();
 const mockSetThemePreference = jest.fn(async () => undefined);
+let mockCameraGranted = false;
+let mockRecentActivity: Array<{
+  id: string;
+  walletId: string;
+  proofExchangeId: string;
+  verifierName: string;
+  servicePointName: string;
+  status: "Approved" | "Declined" | "Expired" | "Failed";
+  disclosedValues: Array<{ name: string; value: string }>;
+  occurredAt: string;
+}> = [];
 let mockStoredCredentials: Array<{
   id: string;
   state?: string;
   credentialAttributes?: Array<{ name: string; value: string }>;
 }> = [];
-const mockUseQuery = jest.fn(({ queryKey }: { queryKey: string[] }) => {
+const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]; enabled?: boolean }) => {
   if (queryKey[0] === "stored-credentials") {
-    return { data: mockStoredCredentials, isError: false, isLoading: false };
+    const data = !enabled && mockStoredCredentials.length === 0 ? undefined : mockStoredCredentials;
+    return { data, isError: false, isLoading: enabled && data === undefined };
   }
 
   if (queryKey[0] === "wallet-summary") {
@@ -61,8 +74,18 @@ jest.mock("@tanstack/react-query", () => ({
 }));
 
 jest.mock("expo-camera", () => ({
-  CameraView: () => null,
-  useCameraPermissions: () => [{ granted: false }, mockRequestPermission],
+  CameraView: (props: Record<string, unknown>) => {
+    const { View } = require("react-native");
+    return <View testID="camera-view" {...props} />;
+  },
+  useCameraPermissions: () => [{ granted: mockCameraGranted }, mockRequestPermission],
+}));
+
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium" },
+  NotificationFeedbackType: { Warning: "warning" },
 }));
 
 jest.mock("expo-router", () => ({
@@ -83,13 +106,20 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
 }));
 
 jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
-  useThemePreference: () => ({ preference: "system", setPreference: mockSetThemePreference }),
+  useThemePalette: () => require("@/src/theme/colors").lightColors,
+  useThemePreference: () => ({ colors: require("@/src/theme/colors").lightColors, preference: "system", resolvedScheme: "light", setPreference: mockSetThemePreference }),
+}));
+
+jest.mock("@/src/features/verification/activityHistory", () => ({
+  getVerificationActivity: jest.fn(async () => mockRecentActivity),
 }));
 
 describe("wallet screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWalletSession.pendingOfferIds = [];
+    mockCameraGranted = false;
+    mockRecentActivity = [];
     mockStoredCredentials = [];
     mockHolderAgent = {
       ensureWalletReady: jest.fn(async () => null),
@@ -106,7 +136,7 @@ describe("wallet screens", () => {
     expect(screen.getByText("Your identity")).toBeTruthy();
     expect(screen.queryByText("UNIFY student wallet")).toBeNull();
     expect(screen.queryByText("Wallet ready")).toBeNull();
-    expect(screen.getByText("Open scanner")).toBeTruthy();
+    expect(screen.getByText("Scan to receive")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
     );
@@ -117,8 +147,53 @@ describe("wallet screens", () => {
 
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("2 new credential offers")).toBeTruthy();
-    expect(screen.getByText("Review what your institution issued")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getByText("Credential offers ready")).toBeTruthy();
+  });
+
+  it("shows at most three recent presentations on Home", async () => {
+    mockRecentActivity = ["Library", "Bookshop", "Cafeteria", "Gym"].map((verifierName, index) => ({
+      id: `activity-${index}`,
+      walletId: "wallet-uuid-001",
+      proofExchangeId: `proof-${index}`,
+      verifierName,
+      servicePointName: "Main branch",
+      status: "Approved" as const,
+      disclosedValues: [],
+      occurredAt: `2026-08-0${8 - index}T12:00:00.000Z`,
+    }));
+
+    const screen = render(<HomeScreen />);
+
+    await waitFor(() => expect(screen.getByText("Library")).toBeTruthy());
+    expect(screen.getByText("Bookshop")).toBeTruthy();
+    expect(screen.getByText("Cafeteria")).toBeTruthy();
+    expect(screen.queryByText("Gym")).toBeNull();
+  });
+
+  it("keeps the issued credential compact and makes verification the primary action", () => {
+    mockStoredCredentials = [{
+      id: "credential-active",
+      state: "done",
+      credentialAttributes: [
+        { name: "institution", value: "University of Cape Town" },
+        { name: "firstName", value: "Alex" },
+        { name: "lastName", value: "Student" },
+        { name: "studentNumber", value: "STD-2026" },
+        { name: "programme", value: "Computer Science" },
+        { name: "issuedAt", value: "2026-01-01T00:00:00.000Z" },
+        { name: "expiresAt", value: "2027-01-01T00:00:00.000Z" },
+      ],
+    }];
+
+    const screen = render(<HomeScreen />);
+    fireEvent(screen.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 312 } } });
+
+    expect(screen.getByText("Scan to verify")).toBeTruthy();
+    expect(screen.getByText("Alex Student")).toBeTruthy();
+    expect(screen.queryByText("Computer Science")).toBeNull();
+    expect(screen.queryByText("2026-01-01")).toBeNull();
+    expect(screen.queryByText("VERIFIABLE STUDENT IDENTITY")).toBeNull();
   });
 
   it("uses Inbox for credential offers and validity warnings", () => {
@@ -154,6 +229,51 @@ describe("wallet screens", () => {
     expect(mockUseQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
   });
 
+  it("preserves the credential stage while the agent transitions from loading to ready", () => {
+    mockHolderAgent.status = "initializing";
+    const screen = render(<HomeScreen />);
+    const loadingHeight = StyleSheet.flatten(screen.getByTestId("home-credential-stage").props.style).minHeight;
+
+    mockHolderAgent.status = "ready";
+    mockStoredCredentials = [{
+      id: "credential-after-resume",
+      state: "done",
+      credentialAttributes: [
+        { name: "institution", value: "University of Cape Town" },
+        { name: "firstName", value: "Caleb" },
+        { name: "lastName", value: "Voskuil" },
+        { name: "studentNumber", value: "VOSCAL099" },
+        { name: "expiresAt", value: "2027-08-08T00:00:00.000Z" },
+      ],
+    }];
+    screen.rerender(<HomeScreen />);
+    fireEvent(screen.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 312 } } });
+
+    const readyHeight = StyleSheet.flatten(screen.getByTestId("home-credential-stage").props.style).minHeight;
+    expect(readyHeight).toBe(loadingHeight);
+    expect(screen.getByText("Caleb Voskuil")).toBeTruthy();
+    expect(screen.getByText("Scan to verify")).toBeTruthy();
+  });
+
+  it("keeps a cached credential visible while the holder agent resumes", () => {
+    mockHolderAgent.status = "initializing";
+    mockStoredCredentials = [{
+      id: "credential-cached",
+      credentialAttributes: [
+        { name: "firstName", value: "Cached" },
+        { name: "lastName", value: "Student" },
+        { name: "studentNumber", value: "CACHE-001" },
+      ],
+    }];
+
+    const screen = render(<HomeScreen />);
+    fireEvent(screen.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 312 } } });
+
+    expect(screen.getByText("Cached Student")).toBeTruthy();
+    expect(screen.queryByLabelText("Loading credential")).toBeNull();
+    expect(screen.queryByText("Scan to verify")).toBeNull();
+  });
+
   it("prompts the user to enable camera permission on the scan screen", () => {
     const screen = render(<ScanScreen />);
 
@@ -168,6 +288,25 @@ describe("wallet screens", () => {
     expect(screen.getByText("Holder agent")).toBeTruthy();
     expect(screen.getByText("Sign out")).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Create encrypted backup")).toBeTruthy());
+  });
+
+  it("locks a valid QR capture and navigates only once", async () => {
+    jest.useFakeTimers();
+    mockCameraGranted = true;
+    const routerMock = jest.requireMock("expo-router").router as { push: jest.Mock };
+    const screen = render(<ScanScreen />);
+    const camera = screen.getByTestId("camera-view");
+
+    fireEvent(camera, "barcodeScanned", { data: "https://voskuils.com/verify/sp-public-001" });
+    fireEvent(camera, "barcodeScanned", { data: "https://voskuils.com/verify/sp-public-001" });
+    expect(screen.getByText("Code captured")).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(200);
+      await Promise.resolve();
+    });
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
   });
 
   it("changes the persisted appearance preference from settings", async () => {

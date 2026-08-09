@@ -1,5 +1,12 @@
-import { IdCard } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import * as Haptics from "expo-haptics";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import Svg, { Path } from "react-native-svg";
 
 import { BrandGradient } from "@/src/components/BrandGradient";
 import {
@@ -9,6 +16,9 @@ import {
   type CredentialMetadataSource,
 } from "@/src/features/wallet/credentialMetadata";
 import { colors } from "@/src/theme/colors";
+import { facultyCardTheme } from "@/src/theme/faculty";
+import { studentCardAspectRatio } from "@/src/theme/layout";
+import { motion } from "@/src/theme/motion";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
@@ -26,63 +36,169 @@ type StudentCardProps = {
 
 export { formatCredentialDate };
 
-export function StudentCard({ credential, onPress, width, issuerFallback }: StudentCardProps) {
-  const metadata = credentialMetadata(credential);
-  const {
-    holderName,
-    programme,
-    studentNumber,
-    year,
-  } = metadata;
-  const university = metadata.issuer ?? issuerFallback;
-  const issuedAt = formatCredentialDate(metadata.issuedAt);
-  const expiresAt = formatCredentialDate(metadata.expiresAt);
-
+function CredentialContour() {
   return (
-    <Pressable
-      accessibilityLabel={`${university ?? "University"} student credential for ${holderName || "holder"}`}
-      accessibilityRole={onPress ? "button" : undefined}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width,
-        aspectRatio: 1.48,
-        backgroundColor: colors.primaryDeep,
-        borderRadius: radii.xl,
-        borderWidth: 1,
-        borderColor: "#487665",
-        overflow: "hidden",
-        transform: [{ scale: pressed ? 0.985 : 1 }],
-        opacity: pressed ? 0.94 : 1,
-        ...shadows.md,
-      })}
+    <Svg
+      accessible={false}
+      pointerEvents="none"
+      preserveAspectRatio="xMidYMid slice"
+      style={StyleSheet.absoluteFillObject}
+      testID="student-card-contour"
+      viewBox="0 0 430 250"
     >
-      <BrandGradient style={{ flex: 1, padding: spacing.lg, justifyContent: "space-between" }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
-          <View style={{ width: 40, height: 40, borderRadius: radii.md, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" }}>
-            <IdCard color={colors.white} size={21} strokeWidth={1.8} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text numberOfLines={1} style={[typography.eyebrow, { color: colors.white, fontSize: 12 }]}>{(university ?? "University credential").toUpperCase()}</Text>
-            <Text style={[typography.caption, { color: "#D4E4DE", fontSize: 11 }]}>VERIFIABLE STUDENT IDENTITY</Text>
-          </View>
-        </View>
-
-        <View style={{ gap: 3 }}>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[typography.heading, { color: colors.white, fontSize: 22, lineHeight: 28 }]}>{holderName || "Holder name pending"}</Text>
-          <Text numberOfLines={1} style={[typography.body, { color: "#E0ECE7", fontSize: 14 }]}>{programme ?? "Programme pending"}</Text>
-        </View>
-
-        <View style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.md }}>
-            <View style={{ flex: 1 }}><Text style={[typography.caption, { color: "#BFD6CD", fontSize: 11 }]}>STUDENT NUMBER</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[typography.mono, { color: colors.white, fontSize: 14, marginTop: 2 }]}>{studentNumber ?? "—"}</Text></View>
-            <View style={{ maxWidth: "42%" }}><Text style={[typography.caption, { color: "#BFD6CD", fontSize: 11 }]}>YEAR</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[typography.bodyStrong, { color: colors.white, marginTop: 2 }]}>{year ?? "—"}</Text></View>
-          </View>
-          <View style={{ flexDirection: "row", gap: spacing["2xl"], borderTopWidth: 1, borderColor: "rgba(255,255,255,0.22)", paddingTop: spacing.sm }}>
-            <View><Text style={[typography.caption, { color: "#BFD6CD", fontSize: 11 }]}>ISSUED</Text><Text style={[typography.mono, { color: colors.white, fontSize: 12, marginTop: 2 }]}>{issuedAt}</Text></View>
-            <View><Text style={[typography.caption, { color: "#BFD6CD", fontSize: 11 }]}>VALID TO</Text><Text style={[typography.mono, { color: colors.white, fontSize: 12, marginTop: 2 }]}>{expiresAt}</Text></View>
-          </View>
-        </View>
-      </BrandGradient>
-    </Pressable>
+      <Path d="M274 -16C250 28 270 55 322 71C379 88 397 119 371 165C349 204 366 232 439 252" fill="none" opacity={0.16} stroke="#FFFFFF" strokeWidth={1.15} />
+      <Path d="M302 -17C278 24 295 48 340 63C399 82 420 117 393 168C375 201 389 227 445 245" fill="none" opacity={0.12} stroke="#FFFFFF" strokeWidth={1} />
+      <Path d="M246 -17C221 35 243 69 298 87C344 102 357 126 333 166C307 211 333 239 410 261" fill="none" opacity={0.1} stroke="#FFFFFF" strokeWidth={1} />
+      <Path d="M354 -20C333 13 344 37 383 52C433 71 452 101 430 143C409 182 420 215 464 239" fill="none" opacity={0.08} stroke="#FFFFFF" strokeWidth={1} />
+    </Svg>
   );
 }
+
+export function StudentCard({ credential, onPress, width, issuerFallback }: StudentCardProps) {
+  const metadata = credentialMetadata(credential);
+  const university = metadata.issuer ?? issuerFallback ?? "University";
+  const holderName = metadata.holderName || "Student credential";
+  const validTo = formatCredentialDate(metadata.expiresAt);
+  const cardTheme = facultyCardTheme(metadata.faculty);
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const setPressed = (pressed: boolean) => {
+    scale.value = withTiming(pressed ? 0.985 : 1, {
+      duration: motion.quick,
+      reduceMotion: ReduceMotion.System,
+    });
+  };
+
+  const handlePress = () => {
+    if (!onPress) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          aspectRatio: studentCardAspectRatio,
+          borderRadius: radii.xl,
+          backgroundColor: colors.primaryDeep,
+          ...shadows.md,
+        },
+        animatedStyle,
+      ]}
+    >
+      <Pressable
+        accessibilityLabel={`${university} student credential for ${holderName}`}
+        accessibilityRole={onPress ? "button" : undefined}
+        disabled={!onPress}
+        onPress={handlePress}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
+        style={styles.pressable}
+      >
+        <BrandGradient colors={cardTheme.gradient} style={styles.gradient} testID="student-card-gradient">
+          <CredentialContour />
+
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            numberOfLines={1}
+            style={styles.university}
+          >
+            {university.toUpperCase()}
+          </Text>
+
+          <View style={styles.identityBlock}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.74}
+              numberOfLines={1}
+              style={styles.holderName}
+            >
+              {holderName}
+            </Text>
+
+            <View style={styles.metadataRow}>
+              <View style={styles.studentNumber}>
+                <Text style={styles.label}>STUDENT NUMBER</Text>
+                <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.value}>
+                  {metadata.studentNumber ?? "—"}
+                </Text>
+              </View>
+              <View style={styles.validity}>
+                <Text style={styles.label}>VALID TO</Text>
+                <Text numberOfLines={1} style={styles.value}>
+                  {validTo === "Not provided" ? "—" : validTo}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </BrandGradient>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  pressable: {
+    flex: 1,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.24)",
+    overflow: "hidden",
+  },
+  gradient: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+  },
+  university: {
+    ...typography.eyebrow,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 12,
+    lineHeight: 16,
+    maxWidth: "72%",
+  },
+  identityBlock: {
+    gap: spacing.md,
+  },
+  holderName: {
+    ...typography.heading,
+    color: colors.white,
+    fontSize: 21,
+    lineHeight: 26,
+    maxWidth: "88%",
+  },
+  metadataRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.lg,
+  },
+  studentNumber: {
+    flex: 1,
+    minWidth: 0,
+  },
+  validity: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+  },
+  label: {
+    ...typography.caption,
+    color: "rgba(255, 255, 255, 0.82)",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  value: {
+    ...typography.mono,
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 19,
+    marginTop: 1,
+  },
+});

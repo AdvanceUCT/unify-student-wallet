@@ -43,9 +43,9 @@ jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
 jest.mock("@/src/components/AppScreen", () => ({
-  AppScreen: ({ children }: { children: React.ReactNode }) => {
+  AppScreen: ({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) => {
     const { View } = require("react-native");
-    return <View>{children}</View>;
+    return <View>{children}{footer}</View>;
   },
 }));
 jest.mock("@/src/components/ScreenHeader", () => ({
@@ -73,17 +73,9 @@ jest.mock("@/src/components/OperationStateScreen", () => ({
   },
 }));
 jest.mock("@/src/components/VerificationConsentPanel", () => ({
-  VerificationConsentPanel: ({ primaryAction, secondaryAction }: {
-    primaryAction: { label: string; onPress: () => void };
-    secondaryAction: { label: string; onPress: () => void };
-  }) => {
-    const { Text, TouchableOpacity, View } = require("react-native");
-    return (
-      <View>
-        <TouchableOpacity onPress={primaryAction.onPress}><Text>{primaryAction.label}</Text></TouchableOpacity>
-        <TouchableOpacity onPress={secondaryAction.onPress}><Text>{secondaryAction.label}</Text></TouchableOpacity>
-      </View>
-    );
+  VerificationConsentPanel: () => {
+    const { Text } = require("react-native");
+    return <Text>Requested values</Text>;
   },
 }));
 jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
@@ -172,6 +164,25 @@ describe("checkout verification readiness", () => {
     await waitFor(() => expect(screen.getByText("Review before sharing")).toBeTruthy());
     expect(mockClaimCheckoutSession).not.toHaveBeenCalled();
     expect(mockReceiveProof).toHaveBeenCalledWith(claimedSession.invitationUrl, expect.anything());
+  });
+
+  it("reports preparation stages at the actual request and credential boundaries", async () => {
+    let resolveProof!: (proof: { id: string }) => void;
+    let resolveSelection!: (selection: { proofRecordId: string; proofFormats: { anoncreds: object }; values: { studentNumber: string } }) => void;
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = { verificationRequestId: "verification-001", claimToken: "single-use-claim-token", claimedSession };
+    mockReceiveProof.mockReturnValueOnce(new Promise((resolve) => { resolveProof = resolve; }));
+    mockSelectCredentials.mockReturnValueOnce(new Promise((resolve) => { resolveSelection = resolve; }));
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Receiving request")).toBeTruthy());
+    resolveProof({ id: "proof-001" });
+    await waitFor(() => expect(screen.getByText("Matching credential")).toBeTruthy());
+    resolveSelection({ proofRecordId: "proof-001", proofFormats: { anoncreds: {} }, values: { studentNumber: "STU001" } });
+    await waitFor(() => expect(screen.getByText("Review before sharing")).toBeTruthy());
   });
 
   it("clears the local pending flow when the student chooses Not now", async () => {

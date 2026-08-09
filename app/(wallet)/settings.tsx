@@ -7,12 +7,11 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
-import { type ThemePreference, useThemePreference } from "@/src/features/theme/ThemePreferenceProvider";
+import { type ThemePreference, useThemePalette, useThemePreference } from "@/src/features/theme/ThemePreferenceProvider";
 import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { loadBackupMetadata, shouldRemindToBackUp, type BackupMetadata } from "@/src/features/wallet/walletBackup";
-import { colors } from "@/src/theme/colors";
 import { brandGradientEnd } from "@/src/theme/brand";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
@@ -26,6 +25,7 @@ const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
 ];
 
 function SettingsSection({ title, children }: PropsWithChildren<{ title: string }>) {
+  const colors = useThemePalette();
   return <View style={{ gap: spacing.sm }}><Text style={typography.sectionTitle}>{title}</Text><View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.rule, paddingVertical: spacing.xs }}>{children}</View></View>;
 }
 
@@ -41,6 +41,7 @@ function formatBackupDate(value?: string) {
 }
 
 export default function SettingsScreen() {
+  const colors = useThemePalette();
   const { preference: themePreference, setPreference: setThemePreference } = useThemePreference();
   const { biometricAvailable, biometricEnabled, confirmPinToDisableBiometric, lockWallet, session, setBiometricEnabled, signOut } = useWalletSession();
   const holderAgent = useHolderAgent();

@@ -79,7 +79,8 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
 }));
 
 jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
-  useThemePreference: () => ({ preference: "system", setPreference: jest.fn(async () => undefined) }),
+  useThemePalette: () => require("@/src/theme/colors").lightColors,
+  useThemePreference: () => ({ colors: require("@/src/theme/colors").lightColors, preference: "system", resolvedScheme: "light", setPreference: jest.fn(async () => undefined) }),
 }));
 
 function createMockWalletSession() {

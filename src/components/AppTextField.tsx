@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Text, TextInput, type TextInputProps, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export function AppTextField({ label, error, ...props }: TextInputProps & { label: string; error?: string }) {
+  const colors = useThemePalette();
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: spacing.xs }}>

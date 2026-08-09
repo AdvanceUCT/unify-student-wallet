@@ -2,7 +2,8 @@ import { Clock3, ShieldCheck, Store } from "lucide-react-native";
 import { Text, View, type ViewStyle } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { formatCredentialLabel, formatCredentialValue } from "@/src/features/wallet/credentialDisplay";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
@@ -33,6 +34,7 @@ export function VerificationConsentPanel({
   values,
   verifierName,
 }: VerificationConsentPanelProps) {
+  const colors = useThemePalette();
   const rowPadding = compact ? 6 : spacing.md;
   const iconSize = compact ? 18 : 22;
   const expires = expiresAt ? new Date(expiresAt) : undefined;
@@ -78,12 +80,36 @@ export function VerificationConsentPanel({
       )}
 
       <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.rule }}>
-        {values.map((item, index) => (
-          <View key={`${item.name}-${index}`} style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: rowPadding, borderBottomWidth: index < values.length - 1 ? 1 : 0, borderColor: colors.ruleSoft }}>
-            <Text style={[typography.body, { flex: 1 }, compact ? { fontSize: 9, lineHeight: 12 } : undefined]}>{item.name}</Text>
-            <Text selectable={!compact} style={[typography.bodyStrong, { flex: 1, textAlign: "right" }, compact ? { fontSize: 10, lineHeight: 12 } : undefined]}>{item.value}</Text>
-          </View>
-        ))}
+        {values.map((item, index) => {
+          const label = formatCredentialLabel(item.name);
+          const value = formatCredentialValue(item.name, item.value);
+          const stackValue = !compact && value.length > 24;
+          return (
+            <View
+              key={`${item.name}-${index}`}
+              style={{
+                alignItems: "flex-start",
+                borderBottomWidth: index < values.length - 1 ? 1 : 0,
+                borderColor: colors.ruleSoft,
+                flexDirection: stackValue ? "column" : "row",
+                gap: stackValue ? spacing.xs : spacing.md,
+                paddingVertical: rowPadding,
+              }}
+            >
+              <Text style={[typography.body, { flex: stackValue ? undefined : 1 }, compact ? { fontSize: 9, lineHeight: 12 } : undefined]}>{label}</Text>
+              <Text
+                selectable={!compact}
+                style={[
+                  typography.bodyStrong,
+                  { flex: stackValue ? undefined : 1, textAlign: stackValue ? "left" : "right", width: stackValue ? "100%" : undefined },
+                  compact ? { fontSize: 10, lineHeight: 12 } : undefined,
+                ]}
+              >
+                {value}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       {!compact ? (

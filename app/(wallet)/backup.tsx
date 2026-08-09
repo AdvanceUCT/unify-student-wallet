@@ -8,15 +8,16 @@ import { AppTextField } from "@/src/components/AppTextField";
 import { Card } from "@/src/components/Card";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import {
   createAndShareEncryptedBackup,
   validateRecoveryPassword,
 } from "@/src/features/wallet/walletBackup";
-import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function BackupWalletScreen() {
+  const colors = useThemePalette();
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export default function BackupWalletScreen() {
   }
 
   if (isExporting) {
-    return <OperationStateScreen tone="secure" eyebrow="Encrypted backup" title="Protecting your wallet" message="Encrypting credentials and connections with your recovery password." detail="The share sheet will open when the backup is ready." />;
+    return <OperationStateScreen busy tone="secure" eyebrow="Encrypted backup" title="Protecting your wallet" message="Encrypting credentials and connections with your recovery password." detail="The share sheet will open when the backup is ready." />;
   }
 
   return (

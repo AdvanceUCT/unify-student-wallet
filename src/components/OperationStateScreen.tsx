@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { TrustSeal } from "@/src/components/TrustSeal";
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -11,6 +11,7 @@ export type OperationTone = "loading" | "success" | "warning" | "error" | "secur
 
 export function OperationStateScreen({
   tone,
+  busy,
   eyebrow,
   title,
   message,
@@ -19,6 +20,7 @@ export function OperationStateScreen({
   secondaryAction,
 }: {
   tone: OperationTone;
+  busy?: boolean;
   eyebrow?: string;
   title: string;
   message: string;
@@ -26,11 +28,12 @@ export function OperationStateScreen({
   primaryAction?: { label: string; onPress: () => void };
   secondaryAction?: { label: string; onPress: () => void };
 }) {
+  const colors = useThemePalette();
   return (
     <AppScreen scrollable={false} contentContainerStyle={{ paddingTop: spacing["3xl"] }}>
       <View style={{ flex: 1, justifyContent: "space-between", paddingBottom: spacing.lg }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl }}>
-          <TrustSeal haptic={tone === "success" || tone === "warning" || tone === "error"} state={tone} />
+          <TrustSeal busy={busy ?? tone === "loading"} haptic={tone === "success" || tone === "warning" || tone === "error"} state={tone} />
           <View style={{ alignItems: "center", gap: spacing.sm, maxWidth: 360 }}>
             {eyebrow ? <Text style={typography.eyebrow}>{eyebrow}</Text> : null}
             <Text accessibilityRole="header" style={[typography.display, { textAlign: "center" }]}>{title}</Text>

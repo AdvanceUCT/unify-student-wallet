@@ -41,6 +41,7 @@ import { VerificationConsentPanel } from "@/src/components/VerificationConsentPa
 import type { VerificationActivityRecord } from "@/src/features/verification/activityHistory";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
+import type { FirstRunSetupStatus } from "@/src/features/wallet/sessionTypes";
 import { colors } from "@/src/theme/colors";
 import { motion } from "@/src/theme/motion";
 import { radii } from "@/src/theme/radii";
@@ -289,8 +290,13 @@ function SetupProgressBar({ complete, reducedMotion }: { complete: boolean; redu
       return;
     }
     if (reducedMotion) {
-      progress.value = 0.68;
-      return;
+      progress.value = 0.56;
+      progress.value = withRepeat(
+        withTiming(0.72, { duration: 1200, easing: Easing.inOut(Easing.cubic), reduceMotion: ReduceMotion.Never }),
+        -1,
+        true,
+      );
+      return () => cancelAnimation(progress);
     }
     progress.value = withRepeat(
       withTiming(0.82, { duration: 860, easing: Easing.inOut(Easing.cubic), reduceMotion: ReduceMotion.System }),
@@ -328,27 +334,41 @@ function FinishingSetup({
   onBackToPin,
   onRetry,
   reducedMotion,
+  setupStatus,
 }: {
   complete: boolean;
   error?: string;
   onBackToPin?: () => void;
   onRetry: () => void;
   reducedMotion: boolean;
+  setupStatus: FirstRunSetupStatus;
 }) {
+  const workingCopy = setupStatus === "preparing"
+    ? {
+        eyebrow: "Protecting wallet access",
+        title: "Securing your PIN",
+        message: "Creating the cryptographic protection used to unlock this wallet.",
+      }
+    : {
+        eyebrow: "Secure setup",
+        title: "Creating encrypted wallet",
+        message: "Starting credential services and preparing encrypted storage on this device.",
+      };
+
   return (
     <AppScreen scrollable={false}>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing["2xl"] }}>
         <TrustSeal
+          busy={!error && !complete}
           key={error ? "error" : complete ? "complete" : "working"}
-          animate={!reducedMotion}
           haptic={complete}
           size={124}
           state={error ? "error" : complete ? "success" : "secure"}
         />
         <View style={{ alignItems: "center", gap: spacing.sm, maxWidth: 340 }}>
-          <Text style={[typography.eyebrow, { color: error ? colors.error : colors.primary }]}>{error ? "Setup interrupted" : complete ? "Wallet secured" : "Secure setup"}</Text>
-          <Text accessibilityRole="header" style={[typography.display, { textAlign: "center" }]}>{error ? "Setup needs attention" : complete ? "Your wallet is ready" : "Finishing setup"}</Text>
-          <Text accessibilityLiveRegion="polite" style={[typography.bodyLg, { textAlign: "center" }]}>{error ?? (complete ? "Encrypted storage and secure connections are ready." : "Creating encrypted storage and starting secure wallet services.")}</Text>
+          <Text style={[typography.eyebrow, { color: error ? colors.error : colors.primary }]}>{error ? "Setup interrupted" : complete ? "Wallet secured" : workingCopy.eyebrow}</Text>
+          <Text accessibilityRole="header" style={[typography.display, { textAlign: "center" }]}>{error ? "Setup needs attention" : complete ? "Your wallet is ready" : workingCopy.title}</Text>
+          <Text accessibilityLiveRegion="polite" style={[typography.bodyLg, { textAlign: "center" }]}>{error ?? (complete ? "Encrypted storage and secure connections are ready." : workingCopy.message)}</Text>
         </View>
         {error ? (
           <View style={{ width: "100%", maxWidth: 360, gap: spacing.md }}>
@@ -510,6 +530,7 @@ export default function OnboardingScreen() {
         onBackToPin={!session.walletId ? () => void backToPin() : undefined}
         onRetry={() => void retrySetup()}
         reducedMotion={reducedMotion}
+        setupStatus={firstRunSetupStatus}
       />
     );
   }

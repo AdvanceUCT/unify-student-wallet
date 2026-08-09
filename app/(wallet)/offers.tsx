@@ -11,9 +11,9 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Tag } from "@/src/components/Tag";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { getCredentialRecordLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -36,6 +36,7 @@ function humanize(name: string) {
 }
 
 export default function OffersScreen() {
+  const colors = useThemePalette();
   const { acceptOffer, declineOffer, pendingOfferIds } = useWalletSession();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -82,7 +83,7 @@ export default function OffersScreen() {
   }
 
   if (pendingId) {
-    return <OperationStateScreen tone="secure" eyebrow="Credential offer" title={pendingAction === "accept" ? "Adding credential" : "Declining offer"} message={pendingAction === "accept" ? "Accepting the offer and storing the credential inside your encrypted wallet." : "Notifying the issuer that this credential offer was declined."} />;
+    return <OperationStateScreen busy tone="secure" eyebrow="Credential offer" title={pendingAction === "accept" ? "Adding credential" : "Declining offer"} message={pendingAction === "accept" ? "Accepting the offer and storing the credential inside your encrypted wallet." : "Notifying the issuer that this credential offer was declined."} />;
   }
 
   return (

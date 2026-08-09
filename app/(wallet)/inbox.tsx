@@ -11,16 +11,17 @@ import { EmptyState } from "@/src/components/EmptyState";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Skeleton } from "@/src/components/Skeleton";
 import { StatusPill } from "@/src/components/StatusPill";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { buildCredentialInboxAlerts, type CredentialInboxAlert } from "@/src/features/wallet/inbox";
 import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { colors } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 function InboxRow({ alert }: { alert: CredentialInboxAlert }) {
+  const colors = useThemePalette();
   const expired = alert.type === "expired";
   const Icon = expired ? ShieldAlert : AlertTriangle;
 
@@ -54,6 +55,7 @@ function InboxRow({ alert }: { alert: CredentialInboxAlert }) {
 }
 
 export default function InboxScreen() {
+  const colors = useThemePalette();
   const { pendingOfferIds, session } = useWalletSession();
   const holderAgent = useHolderAgent();
   const credentialsQuery = useQuery({

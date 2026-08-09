@@ -10,14 +10,15 @@ import { CredentialSkeleton } from "@/src/components/Skeleton";
 import { EmptyState } from "@/src/components/EmptyState";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function CredentialIndexScreen() {
+  const colors = useThemePalette();
   const { session } = useWalletSession();
   const holderAgent = useHolderAgent();
   const credentialsQuery = useQuery({

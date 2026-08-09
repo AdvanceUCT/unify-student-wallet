@@ -94,8 +94,12 @@ export default function UnlockScreen() {
     );
   }
 
-  if (phase === "authenticating" || phase === "success") {
-    return <OperationStateScreen tone="secure" eyebrow="Wallet security" title={phase === "success" ? "Wallet unlocked" : "Confirming your identity"} message={phase === "success" ? "Opening credentials and secure connections." : "Checking your PIN or device biometric securely."} />;
+  if (phase === "authenticating") {
+    return <OperationStateScreen busy tone="secure" eyebrow="Wallet security" title="Confirming your identity" message="Checking your PIN or device biometric securely." />;
+  }
+
+  if (phase === "success") {
+    return <OperationStateScreen tone="success" eyebrow="Wallet security" title="Wallet unlocked" message="Opening credentials and secure connections." />;
   }
 
   const attemptsRemaining = MAX_PIN_ATTEMPTS - failedAttempts;

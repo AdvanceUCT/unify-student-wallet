@@ -1,14 +1,19 @@
+import { StyleSheet, View } from "react-native";
 import { act, fireEvent, render } from "@testing-library/react-native";
 
 import { ActivityLedger, activityDateLabel } from "@/src/components/ActivityLedger";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
+import { StatusPill } from "@/src/components/StatusPill";
 import { TrustSeal } from "@/src/components/TrustSeal";
 import type { VerificationActivityRecord } from "@/src/features/verification/activityHistory";
+import { darkColors, setActiveColorScheme } from "@/src/theme/colors";
 
 let mockReducedMotion = false;
 
 jest.mock("expo-haptics", () => ({
+  ImpactFeedbackStyle: { Light: "light" },
   NotificationFeedbackType: { Success: "success", Warning: "warning" },
+  impactAsync: jest.fn(async () => undefined),
   notificationAsync: jest.fn(async () => undefined),
 }));
 
@@ -16,7 +21,8 @@ jest.mock("react-native-reanimated", () => {
   const actual = jest.requireActual("react-native-reanimated/mock");
   return {
     ...actual,
-    ReduceMotion: { System: "system" },
+    cancelAnimation: jest.fn(),
+    ReduceMotion: { Never: "never", System: "system" },
     useReducedMotion: () => mockReducedMotion,
     withDelay: (_delay: number, value: unknown) => value,
   };
@@ -68,14 +74,20 @@ describe("civic trust components", () => {
   it("only exposes a credential peek and position when multiple real credentials exist", () => {
     const single = render(<CredentialCarousel credentials={[credentials[0]]} />);
     fireEvent(single.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 360 } } });
+    expect(StyleSheet.flatten(single.getByTestId("credential-carousel").props.style).height).toBeCloseTo(360 / 1.72);
+    expect(StyleSheet.flatten(single.getByTestId("credential-carousel-list").props.style).height).toBeCloseTo(360 / 1.72);
     expect(single.queryByText("1 / 1")).toBeNull();
     single.unmount();
 
     const multiple = render(<CredentialCarousel accessibilityLabel="Student credentials" credentials={credentials} />);
     fireEvent(multiple.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 360 } } });
-    expect(multiple.getByText("1 / 2")).toBeTruthy();
+    expect(StyleSheet.flatten(multiple.getByTestId("credential-carousel").props.style).height).toBeCloseTo(360 / 1.72);
+    expect(StyleSheet.flatten(multiple.getByTestId("credential-carousel-list").props.style).height).toBeCloseTo((360 - 52) / 1.72);
+    expect(multiple.getByTestId("credential-page-indicator").props.accessibilityLabel).toBe("Credential 1 of 2");
+    expect(multiple.getByTestId("credential-page-dot-0")).toBeTruthy();
+    expect(multiple.getByTestId("credential-page-dot-1")).toBeTruthy();
     fireEvent(multiple.getByTestId("credential-carousel-list"), "accessibilityAction", { nativeEvent: { actionName: "increment" } });
-    expect(multiple.getByText("2 / 2")).toBeTruthy();
+    expect(multiple.getByTestId("credential-page-indicator").props.accessibilityLabel).toBe("Credential 2 of 2");
   });
 
   it("groups activity into Today and Yesterday and preserves expandable values", () => {
@@ -88,6 +100,23 @@ describe("civic trust components", () => {
     fireEvent.press(screen.getByLabelText("Campus Library, Main entrance, Approved"));
     expect(screen.getByText("Enrolment status")).toBeTruthy();
     expect(screen.getByText("Active")).toBeTruthy();
+  });
+
+  it("keeps the protocol status and exposes an exact revoked outcome", () => {
+    const screen = render(<ActivityLedger records={[record({ failureCode: "CREDENTIAL_NOT_CURRENT", status: "Declined" })]} />);
+
+    expect(screen.getByText("Declined")).toBeTruthy();
+    expect(screen.getByText("Credential revoked")).toBeTruthy();
+  });
+
+  it("uses readable success colors for Approved in dark mode", () => {
+    setActiveColorScheme("dark");
+    const screen = render(<StatusPill label="Approved" tone="success" />);
+    const label = screen.getByText("Approved");
+
+    expect(StyleSheet.flatten(label.props.style).color).toBe(darkColors.success);
+    expect(StyleSheet.flatten(screen.UNSAFE_getByType(View).props.style).backgroundColor).toBe(darkColors.successSoft);
+    setActiveColorScheme("light");
   });
 
   it("completes the lock-to-check seal at 560 ms with one success haptic", () => {
@@ -109,5 +138,22 @@ describe("civic trust components", () => {
     render(<TrustSeal haptic lockToCheck onAnimationComplete={onComplete} state="success" />);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(haptics.notificationAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes secure work as progress until it resolves", () => {
+    const reanimated = jest.requireMock("react-native-reanimated") as { cancelAnimation: jest.Mock };
+    const screen = render(<TrustSeal busy state="secure" />);
+
+    expect(screen.getByLabelText("secure operation in progress").props.accessibilityRole).toBe("progressbar");
+
+    const cancellationsBeforeResolution = reanimated.cancelAnimation.mock.calls.length;
+    screen.rerender(<TrustSeal state="success" />);
+    expect(screen.getByLabelText("success status").props.accessibilityRole).toBe("image");
+    expect(screen.queryByLabelText("secure operation in progress")).toBeNull();
+    expect(reanimated.cancelAnimation.mock.calls.length).toBeGreaterThan(cancellationsBeforeResolution);
+
+    const cancellationsBeforeUnmount = reanimated.cancelAnimation.mock.calls.length;
+    screen.unmount();
+    expect(reanimated.cancelAnimation.mock.calls.length).toBeGreaterThan(cancellationsBeforeUnmount);
   });
 });
