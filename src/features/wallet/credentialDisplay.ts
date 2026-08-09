@@ -20,6 +20,7 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
 
 const DATE_LABEL_PATTERN = /(^|\s)(date|issued|issue date|valid from|valid to|expires|expiration|date of birth)($|\s)/i;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+const DISPLAY_LOCALE = "en-ZA";
 
 export function formatCredentialLabel(name: string) {
   const trimmed = name.trim();
@@ -48,16 +49,17 @@ export function formatCredentialValue(name: string, value: string | null | undef
   const date = new Date(trimmed.length === 10 ? `${trimmed}T00:00:00` : trimmed);
   if (!Number.isFinite(date.getTime())) return trimmed;
 
-  const dateLabel = date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+  const dateLabel = date.toLocaleDateString(DISPLAY_LOCALE, { day: "2-digit", month: "short", year: "numeric" });
   if (!hasMeaningfulTime(trimmed)) return dateLabel;
-  return `${dateLabel}, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `${dateLabel}, ${date.toLocaleTimeString(DISPLAY_LOCALE, { hour: "2-digit", hourCycle: "h23", minute: "2-digit" })}`;
 }
 
 export function formatDateTime(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
-  return date.toLocaleString([], {
-    day: "numeric",
+  return date.toLocaleString(DISPLAY_LOCALE, {
+    day: "2-digit",
+    hourCycle: "h23",
     month: "short",
     year: "numeric",
     hour: "2-digit",

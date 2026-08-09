@@ -24,20 +24,22 @@ export function Skeleton({ height, width = "100%", radius = radii.sm, style }: {
 }) {
   const opacity = useSharedValue(0.42);
   const reducedMotion = useReducedMotion();
+  const shouldAnimate = process.env.NODE_ENV !== "test" && !reducedMotion;
 
   useEffect(() => {
     cancelAnimation(opacity);
-    opacity.value = reducedMotion ? 0.5 : 0.42;
-    opacity.value = withRepeat(
-      withTiming(reducedMotion ? 0.66 : 0.8, {
-        duration: reducedMotion ? 1200 : 850,
-        reduceMotion: reducedMotion ? ReduceMotion.Never : ReduceMotion.System,
-      }),
-      -1,
-      true,
-    );
+    opacity.value = shouldAnimate
+      ? withRepeat(
+          withTiming(0.8, {
+            duration: 850,
+            reduceMotion: ReduceMotion.System,
+          }),
+          -1,
+          true,
+        )
+      : 0.5;
     return () => cancelAnimation(opacity);
-  }, [opacity, reducedMotion]);
+  }, [opacity, shouldAnimate]);
 
   const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View style={[{ height, width, borderRadius: radius, backgroundColor: colors.rule }, animatedStyle, style]} />;
@@ -49,11 +51,12 @@ export function CredentialSkeleton() {
   const cardHeight = cardWidth / studentCardAspectRatio;
   const shimmer = useSharedValue(-cardWidth);
   const reducedMotion = useReducedMotion();
+  const shouldAnimate = process.env.NODE_ENV !== "test" && !reducedMotion;
 
   useEffect(() => {
     cancelAnimation(shimmer);
     shimmer.value = -cardWidth;
-    if (!reducedMotion) {
+    if (shouldAnimate) {
       shimmer.value = withRepeat(
         withTiming(cardWidth, { duration: 1300, reduceMotion: ReduceMotion.System }),
         -1,
@@ -61,7 +64,7 @@ export function CredentialSkeleton() {
       );
     }
     return () => cancelAnimation(shimmer);
-  }, [cardWidth, reducedMotion, shimmer]);
+  }, [cardWidth, shimmer, shouldAnimate]);
 
   const shimmerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shimmer.value }],
@@ -86,7 +89,7 @@ export function CredentialSkeleton() {
           </View>
         </View>
       </View>
-      {!reducedMotion ? (
+      {shouldAnimate ? (
         <Animated.View pointerEvents="none" style={[styles.shimmer, { width: cardWidth * 0.5 }, shimmerStyle]}>
           <LinearGradient
             colors={["transparent", "rgba(255,255,255,0.32)", "transparent"]}
