@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Formats credential labels, values, and dates for wallet screens.
+ * @module features/wallet/credentialDisplay
+ */
+
 const ATTRIBUTE_LABELS: Record<string, string> = {
   academicYear: "Academic year",
   dateOfBirth: "Date of birth",

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Supplies explicit unsupported-operation behavior for native-only holder features on web.
+ * @module features/wallet/holderAgent.web
+ */
+
 import * as Crypto from "expo-crypto";
 
 export type HolderAgentConfig = {

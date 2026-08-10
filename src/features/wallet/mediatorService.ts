@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Builds mediator invitations and coordinates DIDComm pickup behavior.
+ * @module features/wallet/mediatorService
+ */
+
 export const MEDIATOR_INVITATION_URL_ENV = "EXPO_PUBLIC_MEDIATOR_INVITATION_URL";
 export const MEDIATOR_PICKUP_STRATEGY_ENV = "EXPO_PUBLIC_MEDIATOR_PICKUP_STRATEGY";
 export const INDICIO_MEDIATOR_LANDING_PAGE_URL = "https://indicio-tech.github.io/mediator/";

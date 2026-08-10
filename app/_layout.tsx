@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Composes the root Expo Router stack with theme, agent, wallet session, and lock providers.
+ * @module app/_layout
+ */
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from "@react-navigation/native";
 import { useFonts as useSansFonts, IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold } from "@expo-google-fonts/ibm-plex-sans";

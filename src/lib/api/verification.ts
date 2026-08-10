@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Starts, claims, and polls capability-protected verification sessions.
+ * @module lib/api/verification
+ */
+
 import { ApiClientError, apiClient } from "@/src/lib/api/apiClient";
 import { createAbortError } from "@/src/lib/abortError";
 
@@ -70,6 +75,7 @@ export function verificationRequestErrorMessage(error: unknown) {
   return "Verification could not be completed. Try again or request a new verification link.";
 }
 
+/** Starts an idempotent proof session for a static service-point scan. */
 export function startVerificationSession(
   publicServicePointId: string,
   clientRequestId: string,
@@ -84,6 +90,7 @@ export function startVerificationSession(
   );
 }
 
+/** Consumes a checkout claim token and returns the invitation plus result capability. */
 export function claimCheckoutVerificationSession(
   verificationRequestId: string,
   claimToken: string,
@@ -96,6 +103,7 @@ export function claimCheckoutVerificationSession(
   );
 }
 
+/** Reads the minimal backend decision protected by this session's result token. */
 export function getVerificationResult(
   verificationRequestId: string,
   resultToken: string,
@@ -120,6 +128,7 @@ function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
+/** Polls until the backend reaches a terminal state or the caller cancels the flow. */
 export async function pollVerificationResult(
   verificationRequestId: string,
   resultToken: string,

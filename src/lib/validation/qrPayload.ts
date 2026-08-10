@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Strictly parses activation, service-point, checkout, and generic QR payloads.
+ * @module lib/validation/qrPayload
+ */
+
 import { z } from "zod";
 
 const paymentQrPayloadSchema = z.object({
@@ -10,6 +15,7 @@ const paymentQrPayloadSchema = z.object({
 
 export type QrPayload = z.infer<typeof paymentQrPayloadSchema>;
 
+/** Classifies a scanned value without treating arbitrary text as a trusted deep link. */
 export function parseQrPayload(rawPayload: string) {
   try {
     const result = paymentQrPayloadSchema.safeParse(JSON.parse(rawPayload) as unknown);
@@ -55,6 +61,7 @@ export type CheckoutVerificationLink = {
   claimToken: string;
 };
 
+/** Parses a trusted checkout URL and extracts its single-use claim capability. */
 export function parseCheckoutVerificationLink(rawValue: string) {
   try {
     const url = new URL(rawValue.trim());
@@ -96,6 +103,7 @@ export function parseCheckoutVerificationLink(rawValue: string) {
   }
 }
 
+/** Parses a trusted static service-point verification URL. */
 export function parseVerificationLink(rawValue: string) {
   try {
     const url = new URL(rawValue.trim());

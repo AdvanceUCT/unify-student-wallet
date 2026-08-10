@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Resolves activation capabilities and preserves resumable activation state.
+ * @module features/wallet/activationResolver
+ */
+
 import { ApiClientError, apiClient } from "@/src/lib/api/apiClient";
 
 import type { ActivationLinkRequest } from "./activationLinks";
@@ -49,6 +54,7 @@ function suffixFor(value: string) {
  * @param request - Parsed activation link data from the deep link or QR scanner.
  * @returns The resolved invitation details, or a user-facing error if resolution fails.
  */
+/** Resolves an activation capability without accepting the enclosed credential offer. */
 export async function resolveWalletActivation(request: ActivationLinkRequest): Promise<ActivationResult<ResolvedWalletActivation>> {
   if (request.kind === "token") {
     try {

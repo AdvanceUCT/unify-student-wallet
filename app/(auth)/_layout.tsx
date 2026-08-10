@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the navigation stack used before the wallet is unlocked.
+ * @module app/(auth)/_layout
+ */
+
 import { Stack } from "expo-router";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Restores an encrypted wallet backup and rebuilds the local session.
+ * @module app/(auth)/restore
+ */
+
 import { router } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";

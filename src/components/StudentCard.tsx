@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders the branded student credential card from normalized attributes.
+ * @module components/StudentCard
+ */
+
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {

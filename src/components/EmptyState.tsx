@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays a consistent empty collection message and optional action.
+ * @module components/EmptyState
+ */
+
 import { type ComponentType, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { type LucideProps } from "lucide-react-native";

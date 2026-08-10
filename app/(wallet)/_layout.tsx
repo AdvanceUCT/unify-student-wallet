@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the protected wallet navigation stack and tab structure.
+ * @module app/(wallet)/_layout
+ */
+
 import { Tabs } from "expo-router";
 import { Activity, Home, Inbox, ScanLine, type LucideIcon } from "lucide-react-native";
 import { Platform, useWindowDimensions } from "react-native";

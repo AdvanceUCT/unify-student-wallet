@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays a label and value in credential and settings summaries.
+ * @module components/InfoRow
+ */
+
 import { Text, View } from "react-native";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";

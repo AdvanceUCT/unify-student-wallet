@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines platform-safe elevation and shadow presets.
+ * @module theme/shadows
+ */
+
 import { Platform, type ViewStyle } from "react-native";
 
 const ios = (opacity: number, radius: number, offsetY: number): ViewStyle => ({

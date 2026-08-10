@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the corner-radius scale used by wallet components.
+ * @module theme/radii
+ */
+
 export const radii = {
   none: 0,
   xs: 4,

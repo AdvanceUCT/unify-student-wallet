@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines shared animation durations and easing values.
+ * @module theme/motion
+ */
+
 export const motion = {
   quick: 180,
   standard: 240,

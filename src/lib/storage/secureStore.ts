@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Wraps Expo SecureStore with the wallet's key naming and deletion behavior.
+ * @module lib/storage/secureStore
+ */
+
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 

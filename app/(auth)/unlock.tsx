@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Unlocks the existing wallet before protected routes may render.
+ * @module app/(auth)/unlock
+ */
+
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";

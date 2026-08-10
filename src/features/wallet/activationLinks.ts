@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Parses and normalizes supported wallet activation URLs.
+ * @module features/wallet/activationLinks
+ */
+
 export type ActivationLinkRequest =
   | {
       kind: "token";
@@ -56,6 +61,7 @@ function nonEmptyParam(url: URL, name: string) {
   return value ? value : null;
 }
 
+/** Accepts only configured activation hosts or the native UNIFY activation scheme. */
 export function parseActivationLink(rawUrl: string): ActivationLinkParseResult {
   let url: URL;
 

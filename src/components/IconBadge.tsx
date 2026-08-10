@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Pairs an icon with a compact labeled status treatment.
+ * @module components/IconBadge
+ */
+
 import { type ComponentType } from "react";
 import { Text, View } from "react-native";
 import { type LucideProps } from "lucide-react-native";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides reduced-motion-aware entry and fade transitions.
+ * @module components/AnimatedEntry
+ */
+
 import { type PropsWithChildren, useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Animated, {

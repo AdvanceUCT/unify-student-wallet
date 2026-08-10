@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders the shared primary, secondary, and destructive button styles.
+ * @module components/AppButton
+ */
+
 import { Link, type Href } from "expo-router";
 import { type LucideIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, Text } from "react-native";

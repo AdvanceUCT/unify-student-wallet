@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays a small neutral or semantic metadata label.
+ * @module components/Tag
+ */
+
 import { Text, View } from "react-native";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";

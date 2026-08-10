@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders chronological verification activity with local date grouping.
+ * @module components/ActivityLedger
+ */
+
 import { CheckCircle2, Clock3, ShieldAlert } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";

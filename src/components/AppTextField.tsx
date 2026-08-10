@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders a labeled wallet text field with validation feedback.
+ * @module components/AppTextField
+ */
+
 import { useState } from "react";
 import { Text, TextInput, type TextInputProps, View } from "react-native";
 

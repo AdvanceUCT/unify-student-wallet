@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders a screen title with optional navigation and contextual actions.
+ * @module components/ScreenHeader
+ */
+
 import { type ReactNode } from "react";
 import { Text, View } from "react-native";
 

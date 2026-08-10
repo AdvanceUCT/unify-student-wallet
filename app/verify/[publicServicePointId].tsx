@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Starts verification from a static service-point identifier.
+ * @module app/verify/[publicServicePointId]
+ */
+
 import { useLocalSearchParams } from "expo-router";
 
 import { VerificationFlowScreen } from "@/src/features/verification/VerificationFlowScreen";

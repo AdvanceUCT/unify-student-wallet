@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Registers the Expo Router entry point for native and web builds.
+ * @module index
+ */
+
 import "react-native-get-random-values";
 import { LogBox } from "react-native";
 

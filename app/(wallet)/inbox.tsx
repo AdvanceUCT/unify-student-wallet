@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Lists actionable offer, expiry, and credential-state alerts.
+ * @module app/(wallet)/inbox
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { AlertTriangle, ArrowRight, Inbox as InboxIcon, Mail, ShieldAlert } from "lucide-react-native";

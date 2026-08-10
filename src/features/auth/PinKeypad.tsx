@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides the numeric keypad used by wallet PIN flows.
+ * @module features/auth/PinKeypad
+ */
+
 import * as Haptics from "expo-haptics";
 import { Delete as DeleteIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";

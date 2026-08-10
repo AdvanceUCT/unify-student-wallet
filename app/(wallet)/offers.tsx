@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Lets the student review, accept, or decline pending credential offers.
+ * @module app/(wallet)/offers
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { Mail as MailIcon } from "lucide-react-native";
 import { useState } from "react";

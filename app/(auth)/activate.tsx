@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Resumes a credential activation link after setup and wallet unlock requirements are satisfied.
+ * @module app/(auth)/activate
+ */
+
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 

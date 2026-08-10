@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides the proof-of-concept payments placeholder within the wallet shell.
+ * @module app/(wallet)/payments
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Wallet as WalletIcon, Receipt as ReceiptIcon } from "lucide-react-native";

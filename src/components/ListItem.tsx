@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders a standard tappable row with optional leading and trailing content.
+ * @module components/ListItem
+ */
+
 import { type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";

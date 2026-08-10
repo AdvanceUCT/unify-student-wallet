@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Draws the shared UNIFY gradient behind branded surfaces.
+ * @module components/BrandGradient
+ */
+
 import { LinearGradient } from "expo-linear-gradient";
 import { type PropsWithChildren } from "react";
 import { type StyleProp, type ViewStyle } from "react-native";

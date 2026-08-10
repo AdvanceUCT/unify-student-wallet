@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Coordinates proof receipt, credential selection, explicit consent, presentation, and result polling.
+ * @module features/verification/VerificationFlowScreen
+ */
+
 import * as Crypto from "expo-crypto";
 import * as Haptics from "expo-haptics";
 import { router, Stack } from "expo-router";
@@ -140,6 +145,10 @@ async function persistVerificationActivity({
   }
 }
 
+/**
+ * Runs one service-point or checkout proof flow from session preparation through
+ * explicit student consent and the verifier's terminal result.
+ */
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
   const { ensureWalletReady } = useHolderAgent();
   const { clearPendingFlow, pendingCheckoutVerification, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();

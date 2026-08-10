@@ -1,7 +1,13 @@
+/**
+ * @fileoverview Chooses safe navigation targets from wallet setup, lock, and pending-flow state.
+ * @module features/wallet/routeGuards
+ */
+
 import type { FirstRunSetupStatus, WalletSession } from "./sessionTypes";
 
 export type WalletRouteAccess = "welcome" | "pinSetup" | "unlock" | "onboarding" | "wallet";
 
+/** Reduces session state to the one route category the wallet may enter. */
 export function getWalletRouteAccess(
   session: WalletSession,
   hasPin: boolean,

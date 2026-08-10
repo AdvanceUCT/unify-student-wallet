@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Verifies the current PIN before replacing it with a new one.
+ * @module app/(auth)/change-pin
+ */
+
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";

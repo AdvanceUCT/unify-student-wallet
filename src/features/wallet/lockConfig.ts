@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Collects the inactivity and background timing used by automatic wallet locking.
+ * @module features/wallet/lockConfig
+ */
+
 // Two minutes is short enough for a shared test device but not annoying during normal form entry.
 export const INACTIVITY_LOCK_MS = 2 * 60 * 1000; // 2 minutes
 

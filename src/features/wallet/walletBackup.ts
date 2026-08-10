@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Packages, validates, shares, and restores password-encrypted Askar wallet backups.
+ * @module features/wallet/walletBackup
+ */
+
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import { copyAsync, deleteAsync } from "expo-file-system/legacy";
@@ -40,6 +45,7 @@ type BackupBundle = {
 
 export type RecoveryPasswordValidation = { ok: true } | { ok: false; error: string };
 
+/** Enforces the minimum recovery-password policy before any native export begins. */
 export function validateRecoveryPassword(
   recoveryPassword: string,
   confirmation?: string,
@@ -216,6 +222,7 @@ async function copyBackupIntoRestoreCache(uri: string) {
   );
 }
 
+/** Creates, validates, packages, and shares a portable encrypted wallet backup. */
 export async function createAndShareEncryptedBackup(recoveryPassword: string) {
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error("File sharing is unavailable on this device.");
@@ -259,6 +266,7 @@ export async function createAndShareEncryptedBackup(recoveryPassword: string) {
   return await markWalletBackedUp();
 }
 
+/** Lets the student choose a supported backup bundle for restore. */
 export async function pickEncryptedBackupFile() {
   const result = await DocumentPicker.getDocumentAsync({
     copyToCacheDirectory: true,

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Presents the skippable first-run introduction and records its completion.
+ * @module app/(auth)/onboarding
+ */
+
 import { router, useLocalSearchParams } from "expo-router";
 import {
   Activity,

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Runs the guarded Android release build and locates the resulting APK.
+ * @module scripts/build-release-android
+ */
+
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";

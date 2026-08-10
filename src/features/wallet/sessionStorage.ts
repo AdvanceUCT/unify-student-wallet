@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Persists wallet identifiers, lock metadata, pending links, and user preferences.
+ * @module features/wallet/sessionStorage
+ */
+
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
 import { type PersistedWalletSessionState, signedOutSession } from "./sessionTypes";

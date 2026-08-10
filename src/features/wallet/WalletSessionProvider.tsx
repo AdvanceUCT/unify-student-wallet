@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Owns wallet creation, restore, unlock, lock, reset, and pending-flow resumption.
+ * @module features/wallet/WalletSessionProvider
+ */
+
 import * as LocalAuthentication from "expo-local-authentication";
 import * as Linking from "expo-linking";
 import { router, useSegments } from "expo-router";
@@ -137,6 +142,7 @@ function persistedStateFromProvider(state: WalletProviderState): PersistedWallet
   return persisted;
 }
 
+/** Provides the durable wallet lifecycle and security actions consumed by app routes. */
 export function WalletSessionProvider({ children }: PropsWithChildren) {
   const {
     createWallet: createHolderWallet,
@@ -1087,6 +1093,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   return <WalletSessionContext.Provider value={value}>{children}</WalletSessionContext.Provider>;
 }
 
+/** Redirects routes that do not match the current setup, lock, or pending-flow state. */
 export function WalletRouteGate({ children }: PropsWithChildren) {
   const {
     hasPin,

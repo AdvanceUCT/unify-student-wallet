@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides a loading placeholder whose animation stops in tests and reduced-motion mode.
+ * @module components/Skeleton
+ */
+
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect } from "react";
 import { StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
