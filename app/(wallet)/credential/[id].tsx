@@ -1,169 +1,70 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Text, View, useWindowDimensions } from "react-native";
+import { ArrowLeft, IdCard } from "lucide-react-native";
+import { Text, useWindowDimensions, View } from "react-native";
 
+import { AnimatedEntry } from "@/src/components/AnimatedEntry";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
+import { CredentialSkeleton } from "@/src/components/Skeleton";
+import { EmptyState } from "@/src/components/EmptyState";
 import { InfoRow } from "@/src/components/InfoRow";
+import { IconButton } from "@/src/components/IconButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StudentCard } from "@/src/components/StudentCard";
-import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { formatCredentialLabel, formatCredentialValue } from "@/src/features/wallet/credentialDisplay";
+import { getCredentialRecordLazy } from "@/src/features/wallet/holderAgentRuntime";
+import { motion } from "@/src/theme/motion";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-const MAX_CARD_WIDTH = 360;
-
 type CredentialAttribute = { name: string; value: string };
-
-// Credential attributes arrive as flat AnonCreds names, so group the ones students notice first.
-const HOLDER_KEYS = new Set([
-  "firstName",
-  "first_name",
-  "givenName",
-  "lastName",
-  "last_name",
-  "familyName",
-  "surname",
-  "fullName",
-  "name",
-]);
-
-const PROGRAMME_KEYS = new Set([
-  "programme",
-  "program",
-  "faculty",
-  "school",
-  "department",
-  "year",
-  "yearOfStudy",
-  "academicYear",
-  "studentNumber",
-  "student_number",
-  "studentId",
-]);
-
+const HOLDER_KEYS = new Set(["firstName", "first_name", "givenName", "lastName", "last_name", "familyName", "surname", "fullName", "name"]);
+const PROGRAMME_KEYS = new Set(["programme", "program", "faculty", "school", "department", "year", "yearOfStudy", "academicYear", "studentNumber", "student_number", "studentId"]);
 const ISSUER_KEYS = new Set(["issuerName", "issuer", "institution", "university"]);
 
-function categorize(attribute: CredentialAttribute) {
-  if (HOLDER_KEYS.has(attribute.name)) return "holder" as const;
-  if (PROGRAMME_KEYS.has(attribute.name)) return "programme" as const;
-  if (ISSUER_KEYS.has(attribute.name)) return "issuer" as const;
-  return "other" as const;
-}
-
-function humanize(name: string) {
-  return name
-    .replace(/[_-]/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+function category(attribute: CredentialAttribute) {
+  if (HOLDER_KEYS.has(attribute.name)) return "Holder";
+  if (PROGRAMME_KEYS.has(attribute.name)) return "Student record";
+  if (ISSUER_KEYS.has(attribute.name)) return "Issuer";
+  return "Additional information";
 }
 
 export default function CredentialDetailScreen() {
+  const colors = useThemePalette();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
-
-  const credentialQuery = useQuery({
-    queryKey: ["credential", id],
-    queryFn: () => getCredentialRecord(id),
-    enabled: Boolean(id),
-  });
-
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(width - spacing.xl * 2, 430);
+  const credentialQuery = useQuery({ queryKey: ["credential", id], queryFn: () => getCredentialRecordLazy(id), enabled: Boolean(id) });
   const credential = credentialQuery.data;
   const attributes = credential?.credentialAttributes ?? [];
-
-  // Keep unknown issuer-specific fields visible instead of hiding useful proof data.
-  const grouped = {
-    holder: attributes.filter((a) => categorize(a) === "holder"),
-    programme: attributes.filter((a) => categorize(a) === "programme"),
-    issuer: attributes.filter((a) => categorize(a) === "issuer"),
-    other: attributes.filter((a) => categorize(a) === "other"),
-  };
+  const groups = ["Holder", "Student record", "Issuer", "Additional information"].map((title) => ({ title, attributes: attributes.filter((attribute) => category(attribute) === title) })).filter((group) => group.attributes.length);
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader eyebrow="Credential" title="Detail." />
-
-        {credentialQuery.isLoading ? (
-          <Card>
-            <Text style={typography.body}>Loading credential…</Text>
-          </Card>
-        ) : null}
-
-        {credentialQuery.isError ? (
-          <Card>
-            <Text style={[typography.bodyStrong, { color: colors.error }]}>
-              Credential could not be loaded.
-            </Text>
-          </Card>
-        ) : null}
-
-        {credential ? (
-          <>
-            <View style={{ alignItems: "center" }}>
-              <StudentCard credential={credential} width={cardWidth} />
-            </View>
-
-            {grouped.holder.length > 0 ? (
-              <Card heading="Holder">
-                {grouped.holder.map((attr, i) => (
-                  <InfoRow
-                    key={attr.name}
-                    label={humanize(attr.name)}
-                    value={attr.value}
-                    divider={i < grouped.holder.length - 1}
-                  />
-                ))}
-              </Card>
-            ) : null}
-
-            {grouped.programme.length > 0 ? (
-              <Card heading="Programme">
-                {grouped.programme.map((attr, i) => (
-                  <InfoRow
-                    key={attr.name}
-                    label={humanize(attr.name)}
-                    value={attr.value}
-                    divider={i < grouped.programme.length - 1}
-                  />
-                ))}
-              </Card>
-            ) : null}
-
-            {grouped.issuer.length > 0 ? (
-              <Card heading="Issuer">
-                {grouped.issuer.map((attr, i) => (
-                  <InfoRow
-                    key={attr.name}
-                    label={humanize(attr.name)}
-                    value={attr.value}
-                    divider={i < grouped.issuer.length - 1}
-                  />
-                ))}
-              </Card>
-            ) : null}
-
-            {grouped.other.length > 0 ? (
-              <Card heading="Other attributes">
-                {grouped.other.map((attr, i) => (
-                  <InfoRow
-                    key={attr.name}
-                    label={humanize(attr.name)}
-                    value={attr.value}
-                    divider={i < grouped.other.length - 1}
-                  />
-                ))}
-              </Card>
-            ) : null}
-
-          </>
-        ) : null}
-
-        <AppButton label="Back to wallet" variant="outline" onPress={() => router.back()} />
-      </View>
+      <ScreenHeader
+        eyebrow="Verifiable document"
+        leading={<IconButton accessibilityLabel="Back to credentials" icon={ArrowLeft} onPress={() => router.back()} />}
+        title="Credential details"
+      />
+      {credentialQuery.isLoading ? <CredentialSkeleton /> : null}
+      {credentialQuery.isError || (!credentialQuery.isLoading && !credential) ? <EmptyState icon={IdCard} eyebrow="Credential unavailable" heading="Could not open this credential" body="The credential may have been removed or the wallet agent may be unavailable." action={<AppButton label="Back to credentials" onPress={() => router.back()} />} /> : null}
+      {credential ? (
+        <View style={{ gap: spacing["2xl"] }}>
+          <AnimatedEntry><View style={{ alignItems: "center" }}><StudentCard credential={credential} width={cardWidth} /></View></AnimatedEntry>
+          {groups.map((group, groupIndex) => (
+            <AnimatedEntry key={group.title} delay={(groupIndex + 1) * motion.stagger}>
+              <View>
+                <Text style={[typography.sectionTitle, { marginBottom: spacing.sm }]}>{group.title}</Text>
+                <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.rule }}>
+                  {group.attributes.map((attribute, index) => <InfoRow key={attribute.name} label={formatCredentialLabel(attribute.name)} value={formatCredentialValue(attribute.name, attribute.value)} divider={index < group.attributes.length - 1} />)}
+                </View>
+              </View>
+            </AnimatedEntry>
+          ))}
+        </View>
+      ) : null}
     </AppScreen>
   );
 }

@@ -3,4 +3,3 @@ export function createAbortError(message: string) {
   error.name = "AbortError";
   return error;
 }
-

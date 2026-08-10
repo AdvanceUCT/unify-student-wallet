@@ -8,11 +8,12 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
 import { InfoRow } from "@/src/components/InfoRow";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Tag } from "@/src/components/Tag";
-import { getCredentialRecord } from "@/src/features/wallet/holderAgent";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { getCredentialRecordLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
@@ -35,15 +36,17 @@ function humanize(name: string) {
 }
 
 export default function OffersScreen() {
+  const colors = useThemePalette();
   const { acceptOffer, declineOffer, pendingOfferIds } = useWalletSession();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<"accept" | "decline">("accept");
 
   // Pending offer IDs live in session state; load the full records when this page opens.
   const offersQuery = useQuery({
     queryKey: ["pending-offers", pendingOfferIds.join(",")],
     queryFn: async () => {
-      const records = await Promise.all(pendingOfferIds.map((id) => getCredentialRecord(id)));
+      const records = await Promise.all(pendingOfferIds.map((id) => getCredentialRecordLazy(id)));
       // If Credo has not exposed the full record yet, keep a placeholder row visible.
       return records.map((record, index) => record ?? { id: pendingOfferIds[index] });
     },
@@ -51,6 +54,7 @@ export default function OffersScreen() {
 
   async function handleAccept(id: string) {
     setActionError(null);
+    setPendingAction("accept");
     setPendingId(id);
     const result = await acceptOffer(id);
     setPendingId(null);
@@ -62,6 +66,7 @@ export default function OffersScreen() {
 
   async function handleDecline(id: string) {
     setActionError(null);
+    setPendingAction("decline");
     setPendingId(id);
     const result = await declineOffer(id);
     setPendingId(null);
@@ -72,6 +77,14 @@ export default function OffersScreen() {
   }
 
   const offers = offersQuery.data ?? [];
+
+  if (offersQuery.isLoading) {
+    return <OperationStateScreen tone="loading" eyebrow="Credential offers" title="Loading secure offers" message="Reading pending credential offers from the encrypted wallet." />;
+  }
+
+  if (pendingId) {
+    return <OperationStateScreen busy tone="secure" eyebrow="Credential offer" title={pendingAction === "accept" ? "Adding credential" : "Declining offer"} message={pendingAction === "accept" ? "Accepting the offer and storing the credential inside your encrypted wallet." : "Notifying the issuer that this credential offer was declined."} />;
+  }
 
   return (
     <AppScreen>

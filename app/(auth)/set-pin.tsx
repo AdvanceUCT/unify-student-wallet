@@ -1,8 +1,10 @@
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinDots } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
@@ -15,7 +17,7 @@ import { spacing } from "@/src/theme/spacing";
 type Step = "enter" | "confirm";
 
 export default function SetPinScreen() {
-  const { createWallet } = useWalletSession();
+  const { createWallet, session, startFirstRunSetup } = useWalletSession();
   const [step, setStep] = useState<Step>("enter");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,6 +58,21 @@ export default function SetPinScreen() {
   });
 
   async function handleConfirm(confirmation: string) {
+    if (!session.walletId) {
+      const result = startFirstRunSetup(firstPinRef.current, confirmation);
+      if (result.ok) {
+        firstPinRef.current = "";
+        clearConfirm();
+        router.replace("/(auth)/onboarding");
+        return;
+      }
+
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(result.error);
+      clearConfirm();
+      return;
+    }
+
     setIsSubmitting(true);
     const result = await createWallet(firstPinRef.current, confirmation);
     setIsSubmitting(false);
@@ -75,11 +92,15 @@ export default function SetPinScreen() {
 
   const isEnterStep = step === "enter";
 
+  if (isSubmitting) {
+    return <OperationStateScreen busy tone="secure" eyebrow="Step 3 of 3 · Wallet readiness" title="Creating your wallet" message="Generating encrypted wallet storage and starting the credential agent." detail="Keep UNIFY open until setup is complete." />;
+  }
+
   return (
     <AppScreen>
       <View style={{ flex: 1, justifyContent: "space-between", paddingBottom: spacing.xl }}>
         <ScreenHeader
-          eyebrow={isEnterStep ? "Step 1 of 2 · Create PIN" : "Step 2 of 2 · Confirm PIN"}
+          eyebrow={isEnterStep ? "Step 2 of 3 · Create PIN" : "Step 2 of 3 · Confirm PIN"}
           title={isEnterStep ? "Choose a PIN." : "Re-enter the PIN."}
           meta={
             isEnterStep

@@ -9,7 +9,7 @@ import {
 
 const mockSecureValues = new Map<string, string>();
 const mockHolderAgent = { id: "holder-agent-001" };
-const mockReceiveCredentialOffer = jest.fn(async (_url: string) => undefined);
+const mockReceiveCredentialOffer = jest.fn(async (_url: string) => ({ id: "credential-cold-1", state: "credential-received" }));
 const originalFetch = global.fetch;
 
 jest.mock("@/src/lib/storage/secureStore", () => ({
@@ -55,15 +55,21 @@ jest.mock("expo-router", () => ({
 let walletContext:
   | {
       createWallet: (pin: string, confirmation: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+      completeOnboarding: () => Promise<void>;
+      clearPendingFlow: (kind: "checkout" | "servicePoint" | "activation" | "offer") => Promise<void>;
+      continuePendingFlow: () => Promise<{ ok: boolean; kind: string; href?: string; error?: string }>;
       processIncomingLink: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-      stashedActivationUrl?: string;
+      pendingActivationUrl?: string;
       isHydrated: boolean;
+      onboardingCompleted: boolean;
+      setPendingCheckoutVerification: (value?: { verificationRequestId: string; claimToken: string }) => Promise<void>;
+      setPendingVerificationPublicServicePointId: (value?: string) => Promise<void>;
     }
   | undefined;
 
 function CaptureWalletContext() {
   walletContext = useWalletSession() as typeof walletContext;
-  return <Text>{walletContext?.stashedActivationUrl ?? "no-stash"}</Text>;
+  return <Text>{walletContext?.pendingActivationUrl ?? "no-stash"}</Text>;
 }
 
 describe("cold install link handling", () => {
@@ -91,7 +97,7 @@ describe("cold install link handling", () => {
     delete process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL;
   });
 
-  it("stashes the activation link before wallet exists and replays it after createWallet", async () => {
+  it("persists activation through wallet creation and resumes it after onboarding", async () => {
     render(
       <HolderAgentProvider>
         <WalletSessionProvider>
@@ -107,7 +113,8 @@ describe("cold install link handling", () => {
       expect(result).toMatchObject({ ok: true });
     });
 
-    expect(walletContext?.stashedActivationUrl).toBe("unifywallet://activate?token=cold-token");
+    expect(walletContext?.pendingActivationUrl).toBe("unifywallet://activate?token=cold-token");
+    expect(Array.from(mockSecureValues.values()).join("\n")).toContain("unifywallet://activate?token=cold-token");
     expect(mockReceiveCredentialOffer).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -115,9 +122,47 @@ describe("cold install link handling", () => {
       expect(result).toEqual({ ok: true });
     });
 
-    await waitFor(() =>
-      expect(mockReceiveCredentialOffer).toHaveBeenCalledWith("https://issuer.advanceuct.test/oob?oob=cold"),
+    expect(walletContext?.onboardingCompleted).toBe(false);
+    expect(mockReceiveCredentialOffer).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await walletContext?.completeOnboarding();
+      expect(await walletContext?.continuePendingFlow()).toMatchObject({
+        ok: true,
+        kind: "activation",
+        href: "/(wallet)/credential",
+      });
+    });
+
+    expect(mockReceiveCredentialOffer).toHaveBeenCalledWith("https://issuer.advanceuct.test/oob?oob=cold");
+    expect(walletContext?.pendingActivationUrl).toBeUndefined();
+  });
+
+  it("continues checkout before service-point verification and clears only the selected flow", async () => {
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <CaptureWalletContext />
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
     );
-    await waitFor(() => expect(walletContext?.stashedActivationUrl).toBeUndefined());
+
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    await act(async () => {
+      await walletContext?.createWallet("2468", "2468");
+      await walletContext?.completeOnboarding();
+      await walletContext?.setPendingVerificationPublicServicePointId("service-point-1");
+      await walletContext?.setPendingCheckoutVerification({ verificationRequestId: "checkout-1", claimToken: "claim-1" });
+    });
+
+    await act(async () => {
+      expect(await walletContext?.continuePendingFlow()).toMatchObject({ ok: true, kind: "checkout" });
+      await walletContext?.clearPendingFlow("checkout");
+      expect(await walletContext?.continuePendingFlow()).toEqual({
+        ok: true,
+        kind: "servicePoint",
+        href: "/verify/service-point-1",
+      });
+    });
   });
 });

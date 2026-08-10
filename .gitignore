@@ -43,6 +43,7 @@ app-example
 # generated native folders
 /ios
 /android
+/credentials/
 
 docs-local
 

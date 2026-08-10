@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinDots, type PinDotStatus } from "@/src/features/auth/PinDots";
 import { PinKeypad } from "@/src/features/auth/PinKeypad";
@@ -91,6 +92,14 @@ export default function UnlockScreen() {
         </View>
       </AppScreen>
     );
+  }
+
+  if (phase === "authenticating") {
+    return <OperationStateScreen busy tone="secure" eyebrow="Wallet security" title="Confirming your identity" message="Checking your PIN or device biometric securely." />;
+  }
+
+  if (phase === "success") {
+    return <OperationStateScreen tone="success" eyebrow="Wallet security" title="Wallet unlocked" message="Opening credentials and secure connections." />;
   }
 
   const attemptsRemaining = MAX_PIN_ATTEMPTS - failedAttempts;

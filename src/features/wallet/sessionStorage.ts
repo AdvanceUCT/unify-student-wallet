@@ -1,5 +1,4 @@
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
-import { parseVerificationHistory } from "@/src/features/verification/history";
 
 import { type PersistedWalletSessionState, signedOutSession } from "./sessionTypes";
 
@@ -15,24 +14,46 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       session: signedOutSession,
-      verificationHistory: [],
     };
   }
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<PersistedWalletSessionState>;
+    const pendingCheckout = parsed.pendingCheckoutVerification;
+    const claimedSession = pendingCheckout?.claimedSession;
+    const parsedClaimedSession =
+      typeof claimedSession?.verificationRequestId === "string" &&
+      typeof claimedSession.invitationUrl === "string" &&
+      typeof claimedSession.resultToken === "string" &&
+      typeof claimedSession.vendorName === "string" &&
+      typeof claimedSession.servicePointName === "string" &&
+      Array.isArray(claimedSession.requestedAttributes) &&
+      claimedSession.requestedAttributes.every((attribute: unknown) => typeof attribute === "string") &&
+      typeof claimedSession.expiresAt === "string"
+        ? claimedSession
+        : undefined;
 
     return {
       biometricEnabled: Boolean(parsed.biometricEnabled),
       changePinAttempts: parsed.changePinAttempts ?? 0,
       failedAttempts: parsed.failedAttempts ?? 0,
+      // Existing wallets must never be surprised by first-run education after an update.
+      onboardingCompleted:
+        typeof parsed.onboardingCompleted === "boolean" ? parsed.onboardingCompleted : true,
       pinHash: parsed.pinHash,
       pinSalt: parsed.pinSalt,
+      pendingActivationUrl:
+        typeof parsed.pendingActivationUrl === "string" ? parsed.pendingActivationUrl : undefined,
       pendingCheckoutVerification:
-        typeof parsed.pendingCheckoutVerification?.verificationRequestId === "string" &&
-        typeof parsed.pendingCheckoutVerification.claimToken === "string"
-          ? parsed.pendingCheckoutVerification
+        typeof pendingCheckout?.verificationRequestId === "string" &&
+        typeof pendingCheckout.claimToken === "string"
+          ? {
+              verificationRequestId: pendingCheckout.verificationRequestId,
+              claimToken: pendingCheckout.claimToken,
+              ...(parsedClaimedSession ? { claimedSession: parsedClaimedSession } : {}),
+            }
           : undefined,
       pendingVerificationPublicServicePointId:
         typeof parsed.pendingVerificationPublicServicePointId === "string"
@@ -44,15 +65,14 @@ export function parseWalletSessionState(rawValue: string | null): PersistedWalle
         pendingOfferIds: Array.isArray(parsed.session?.pendingOfferIds) ? parsed.session.pendingOfferIds : [],
         walletId: parsed.session?.walletId,
       },
-      verificationHistory: parseVerificationHistory(parsed.verificationHistory),
     };
   } catch {
     return {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       session: signedOutSession,
-      verificationHistory: [],
     };
   }
 }

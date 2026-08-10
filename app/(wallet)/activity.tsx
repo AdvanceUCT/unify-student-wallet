@@ -1,34 +1,33 @@
-import { router } from "expo-router";
-import { QrCode as QrCodeIcon } from "lucide-react-native";
+import { useFocusEffect } from "expo-router";
+import { Activity as ActivityIcon } from "lucide-react-native";
+import { useCallback, useState } from "react";
 import { View } from "react-native";
 
-import { AppButton } from "@/src/components/AppButton";
+import { ActivityLedger } from "@/src/components/ActivityLedger";
 import { AppScreen } from "@/src/components/AppScreen";
 import { EmptyState } from "@/src/components/EmptyState";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { VerificationHistoryList } from "@/src/features/verification/VerificationHistoryList";
+import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { spacing } from "@/src/theme/spacing";
 
 export default function ActivityScreen() {
-  const { verificationHistory } = useWalletSession();
+  const { session } = useWalletSession();
+  const [records, setRecords] = useState<VerificationActivityRecord[]>([]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (session.walletId) void getVerificationActivity(session.walletId).then((items) => active && setRecords(items));
+    return () => { active = false; };
+  }, [session.walletId]));
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader eyebrow="Wallet activity" title="Verification history." />
-
-        {verificationHistory.length === 0 ? (
-          <EmptyState
-            icon={QrCodeIcon}
-            eyebrow="No verification history"
-            body="Verification events will appear here after you present your credential."
-            action={<AppButton label="Scan service QR" onPress={() => router.push("/(wallet)/scan")} />}
-          />
-        ) : (
-          <VerificationHistoryList items={verificationHistory} />
-        )}
-      </View>
+      <ScreenHeader eyebrow="Audit trail" title="Activity" meta={records.length ? `${records.length} recent presentations` : undefined} />
+      {records.length === 0 ? (
+        <EmptyState icon={ActivityIcon} eyebrow="No presentations yet" heading="Your activity is private." body="Credential presentations will appear here after you approve or decline a verification request." />
+      ) : (
+        <View><ActivityLedger records={records} /></View>
+      )}
     </AppScreen>
   );
 }

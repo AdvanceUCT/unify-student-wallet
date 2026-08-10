@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { rules } from "@/src/theme/rules";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -13,6 +13,7 @@ type InfoRowProps = {
 };
 
 export function InfoRow({ label, value, tone = "default", divider = false }: InfoRowProps) {
+  const colors = useThemePalette();
   const valueColor =
     tone === "success"
       ? colors.primary
@@ -29,16 +30,12 @@ export function InfoRow({ label, value, tone = "default", divider = false }: Inf
         borderBottomColor: colors.ruleSoft,
         borderBottomWidth: divider ? rules.hairline : 0,
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: spacing.md,
       }}
     >
       <Text style={[typography.body, { flex: 1 }]}>{label}</Text>
-      <Text
-        numberOfLines={1}
-        ellipsizeMode="middle"
-        style={[typography.bodyStrong, { color: valueColor, textAlign: "right", flexShrink: 1 }]}
-      >
+      <Text selectable style={[typography.bodyStrong, { color: valueColor, textAlign: "right", flex: 1, flexShrink: 1 }]}>
         {value}
       </Text>
     </View>

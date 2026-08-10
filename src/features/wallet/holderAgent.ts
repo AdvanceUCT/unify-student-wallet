@@ -2,10 +2,12 @@ import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
+import { WalletVerificationError } from "@/src/features/verification/verificationErrors";
 import { createAbortError } from "@/src/lib/abortError";
 
 import { getMediatorInvitationUrl, getMediatorPickupStrategy } from "./mediatorService";
 import { isValidGenesisTransactions, readCachedGenesisTransactions, writeCachedGenesisTransactions } from "./genesisCache";
+import { credentialAttributeValue, normalizedCredentialAttributeName } from "./credentialMetadata";
 
 const BCOVRIN_TEST_GENESIS_URL = "https://test.bcovrin.vonx.io/genesis";
 const HOLDER_WALLET_KEY_PREFIX = "unify.holder-wallet-raw-key";
@@ -50,6 +52,7 @@ type CredentialRecord = {
   state?: string;
   connectionId?: string;
   credentialAttributes?: { name: string; value: string }[];
+  credentials?: { credentialRecordId: string; credentialRecordType: string }[];
 };
 
 type CredentialFormatData = {
@@ -65,6 +68,14 @@ type ProofExchangeRecord = {
 
 type AnonCredsSelectedCredential = {
   credentialInfo?: { attributes?: Record<string, string | number> };
+  revoked?: boolean;
+};
+
+type HolderAnonCredsApi = {
+  getCredential?: (credentialId: string) => Promise<{
+    attributes: Record<string, string | number>;
+    credentialId: string;
+  }>;
 };
 
 type SelectedProofFormats = {
@@ -149,6 +160,11 @@ export type HolderAgent = {
         proofExchangeRecordId: string;
         proofFormats?: { anoncreds: { filterByNonRevocationRequirements: boolean } };
       }) => Promise<{ proofFormats: SelectedProofFormats }>;
+      declineRequest?: (options: {
+        proofExchangeRecordId: string;
+        problemReportDescription?: string;
+        sendProblemReport?: boolean;
+      }) => Promise<ProofExchangeRecord>;
     };
     registerOutboundTransport?: (transport: unknown) => void;
   };
@@ -157,7 +173,7 @@ export type HolderAgent = {
     off?: (eventType: string, handler: (event: unknown) => void) => void;
   };
   initialize: () => Promise<void>;
-  modules?: { askar?: HolderAskarApi };
+  modules?: { anoncreds?: HolderAnonCredsApi; askar?: HolderAskarApi };
   shutdown?: () => Promise<void>;
 };
 
@@ -315,6 +331,29 @@ function errorMessageFromUnknown(error: unknown) {
   }
 
   return messages.join(" Caused by: ");
+}
+
+function revocationFailureFromUnknown(error: unknown) {
+  const message = errorMessageFromUnknown(error).toLowerCase();
+
+  if (message.includes("credential is revoked") || message.includes("credential has been revoked")) {
+    return "CREDENTIAL_REVOKED" as const;
+  }
+
+  if (
+    message.includes("status list") ||
+    message.includes("tails file") ||
+    message.includes("tails location") ||
+    message.includes("tails server") ||
+    (message.includes("revocation registry") &&
+      ["unavailable", "not found", "failed", "cannot", "could not"].some((term) => message.includes(term))) ||
+    (message.includes("revocation status") &&
+      ["unavailable", "not found", "failed", "cannot", "could not"].some((term) => message.includes(term)))
+  ) {
+    return "REVOCATION_CHECK_FAILED" as const;
+  }
+
+  return undefined;
 }
 
 function sleep(ms: number) {
@@ -863,7 +902,9 @@ async function withOfferAttributes(
   credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
   record: CredentialRecord,
 ): Promise<CredentialRecord> {
-  if (record.credentialAttributes?.length || !credentials.getFormatData) {
+  const hasIssuedAt = credentialAttributeValue(record, "issuedAt", "validFrom", "issuanceDate");
+  const hasExpiresAt = credentialAttributeValue(record, "expiresAt", "expiryDate", "expirationDate");
+  if ((record.credentialAttributes?.length && hasIssuedAt && hasExpiresAt) || !credentials.getFormatData) {
     return record;
   }
 
@@ -871,17 +912,53 @@ async function withOfferAttributes(
     const formatData = await credentials.getFormatData(record.id);
     if (!formatData.offerAttributes?.length) return record;
 
-    return {
-      ...record,
-      credentialAttributes: formatData.offerAttributes.map((attribute) => ({
-        name: String(attribute.name),
-        value: String(attribute.value),
-      })),
-    };
+    const mergedAttributes = new Map(
+      formatData.offerAttributes.map((attribute) => {
+        const normalized = { name: String(attribute.name), value: String(attribute.value) };
+        return [normalizedCredentialAttributeName(normalized.name), normalized] as const;
+      }),
+    );
+    for (const attribute of record.credentialAttributes ?? []) {
+      mergedAttributes.set(normalizedCredentialAttributeName(attribute.name), attribute);
+    }
+
+    return { ...record, credentialAttributes: [...mergedAttributes.values()] };
   } catch (error) {
     console.warn("[holder-agent] Unable to load credential offer details.", error);
     return record;
   }
+}
+
+async function withStoredCredentialAttributes(record: CredentialRecord): Promise<CredentialRecord> {
+  const anoncreds = agentRef?.modules?.anoncreds;
+  const binding = record.credentials?.find((credential) =>
+    credential.credentialRecordType === "w3c" || credential.credentialRecordType === "anoncreds",
+  );
+  if (!anoncreds?.getCredential || !binding) return record;
+
+  try {
+    const stored = await anoncreds.getCredential(binding.credentialRecordId);
+    const merged = new Map(
+      (record.credentialAttributes ?? []).map((attribute) => [
+        normalizedCredentialAttributeName(attribute.name),
+        attribute,
+      ] as const),
+    );
+    for (const [name, value] of Object.entries(stored.attributes)) {
+      merged.set(normalizedCredentialAttributeName(name), { name, value: String(value) });
+    }
+    return { ...record, credentialAttributes: [...merged.values()] };
+  } catch (error) {
+    console.warn("[holder-agent] Unable to load stored AnonCreds credential attributes.", error);
+    return record;
+  }
+}
+
+async function withDisplayAttributes(
+  credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
+  record: CredentialRecord,
+) {
+  return withOfferAttributes(credentials, await withStoredCredentialAttributes(record));
 }
 
 export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
@@ -896,7 +973,7 @@ export async function getCredentialRecord(credentialRecordId: string): Promise<C
   }
 
   const record = await credentials.getById(credentialRecordId);
-  return withOfferAttributes(credentials, record);
+  return withDisplayAttributes(credentials, record);
 }
 
 export async function getStoredCredentials(): Promise<CredentialRecord[]> {
@@ -904,8 +981,9 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
     return [];
   }
 
+  const credentials = agentRef.didcomm?.credentials;
   const all = await loggedStep("load stored credentials", async () => {
-    return (await agentRef?.didcomm?.credentials?.getAll?.()) ?? [];
+    return (await credentials?.getAll?.()) ?? [];
   });
 
   console.log(
@@ -913,7 +991,10 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
     all.map((record) => ({ id: record.id, state: record.state })),
   );
 
-  return all.filter((record) => record.state === "done" || record.state === "credential-received");
+  const stored = all.filter((record) => record.state === "done" || record.state === "credential-received");
+  if (!credentials) return stored;
+
+  return Promise.all(stored.map((record) => withDisplayAttributes(credentials, record)));
 }
 
 function throwIfCancelled(signal?: AbortSignal) {
@@ -978,12 +1059,64 @@ export async function selectVerificationCredentials(
     throw new Error("Credo holder agent is missing credential selection for proofs.");
   }
 
-  const selection = await proofs.selectCredentialsForRequest({
-    proofExchangeRecordId: proofRecordId,
-    proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
-  });
-  const selectedAttributes = selection.proofFormats.anoncreds?.attributes;
+  let selection: { proofFormats: SelectedProofFormats } | undefined;
+  let selectionError: unknown;
+  try {
+    selection = await proofs.selectCredentialsForRequest({
+      proofExchangeRecordId: proofRecordId,
+      proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
+    });
+  } catch (error) {
+    selectionError = error;
+  }
+
+  const selectedAttributes = selection?.proofFormats.anoncreds?.attributes;
   if (!selectedAttributes || Object.keys(selectedAttributes).length === 0) {
+    let diagnosticError: unknown;
+    try {
+      const diagnostic = await proofs.selectCredentialsForRequest({
+        proofExchangeRecordId: proofRecordId,
+        proofFormats: { anoncreds: { filterByNonRevocationRequirements: false } },
+      });
+      const diagnosticAttributes = diagnostic.proofFormats.anoncreds?.attributes;
+      const revoked = Object.values(diagnosticAttributes ?? {}).some((credential) => credential.revoked === true);
+      if (revoked) {
+        await proofs.declineRequest?.({
+          proofExchangeRecordId: proofRecordId,
+          problemReportDescription: "Credential is revoked",
+          sendProblemReport: true,
+        });
+        throw new WalletVerificationError(
+          "CREDENTIAL_REVOKED",
+          "This credential has been revoked by its issuing institution.",
+          proofRecordId,
+        );
+      }
+    } catch (error) {
+      if (error instanceof WalletVerificationError) throw error;
+      diagnosticError = error;
+    }
+
+    const revocationFailure = [selectionError, diagnosticError]
+      .map(revocationFailureFromUnknown)
+      .find((code) => code !== undefined);
+    if (revocationFailure) {
+      const revoked = revocationFailure === "CREDENTIAL_REVOKED";
+      await proofs.declineRequest?.({
+        proofExchangeRecordId: proofRecordId,
+        problemReportDescription: revoked ? "Credential is revoked" : "Revocation status list unavailable",
+        sendProblemReport: true,
+      });
+      throw new WalletVerificationError(
+        revocationFailure,
+        revoked
+          ? "This credential has been revoked by its issuing institution."
+          : "The credential's revocation status could not be confirmed.",
+        proofRecordId,
+      );
+    }
+    if (selectionError) throw selectionError;
+    if (diagnosticError) throw diagnosticError;
     throw new Error("No active credential in this wallet matches the verification request.");
   }
 
@@ -1001,7 +1134,7 @@ export async function selectVerificationCredentials(
     values[attributeName] = String(value);
   }
 
-  return { proofRecordId, proofFormats: selection.proofFormats, values };
+  return { proofRecordId, proofFormats: selection!.proofFormats, values };
 }
 
 export async function acceptVerificationProof(selection: VerificationProofSelection): Promise<void> {

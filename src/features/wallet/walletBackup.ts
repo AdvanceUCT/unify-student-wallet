@@ -5,7 +5,10 @@ import * as Sharing from "expo-sharing";
 
 import { getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
-import { exportEncryptedHolderWallet, validateEncryptedHolderWalletBackup } from "./holderAgent";
+import {
+  exportEncryptedHolderWalletLazy,
+  validateEncryptedHolderWalletBackupLazy,
+} from "./holderAgentRuntime";
 
 export const MIN_RECOVERY_PASSWORD_LENGTH = 12;
 export const BACKUP_REMINDER_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -224,11 +227,11 @@ export async function createAndShareEncryptedBackup(recoveryPassword: string) {
 
   try {
     await deleteAskarFiles(askarExportPath);
-    await exportEncryptedHolderWallet(askarExportPath, recoveryPassword);
-    await validateEncryptedHolderWalletBackup(askarExportPath, recoveryPassword);
+    await exportEncryptedHolderWalletLazy(askarExportPath, recoveryPassword);
+    await validateEncryptedHolderWalletBackupLazy(askarExportPath, recoveryPassword);
     await writeBackupBundle(backupPath, await readAskarBackupBundleFiles(askarExportPath));
     await unpackBackupBundle(backupPath, askarExportPath);
-    await validateEncryptedHolderWalletBackup(askarExportPath, recoveryPassword);
+    await validateEncryptedHolderWalletBackupLazy(askarExportPath, recoveryPassword);
   } catch (error) {
     if (backupFile.exists) {
       backupFile.delete();

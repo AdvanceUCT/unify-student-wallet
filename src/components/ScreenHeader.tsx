@@ -6,13 +6,14 @@ import { typography } from "@/src/theme/typography";
 
 type ScreenHeaderProps = {
   eyebrow?: string;
+  leading?: ReactNode;
   title: string;
   meta?: string;
   variant?: "display" | "title";
   trailing?: ReactNode;
 };
 
-export function ScreenHeader({ eyebrow, title, meta, variant = "title", trailing }: ScreenHeaderProps) {
+export function ScreenHeader({ eyebrow, leading, title, meta, variant = "title", trailing }: ScreenHeaderProps) {
   const titleStyle = variant === "display" ? typography.display : typography.title;
 
   return (
@@ -24,7 +25,8 @@ export function ScreenHeader({ eyebrow, title, meta, variant = "title", trailing
         marginBottom: spacing.xl,
       }}
     >
-      <View style={{ flex: 1, gap: spacing.xs }}>
+      {leading}
+      <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
         {eyebrow ? <Text style={typography.caption}>{eyebrow}</Text> : null}
         <Text style={titleStyle}>{title}</Text>
         {meta ? <Text style={typography.body}>{meta}</Text> : null}

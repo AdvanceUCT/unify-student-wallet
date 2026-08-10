@@ -1,156 +1,267 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { QrCode as QrCodeIcon, Activity as ActivityIcon } from "lucide-react-native";
-import { Text, View, useWindowDimensions } from "react-native";
+import * as Haptics from "expo-haptics";
+import { router, useFocusEffect } from "expo-router";
+import { Activity as ActivityIcon, ArrowRight, QrCode, Settings } from "lucide-react-native";
+import { useCallback, useState } from "react";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
+import { AnimatedEntry } from "@/src/components/AnimatedEntry";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { Card } from "@/src/components/Card";
+import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { EmptyState } from "@/src/components/EmptyState";
-import { InfoRow } from "@/src/components/InfoRow";
+import { IconButton } from "@/src/components/IconButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { StudentCard } from "@/src/components/StudentCard";
-import { Tag } from "@/src/components/Tag";
-import { VerificationHistoryList } from "@/src/features/verification/VerificationHistoryList";
+import { CredentialSkeleton } from "@/src/components/Skeleton";
+import { StatusPill } from "@/src/components/StatusPill";
+import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
+import { verificationOutcomeLabel } from "@/src/features/verification/verificationOutcome";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { getStudentCredential } from "@/src/lib/api/client";
-import { colors } from "@/src/theme/colors";
-import { radii } from "@/src/theme/radii";
+import {
+  standardContentMaxWidth,
+  studentCardAspectRatio,
+  studentCardMaxWidth,
+} from "@/src/theme/layout";
+import { motion } from "@/src/theme/motion";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-const MAX_CARD_WIDTH = 360;
-
-function truncate(value: string, head = 6, tail = 4) {
-  if (value.length <= head + tail + 1) return value;
-  return `${value.slice(0, head)}…${value.slice(-tail)}`;
-}
-
 export default function HomeScreen() {
-  const { pendingOfferIds, session, verificationHistory } = useWalletSession();
+  const colors = useThemePalette();
+  const { width: windowWidth } = useWindowDimensions();
+  const { pendingOfferIds, session } = useWalletSession();
   const holderAgent = useHolderAgent();
-  const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = Math.min(screenWidth - spacing.xl * 2, MAX_CARD_WIDTH);
+  const [recentActivity, setRecentActivity] = useState<VerificationActivityRecord[]>([]);
 
-  const credentialQuery = useQuery({
-    // Cache this per wallet so a fresh test wallet does not show the previous
-    // wallet's credential on the home screen.
-    queryKey: ["student-credential", session.walletId ?? "no-wallet"],
-    queryFn: getStudentCredential,
+  const credentialsQuery = useQuery({
+    queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
+    queryFn: getStoredCredentialsLazy,
+    enabled: holderAgent.status === "ready",
   });
 
-  const credential = credentialQuery.data;
-  const hasCredential = Boolean(credential);
-  const pendingCount = pendingOfferIds.length;
-  const recentVerificationHistory = verificationHistory.slice(0, 3);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (session.walletId) void getVerificationActivity(session.walletId).then((records) => {
+      if (!active) return;
+      const next = records.slice(0, 3);
+      setRecentActivity((current) => current.length === next.length && current.every((record, index) => record.id === next[index]?.id) ? current : next);
+    });
+    return () => { active = false; };
+  }, [session.walletId]));
+
+  const credentials = credentialsQuery.data ?? [];
+  const hasCredentialData = credentialsQuery.data !== undefined;
+  const credentialStageWidth = Math.min(
+    Math.max(0, windowWidth - spacing.xl * 2),
+    standardContentMaxWidth,
+    studentCardMaxWidth,
+  );
+  const credentialStageHeight = credentialStageWidth / studentCardAspectRatio;
+
+  const openScanner = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/(wallet)/scan");
+  };
 
   return (
     <AppScreen>
-      <View style={{ gap: spacing.xl }}>
-        <ScreenHeader
-          eyebrow="Welcome to Unify"
-          title="Wallet."
-          trailing={
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: radii.pill,
-                backgroundColor: colors.primarySoft,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: colors.primaryDeep, fontSize: 16, fontWeight: "700" }}>U</Text>
-            </View>
-          }
-        />
+      <ScreenHeader
+        title="Your identity"
+        trailing={<IconButton accessibilityLabel="Open settings" icon={Settings} onPress={() => router.push("/(wallet)/settings")} />}
+      />
 
-        {pendingCount > 0 ? (
-          <Card
-            eyebrow={`${pendingCount} New offer${pendingCount === 1 ? "" : "s"}`}
-            heading={
-              pendingCount === 1
-                ? "A credential offer is waiting."
-                : `${pendingCount} credential offers are waiting.`
-            }
-            trailing={<Tag label="Review" tone="primary" />}
-            elevation="md"
-          >
-            <View style={{ paddingTop: spacing.sm }}>
-              <AppButton label="Review offers" onPress={() => router.push("/(wallet)/offers")} />
-            </View>
-          </Card>
+      <View style={styles.content}>
+        <View
+          style={[styles.credentialArea, { minHeight: credentialStageHeight }]}
+          testID="home-credential-stage"
+        >
+          {!hasCredentialData && (holderAgent.status === "idle" || holderAgent.status === "initializing") ? (
+            <CredentialSkeleton />
+          ) : holderAgent.status === "error" && !hasCredentialData ? (
+            <EmptyState
+              action={<AppButton label="Try again" onPress={() => session.walletId && void holderAgent.resumeWallet(session.walletId)} />}
+              body={holderAgent.error ?? "Secure wallet services could not be started."}
+              eyebrow="Wallet still opening"
+              heading="Credentials are temporarily unavailable"
+              icon={QrCode}
+            />
+          ) : credentialsQuery.isLoading && !hasCredentialData ? (
+            <CredentialSkeleton />
+          ) : credentialsQuery.isError && credentials.length === 0 ? (
+            <EmptyState
+              action={<AppButton label="Try again" onPress={() => void credentialsQuery.refetch()} />}
+              body="Try reading the encrypted wallet again."
+              eyebrow="Could not load credentials"
+              heading="Your wallet is still protected"
+              icon={QrCode}
+            />
+          ) : credentials.length ? (
+            <AnimatedEntry delay={motion.stagger}>
+              <CredentialCarousel
+                accessibilityLabel="Student credentials"
+                credentials={credentials}
+                onCredentialPress={(credential) => router.push(`/(wallet)/credential/${credential.id}`)}
+              />
+            </AnimatedEntry>
+          ) : (
+            <EmptyState
+              action={<AppButton icon={QrCode} label="Scan to receive" onPress={openScanner} />}
+              body="Open an activation link from your institution or scan its QR code."
+              eyebrow="Wallet empty"
+              heading="Receive your student identity"
+              icon={QrCode}
+            />
+          )}
+        </View>
+
+        {credentials.length > 0 && holderAgent.status === "ready" && !credentialsQuery.isLoading ? (
+          <AnimatedEntry delay={motion.stagger * 2}>
+            <AppButton icon={QrCode} label="Scan to verify" onPress={openScanner} size="lg" />
+          </AnimatedEntry>
         ) : null}
 
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Credential</Text>
-          {credentialQuery.isLoading ? (
-            <Card>
-              <Text style={typography.body}>Loading credential…</Text>
-            </Card>
-          ) : hasCredential && credential ? (
-            <View style={{ gap: spacing.md }}>
-              <StudentCard
-                credential={credential}
-                width={cardWidth}
-                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
-              />
-              <AppButton
-                label="View details"
-                variant="ghost"
-                onPress={() => router.push(`/(wallet)/credential/${credential.id}`)}
-              />
-            </View>
-          ) : (
-            <EmptyState
-              icon={QrCodeIcon}
-              eyebrow="No credentials yet"
-              heading="Receive your first credential."
-              body="Open an activation link from your university, or scan an issuer QR code."
-              action={
-                <AppButton label="Open scanner" onPress={() => router.push("/(wallet)/scan")} />
-              }
-            />
-          )}
-        </View>
-
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Activity</Text>
-          {recentVerificationHistory.length === 0 ? (
-            <EmptyState
-              icon={ActivityIcon}
-              eyebrow="No activity"
-              body="Verification events will appear here after you present your credential."
-            />
-          ) : (
-            <View style={{ gap: spacing.md }}>
-              <VerificationHistoryList items={recentVerificationHistory} />
-              <View>
-                <AppButton label="View all" href="/(wallet)/activity" variant="ghost" />
+        {pendingOfferIds.length > 0 ? (
+          <AnimatedEntry delay={motion.stagger * 3}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(wallet)/offers")}
+              style={({ pressed }) => [styles.offer, { backgroundColor: colors.primarySoft, opacity: pressed ? 0.72 : 1 }]}
+            >
+              <View style={[styles.offerCount, { backgroundColor: colors.primary }]}>
+                <Text style={styles.offerCountText}>{pendingOfferIds.length}</Text>
               </View>
-            </View>
-          )}
-        </View>
+              <Text numberOfLines={1} style={[typography.bodyStrong, styles.offerText]}>
+                Credential offer{pendingOfferIds.length === 1 ? "" : "s"} ready
+              </Text>
+              <ArrowRight color={colors.primary} size={19} strokeWidth={2} />
+            </Pressable>
+          </AnimatedEntry>
+        ) : null}
 
-        <View style={{ gap: spacing.md }}>
-          <Text style={typography.heading}>Wallet status</Text>
-          <Card>
-            <InfoRow
-              label="Lock"
-              value={session.lockStatus === "unlocked" ? "Unlocked" : "Locked"}
-              tone={session.lockStatus === "unlocked" ? "success" : "warning"}
-              divider
-            />
-            <InfoRow label="Holder agent" value={holderAgent.status} divider />
-            <InfoRow
-              label="Wallet ID"
-              value={session.walletId ? truncate(session.walletId, 8, 6) : "—"}
-            />
-          </Card>
-        </View>
+        <AnimatedEntry delay={motion.stagger * 4}>
+          <View style={styles.activitySection}>
+            <View style={styles.sectionHeader}>
+              <Text style={typography.sectionTitle}>Recent presentations</Text>
+              {recentActivity.length ? (
+                <Pressable accessibilityRole="button" hitSlop={10} onPress={() => router.push("/(wallet)/activity")}>
+                  <Text style={[styles.viewAll, { color: colors.primary }]}>View all</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {recentActivity.length ? (
+              <View style={{ borderTopWidth: 1, borderColor: colors.rule }}>
+                {recentActivity.map((record) => {
+                  const showOutcome = record.status !== "Approved" || Boolean(record.failureCode);
+                  return (
+                    <Pressable
+                      key={record.id}
+                      accessibilityLabel={`${record.verifierName}, ${record.status}`}
+                      accessibilityRole="button"
+                      onPress={() => router.push("/(wallet)/activity")}
+                      style={({ pressed }) => [styles.activityRow, { borderColor: colors.rule, opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <View style={[styles.activityIcon, { backgroundColor: colors.surfaceAlt }]}>
+                        <ActivityIcon color={colors.primary} size={19} strokeWidth={2} />
+                      </View>
+                      <View style={styles.activityCopy}>
+                        <Text numberOfLines={1} style={typography.bodyStrong}>{record.verifierName}</Text>
+                        <Text numberOfLines={1} style={typography.caption}>{record.servicePointName} · {new Date(record.occurredAt).toLocaleString()}</Text>
+                        {showOutcome ? <Text numberOfLines={1} style={[typography.caption, { color: record.status === "Expired" ? colors.warning : colors.error }]}>{verificationOutcomeLabel(record)}</Text> : null}
+                      </View>
+                      <StatusPill label={record.status} tone={record.status === "Approved" ? "success" : record.status === "Expired" ? "warning" : "error"} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={[styles.noActivityRow, { borderColor: colors.rule }]}>
+                <View style={[styles.activityIcon, { backgroundColor: colors.surfaceAlt }]}>
+                  <ActivityIcon color={colors.inkSubtle} size={19} strokeWidth={2} />
+                </View>
+                <View style={styles.activityCopy}>
+                  <Text style={typography.bodyStrong}>No presentations yet</Text>
+                  <Text style={typography.caption}>Completed verifications will appear here.</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </AnimatedEntry>
       </View>
     </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  content: {
+    gap: spacing.xl,
+  },
+  credentialArea: {
+    width: "100%",
+  },
+  offer: {
+    alignItems: "center",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 52,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  offerCount: {
+    alignItems: "center",
+    borderRadius: 8,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  offerCountText: {
+    ...typography.label,
+    color: "#FFFFFF",
+  },
+  offerText: {
+    flex: 1,
+  },
+  activitySection: {
+    gap: spacing.md,
+  },
+  sectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  viewAll: {
+    ...typography.label,
+  },
+  activityRow: {
+    alignItems: "center",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 68,
+    paddingVertical: spacing.md,
+  },
+  noActivityRow: {
+    alignItems: "center",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 64,
+    paddingVertical: spacing.md,
+  },
+  activityIcon: {
+    alignItems: "center",
+    borderRadius: 9,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  activityCopy: {
+    flex: 1,
+    gap: 1,
+    minWidth: 0,
+  },
+});

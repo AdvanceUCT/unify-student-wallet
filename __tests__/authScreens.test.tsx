@@ -27,20 +27,30 @@ let mockWalletSession: {
   biometricAvailable: boolean;
   biometricEnabled: boolean;
   changePin: jest.Mock;
+  clearPendingFlow: jest.Mock;
+  completeOnboarding: jest.Mock;
   confirmPinToDisableBiometric: jest.Mock;
+  continuePendingFlow: jest.Mock;
   createWallet: jest.Mock;
   declineOffer: jest.Mock;
   failedAttempts: number;
+  firstRunSetupStatus: "idle" | "preparing" | "creating" | "ready" | "error";
   hasPin: boolean;
   isHardLocked: boolean;
   isHydrated: boolean;
   lockWallet: jest.Mock;
+  onboardingCompleted: boolean;
+  pendingActivationUrl?: string;
   pendingOfferIds: string[];
   processIncomingLink: jest.Mock;
+  resetFirstRunSetup: jest.Mock;
+  retryFirstRunSetup: jest.Mock;
   session: WalletSession;
   setBiometricEnabled: jest.Mock;
+  setPendingCheckoutVerification: jest.Mock;
+  setPendingVerificationPublicServicePointId: jest.Mock;
   signOut: jest.Mock;
-  stashedActivationUrl?: string;
+  startFirstRunSetup: jest.Mock;
   unlockWithBiometric: jest.Mock;
   unlockWithPin: jest.Mock;
 };
@@ -68,22 +78,34 @@ jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
   useHolderAgent: () => mockHolderAgent,
 }));
 
+jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
+  useThemePalette: () => require("@/src/theme/colors").lightColors,
+  useThemePreference: () => ({ colors: require("@/src/theme/colors").lightColors, preference: "system", resolvedScheme: "light", setPreference: jest.fn(async () => undefined) }),
+}));
+
 function createMockWalletSession() {
   mockWalletSession = {
     acceptOffer: jest.fn().mockResolvedValue({ ok: true }),
     biometricAvailable: false,
     biometricEnabled: false,
     changePin: jest.fn().mockResolvedValue({ ok: true }),
+    clearPendingFlow: jest.fn().mockResolvedValue(undefined),
+    completeOnboarding: jest.fn().mockResolvedValue(undefined),
     confirmPinToDisableBiometric: jest.fn().mockResolvedValue({ ok: true }),
+    continuePendingFlow: jest.fn().mockResolvedValue({ ok: true, kind: "home", href: "/(wallet)/home" }),
     createWallet: jest.fn().mockResolvedValue({ ok: true }),
     declineOffer: jest.fn().mockResolvedValue({ ok: true }),
     failedAttempts: 0,
+    firstRunSetupStatus: "idle",
     hasPin: false,
     isHardLocked: false,
     isHydrated: true,
     lockWallet: jest.fn(),
+    onboardingCompleted: true,
     pendingOfferIds: [],
     processIncomingLink: jest.fn().mockResolvedValue({ ok: true }),
+    resetFirstRunSetup: jest.fn().mockResolvedValue(undefined),
+    retryFirstRunSetup: jest.fn().mockResolvedValue({ ok: true }),
     session: {
       authStatus: "signedIn",
       lockStatus: "unlocked",
@@ -91,7 +113,10 @@ function createMockWalletSession() {
       walletId: "wallet-uuid-001",
     },
     setBiometricEnabled: jest.fn().mockResolvedValue({ ok: true }),
+    setPendingCheckoutVerification: jest.fn().mockResolvedValue(undefined),
+    setPendingVerificationPublicServicePointId: jest.fn().mockResolvedValue(undefined),
     signOut: jest.fn(),
+    startFirstRunSetup: jest.fn().mockReturnValue({ ok: true }),
     unlockWithBiometric: jest.fn().mockResolvedValue({ ok: true }),
     unlockWithPin: jest.fn().mockResolvedValue({ ok: true }),
   };
@@ -114,7 +139,7 @@ describe("auth screens", () => {
   it("routes to PIN setup from the welcome screen", () => {
     const screen = render(<SignInScreen />);
 
-    fireEvent.press(screen.getByText("Create wallet"));
+    fireEvent.press(screen.getByText("Create secure wallet"));
 
     expect(router.push).toHaveBeenCalledWith("/(auth)/set-pin");
   });
@@ -123,7 +148,7 @@ describe("auth screens", () => {
     const screen = render(<ActivateScreen />);
 
     expect(
-      screen.getByText("Open the activation link from your university to receive your credential."),
+      screen.getByText("Open the secure activation link sent by your institution to receive a credential."),
     ).toBeTruthy();
   });
 
@@ -303,5 +328,33 @@ describe("auth screens", () => {
     fireEvent.press(screen.getByLabelText("Submit PIN"));
 
     await waitFor(() => expect(mockWalletSession.confirmPinToDisableBiometric).toHaveBeenCalledWith("1357"));
+  });
+
+  it("starts fresh wallet setup and opens onboarding immediately after PIN confirmation", async () => {
+    mockWalletSession.session = {
+      authStatus: "signedOut",
+      lockStatus: "locked",
+      pendingOfferIds: [],
+    };
+    const screen = render(<SetPinScreen />);
+
+    pressDigits(screen, ["2", "4", "6", "8"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+    await waitFor(() => expect(screen.getByText("Re-enter the PIN.")).toBeTruthy());
+    pressDigits(screen, ["2", "4", "6", "8"]);
+    fireEvent.press(screen.getByLabelText("Submit PIN"));
+
+    await waitFor(() => expect(mockWalletSession.startFirstRunSetup).toHaveBeenCalledWith("2468", "2468"));
+    expect(mockWalletSession.createWallet).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith("/(auth)/onboarding");
+  });
+
+  it("opens the wallet introduction replay from Settings", async () => {
+    const screen = render(<SettingsScreen />);
+
+    await waitFor(() => expect(screen.getByText("View wallet introduction")).toBeTruthy());
+    fireEvent.press(screen.getByText("View wallet introduction"));
+
+    expect(router.push).toHaveBeenCalledWith({ pathname: "/(auth)/onboarding", params: { mode: "replay" } });
   });
 });

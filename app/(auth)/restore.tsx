@@ -1,10 +1,12 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { AppTextField } from "@/src/components/AppTextField";
 import { Card } from "@/src/components/Card";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import {
@@ -12,18 +14,8 @@ import {
   validateRecoveryPassword,
 } from "@/src/features/wallet/walletBackup";
 import { colors } from "@/src/theme/colors";
-import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-
-const inputStyle = {
-  backgroundColor: colors.surfaceAlt,
-  borderRadius: radii.md,
-  color: colors.ink,
-  fontSize: 16,
-  paddingHorizontal: spacing.lg,
-  paddingVertical: spacing.md,
-};
 
 export default function RestoreWalletScreen() {
   const { restoreWallet } = useWalletSession();
@@ -67,6 +59,10 @@ export default function RestoreWalletScreen() {
     router.replace("/(auth)/set-pin");
   }
 
+  if (isRestoring) {
+    return <OperationStateScreen busy tone="secure" eyebrow="Wallet recovery" title="Restoring encrypted wallet" message="Validating the backup and rebuilding secure wallet storage on this device." detail="Do not close UNIFY during recovery." />;
+  }
+
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
@@ -85,16 +81,15 @@ export default function RestoreWalletScreen() {
               variant="outline"
             />
             {backup ? <Text style={typography.bodyStrong}>{backup.name}</Text> : null}
-            <TextInput
+            <AppTextField
               accessibilityLabel="Recovery password"
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isRestoring}
               onChangeText={setRecoveryPassword}
               placeholder="Recovery password"
-              placeholderTextColor={colors.inkSubtle}
+              label="Recovery password"
               secureTextEntry
-              style={inputStyle}
               value={recoveryPassword}
             />
             {error ? <Text style={[typography.body, { color: colors.error }]}>{error}</Text> : null}

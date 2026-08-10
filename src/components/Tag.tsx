@@ -1,24 +1,27 @@
 import { Text, View } from "react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import type { ColorPalette } from "@/src/theme/colors";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 
-type TagTone = "ink" | "primary" | "warning" | "error" | "muted";
+type TagTone = "ink" | "primary" | "success" | "warning" | "error" | "muted";
 
 type TagProps = {
   label: string;
   tone?: TagTone;
 };
 
-function toneStyles(tone: TagTone) {
+function toneStyles(tone: TagTone, colors: ColorPalette) {
   switch (tone) {
     case "primary":
       return { bg: colors.primarySoft, fg: colors.primaryDeep };
+    case "success":
+      return { bg: colors.successSoft, fg: colors.success };
     case "warning":
       return { bg: colors.warningSoft, fg: colors.warning };
     case "error":
-      return { bg: "#FBE5E2", fg: colors.error };
+      return { bg: colors.errorSoft, fg: colors.error };
     case "muted":
       return { bg: colors.surfaceAlt, fg: colors.inkMuted };
     case "ink":
@@ -28,7 +31,8 @@ function toneStyles(tone: TagTone) {
 }
 
 export function Tag({ label, tone = "ink" }: TagProps) {
-  const { bg, fg } = toneStyles(tone);
+  const colors = useThemePalette();
+  const { bg, fg } = toneStyles(tone, colors);
 
   return (
     <View
@@ -45,7 +49,7 @@ export function Tag({ label, tone = "ink" }: TagProps) {
           color: fg,
           fontSize: 12,
           lineHeight: 16,
-          fontWeight: "600",
+          fontFamily: "IBMPlexSans_600SemiBold",
         }}
       >
         {label}

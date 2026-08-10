@@ -62,6 +62,27 @@ describe("wallet route guards", () => {
     expect(isRouteAllowedForAccess(["verify", "[publicServicePointId]"], access)).toBe(true);
   });
 
+  it("guards a newly created unlocked wallet behind onboarding", () => {
+    const access = getWalletRouteAccess(
+      session({ authStatus: "signedIn", walletId: "wallet-uuid", lockStatus: "unlocked" }),
+      true,
+      false,
+    );
+
+    expect(access).toBe("onboarding");
+    expect(getWalletRouteHref(access)).toBe("/(auth)/onboarding");
+    expect(isRouteAllowedForAccess(["(auth)", "onboarding"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(false);
+  });
+
+  it("allows onboarding while first-run wallet creation is still transient", () => {
+    const access = getWalletRouteAccess(session({}), false, true, "creating");
+
+    expect(access).toBe("onboarding");
+    expect(isRouteAllowedForAccess(["(auth)", "onboarding"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["(auth)", "set-pin"], access)).toBe(false);
+  });
+
   it("allows the activate route at every access level so links can route through", () => {
     const welcome = getWalletRouteAccess(session({}), false);
     const pinSetup = getWalletRouteAccess(

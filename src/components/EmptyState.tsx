@@ -2,7 +2,7 @@ import { type ComponentType, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { type LucideProps } from "lucide-react-native";
 
-import { colors } from "@/src/theme/colors";
+import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -16,11 +16,13 @@ type EmptyStateProps = {
 };
 
 export function EmptyState({ icon: Icon, eyebrow, heading, body, action }: EmptyStateProps) {
+  const colors = useThemePalette();
   return (
     <View
       style={{
-        backgroundColor: colors.surfaceAlt,
-        borderRadius: radii.lg,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.rule,
         paddingVertical: spacing["2xl"],
         paddingHorizontal: spacing.xl,
         alignItems: "center",

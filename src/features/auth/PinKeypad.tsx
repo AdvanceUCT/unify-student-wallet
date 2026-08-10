@@ -51,11 +51,11 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                   }}
                   style={({ pressed }) => [
                     styles.cell,
-                    styles.submitCell,
+                    { backgroundColor: colors.primaryDeep },
                     { opacity: submitDisabled ? 0.35 : pressed ? 0.85 : 1 },
                   ]}
                 >
-                  <Text style={styles.submitLabel}>OK</Text>
+                  <Text style={[styles.submitLabel, { color: colors.white }]}>OK</Text>
                 </Pressable>
               );
             }
@@ -70,7 +70,7 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                   onPress={() => handleKey(key)}
                   style={({ pressed }) => [
                     styles.cell,
-                    pressed && styles.pressed,
+                    pressed && { backgroundColor: colors.surfaceAlt },
                     { opacity: disabled ? 0.4 : 1 },
                   ]}
                 >
@@ -88,11 +88,11 @@ export function PinKeypad({ canSubmit = false, disabled = false, onBackspace, on
                 onPress={() => handleKey(key)}
                 style={({ pressed }) => [
                   styles.cell,
-                  pressed && styles.pressed,
+                  pressed && { backgroundColor: colors.surfaceAlt },
                   { opacity: disabled ? 0.4 : 1 },
                 ]}
               >
-                <Text style={styles.digit}>{key}</Text>
+                <Text style={[styles.digit, { color: colors.ink }]}>{key}</Text>
               </Pressable>
             );
           })}
@@ -113,22 +113,13 @@ const styles = StyleSheet.create({
     width: CELL,
   },
   digit: {
-    color: colors.ink,
+    fontFamily: "IBMPlexSans_500Medium",
     fontSize: 28,
-    fontWeight: "500",
   },
   grid: { gap: 8 },
-  pressed: {
-    backgroundColor: colors.surfaceAlt,
-  },
   row: { flexDirection: "row", gap: 20, justifyContent: "center" },
-  submitCell: {
-    backgroundColor: colors.primary,
-  },
   submitLabel: {
-    color: colors.surface,
+    fontFamily: "IBMPlexSans_700Bold",
     fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 0.6,
   },
 });

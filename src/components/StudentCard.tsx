@@ -1,19 +1,31 @@
-import { Pressable, Text, View } from "react-native";
+import * as Haptics from "expo-haptics";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import Svg, { Path } from "react-native-svg";
 
-import { initialsFrom } from "@/src/lib/initials";
+import { BrandGradient } from "@/src/components/BrandGradient";
+import {
+  credentialMetadata,
+  formatCredentialDate,
+  type CredentialAttribute,
+  type CredentialMetadataSource,
+} from "@/src/features/wallet/credentialMetadata";
 import { colors } from "@/src/theme/colors";
+import { facultyCardTheme } from "@/src/theme/faculty";
+import { studentCardAspectRatio } from "@/src/theme/layout";
+import { motion } from "@/src/theme/motion";
 import { radii } from "@/src/theme/radii";
 import { shadows } from "@/src/theme/shadows";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
-type CredentialAttribute = { name: string; value: string };
-
-type CredentialLike = {
-  id: string;
-  credentialAttributes?: CredentialAttribute[];
-  connectionLabel?: string;
-};
+export type CredentialLike = CredentialMetadataSource;
+export type { CredentialAttribute };
 
 type StudentCardProps = {
   credential: CredentialLike;
@@ -22,162 +34,171 @@ type StudentCardProps = {
   issuerFallback?: string;
 };
 
-function findAttribute(attributes: CredentialAttribute[] | undefined, ...names: string[]) {
-  if (!attributes) return undefined;
-  for (const name of names) {
-    const match = attributes.find((attribute) => attribute.name === name)?.value;
-    if (match) return match;
-  }
-  return undefined;
-}
+export { formatCredentialDate };
 
-export function formatCredentialDate(value: string | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "—";
+function CredentialContour() {
+  return (
+    <Svg
+      accessible={false}
+      pointerEvents="none"
+      preserveAspectRatio="xMidYMid slice"
+      style={StyleSheet.absoluteFillObject}
+      testID="student-card-contour"
+      viewBox="0 0 430 250"
+    >
+      <Path d="M274 -16C250 28 270 55 322 71C379 88 397 119 371 165C349 204 366 232 439 252" fill="none" opacity={0.16} stroke="#FFFFFF" strokeWidth={1.15} />
+      <Path d="M302 -17C278 24 295 48 340 63C399 82 420 117 393 168C375 201 389 227 445 245" fill="none" opacity={0.12} stroke="#FFFFFF" strokeWidth={1} />
+      <Path d="M246 -17C221 35 243 69 298 87C344 102 357 126 333 166C307 211 333 239 410 261" fill="none" opacity={0.1} stroke="#FFFFFF" strokeWidth={1} />
+      <Path d="M354 -20C333 13 344 37 383 52C433 71 452 101 430 143C409 182 420 215 464 239" fill="none" opacity={0.08} stroke="#FFFFFF" strokeWidth={1} />
+    </Svg>
+  );
 }
 
 export function StudentCard({ credential, onPress, width, issuerFallback }: StudentCardProps) {
-  const attributes = credential.credentialAttributes;
-  const firstName = findAttribute(attributes, "firstName", "first_name", "givenName");
-  const lastName = findAttribute(attributes, "lastName", "last_name", "familyName", "surname");
-  const studentNumber = findAttribute(attributes, "studentNumber", "student_number", "studentId");
-  const faculty = findAttribute(attributes, "faculty", "school", "department", "programme", "program");
-  const year = findAttribute(attributes, "year", "yearOfStudy", "academicYear");
-  const university =
-    findAttribute(attributes, "institution", "university", "issuerName", "issuer") ??
-    credential.connectionLabel ??
-    issuerFallback;
-  const issuedAt = formatCredentialDate(
-    findAttribute(attributes, "issuedAt", "issued_at", "validFrom", "valid_from", "issuanceDate"),
-  );
-  const expiresAt = formatCredentialDate(
-    findAttribute(attributes, "expiresAt", "expires_at", "expiryDate", "expirationDate"),
-  );
+  const metadata = credentialMetadata(credential);
+  const university = metadata.issuer ?? issuerFallback ?? "University";
+  const holderName = metadata.holderName || "Student credential";
+  const validTo = formatCredentialDate(metadata.expiresAt);
+  const cardTheme = facultyCardTheme(metadata.faculty);
+  const scale = useSharedValue(1);
 
-  const holderName = [firstName, lastName].filter(Boolean).join(" ").trim();
-  const initials = initialsFrom(firstName, lastName);
-  const hasHolder = Boolean(holderName);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const setPressed = (pressed: boolean) => {
+    scale.value = withTiming(pressed ? 0.985 : 1, {
+      duration: motion.quick,
+      reduceMotion: ReduceMotion.System,
+    });
+  };
+
+  const handlePress = () => {
+    if (!onPress) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   return (
-    <Pressable
-      accessibilityRole={onPress ? "button" : undefined}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width,
-        aspectRatio: 1.586,
-        backgroundColor: colors.surface,
-        borderRadius: radii.xl,
-        overflow: "hidden",
-        opacity: pressed ? 0.92 : 1,
-        ...shadows.md,
-      })}
+    <Animated.View
+      style={[
+        {
+          width,
+          aspectRatio: studentCardAspectRatio,
+          borderRadius: radii.xl,
+          backgroundColor: colors.primaryDeep,
+          ...shadows.md,
+        },
+        animatedStyle,
+      ]}
     >
-      <View
-        style={{
-          backgroundColor: colors.primary,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: spacing.md,
-        }}
+      <Pressable
+        accessibilityLabel={`${university} student credential for ${holderName}`}
+        accessibilityRole={onPress ? "button" : undefined}
+        disabled={!onPress}
+        onPress={handlePress}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
+        style={styles.pressable}
       >
-        <Text
-          ellipsizeMode="tail"
-          numberOfLines={1}
-          style={{
-            color: colors.surface,
-            fontSize: 12,
-            fontWeight: "700",
-            letterSpacing: 0.8,
-            flex: 1,
-            flexShrink: 1,
-          }}
-        >
-          {university ? university.toUpperCase() : "UNIVERSITY PENDING"}
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={{
-            color: colors.surface,
-            fontSize: 11,
-            fontWeight: "600",
-            letterSpacing: 0.8,
-            opacity: 0.85,
-            flexShrink: 0,
-          }}
-        >
-          STUDENT · ID
-        </Text>
-      </View>
+        <BrandGradient colors={cardTheme.gradient} style={styles.gradient} testID="student-card-gradient">
+          <CredentialContour />
 
-      <View style={{ flex: 1, padding: spacing.lg, flexDirection: "row", gap: spacing.lg }}>
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: radii.pill,
-            backgroundColor: colors.primarySoft,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
           <Text
-            style={{
-              color: colors.primaryDeep,
-              fontSize: 20,
-              fontWeight: "700",
-            }}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            numberOfLines={1}
+            style={styles.university}
           >
-            {initials || "—"}
+            {university.toUpperCase()}
           </Text>
-        </View>
-        <View style={{ flex: 1, justifyContent: "space-between" }}>
-          <View style={{ gap: spacing.xs }}>
+
+          <View style={styles.identityBlock}>
             <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.74}
               numberOfLines={1}
-              style={[typography.heading, { fontSize: 20, lineHeight: 24 }]}
+              style={styles.holderName}
             >
-              {hasHolder ? holderName : "Holder name pending"}
+              {holderName}
             </Text>
-            <Text numberOfLines={1} style={typography.body}>
-              {faculty ?? "Programme pending"}
-            </Text>
-          </View>
-          <View style={{ gap: spacing.sm }}>
-            <View style={{ flexDirection: "row", gap: spacing.lg }}>
-              <View style={{ flex: 1 }}>
-                <Text style={typography.caption}>No.</Text>
-                <Text ellipsizeMode="tail" numberOfLines={1} style={[typography.bodyStrong, { marginTop: 2 }]}>
-                  {studentNumber ?? "—"}
+
+            <View style={styles.metadataRow}>
+              <View style={styles.studentNumber}>
+                <Text style={styles.label}>STUDENT NUMBER</Text>
+                <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.value}>
+                  {metadata.studentNumber ?? "—"}
                 </Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={typography.caption}>Year</Text>
-                <Text ellipsizeMode="tail" numberOfLines={1} style={[typography.bodyStrong, { marginTop: 2 }]}>
-                  {year ?? "—"}
-                </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", gap: spacing.lg }}>
-              <View style={{ flex: 1 }}>
-                <Text style={typography.caption}>Issued</Text>
-                <Text numberOfLines={1} style={[typography.bodyStrong, { fontSize: 13, marginTop: 2 }]}>
-                  {issuedAt}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={typography.caption}>Expires</Text>
-                <Text numberOfLines={1} style={[typography.bodyStrong, { fontSize: 13, marginTop: 2 }]}>
-                  {expiresAt}
+              <View style={styles.validity}>
+                <Text style={styles.label}>VALID TO</Text>
+                <Text numberOfLines={1} style={styles.value}>
+                  {validTo === "Not provided" ? "—" : validTo}
                 </Text>
               </View>
             </View>
           </View>
-        </View>
-      </View>
-    </Pressable>
+        </BrandGradient>
+      </Pressable>
+    </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  pressable: {
+    flex: 1,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.24)",
+    overflow: "hidden",
+  },
+  gradient: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+  },
+  university: {
+    ...typography.eyebrow,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 12,
+    lineHeight: 16,
+    maxWidth: "72%",
+  },
+  identityBlock: {
+    gap: spacing.md,
+  },
+  holderName: {
+    ...typography.heading,
+    color: colors.white,
+    fontSize: 21,
+    lineHeight: 26,
+    maxWidth: "88%",
+  },
+  metadataRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.lg,
+  },
+  studentNumber: {
+    flex: 1,
+    minWidth: 0,
+  },
+  validity: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+  },
+  label: {
+    ...typography.caption,
+    color: "rgba(255, 255, 255, 0.82)",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  value: {
+    ...typography.mono,
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 19,
+    marginTop: 1,
+  },
+});

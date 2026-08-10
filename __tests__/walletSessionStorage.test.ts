@@ -7,11 +7,22 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: true,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: false,
       pinHash: "hash",
       pinSalt: "salt",
+      pendingActivationUrl: "unifywallet://activate?token=activation-001",
       pendingCheckoutVerification: {
         verificationRequestId: "verification-001",
         claimToken: "single-use-claim-token",
+        claimedSession: {
+          verificationRequestId: "verification-001",
+          invitationUrl: "https://agent.example/oob/claimed",
+          resultToken: "result-capability",
+          vendorName: "Campus Store",
+          servicePointName: "Main Branch",
+          requestedAttributes: ["studentNumber", "faculty"],
+          expiresAt: "2026-08-08T12:05:00.000Z",
+        },
       },
       pendingVerificationPublicServicePointId: "sp-public-001",
       session: {
@@ -20,18 +31,6 @@ describe("wallet session storage serialization", () => {
         pendingOfferIds: ["offer-1", "offer-2"],
         walletId: "wallet-uuid-001",
       },
-      verificationHistory: [
-        {
-          verificationRequestId: "verification-001",
-          kind: "servicePoint",
-          vendorName: "Campus Clinic",
-          servicePointName: "Main desk",
-          status: "Approved",
-          expiresAt: "2026-06-23T10:05:00.000Z",
-          completedAt: "2026-06-23T10:01:00.000Z",
-          recordedAt: "2026-06-23T10:01:01.000Z",
-        },
-      ],
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
@@ -42,15 +41,35 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       pendingCheckoutVerification: {
         verificationRequestId: "verification-001",
         claimToken: "single-use-claim-token",
       },
       session: { authStatus: "signedIn", lockStatus: "locked", pendingOfferIds: [] },
-      verificationHistory: [],
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
+  });
+
+  it("drops malformed claimed session data without losing the original claim capability", () => {
+    const parsed = parseWalletSessionState(JSON.stringify({
+      biometricEnabled: false,
+      changePinAttempts: 0,
+      failedAttempts: 0,
+      onboardingCompleted: true,
+      pendingCheckoutVerification: {
+        verificationRequestId: "verification-001",
+        claimToken: "single-use-claim-token",
+        claimedSession: { invitationUrl: 42, resultToken: "result-capability" },
+      },
+      session: { authStatus: "signedIn", lockStatus: "locked", pendingOfferIds: [] },
+    }));
+
+    expect(parsed.pendingCheckoutVerification).toEqual({
+      verificationRequestId: "verification-001",
+      claimToken: "single-use-claim-token",
+    });
   });
 
   it("persists a pending verification service point without result capabilities", () => {
@@ -58,9 +77,9 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       pendingVerificationPublicServicePointId: "sp-public-001",
       session: { authStatus: "signedOut", lockStatus: "locked", pendingOfferIds: [] },
-      verificationHistory: [],
     };
 
     const serialized = serializeWalletSessionState(state);
@@ -70,6 +89,7 @@ describe("wallet session storage serialization", () => {
 
   it("falls back to signed-out state for missing or invalid storage", () => {
     expect(parseWalletSessionState(null).session.authStatus).toBe("signedOut");
+    expect(parseWalletSessionState(null).onboardingCompleted).toBe(true);
     expect(parseWalletSessionState("not-json").session.authStatus).toBe("signedOut");
   });
 
@@ -87,8 +107,8 @@ describe("wallet session storage serialization", () => {
 
     const parsed = parseWalletSessionState(JSON.stringify(legacyState));
     expect(parsed.failedAttempts).toBe(0);
+    expect(parsed.onboardingCompleted).toBe(true);
     expect(parsed.session.pendingOfferIds).toEqual([]);
-    expect(parsed.verificationHistory).toEqual([]);
   });
 
   it("preserves non-zero failedAttempts through round-trip", () => {
@@ -96,6 +116,7 @@ describe("wallet session storage serialization", () => {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 3,
+      onboardingCompleted: true,
       pinHash: "hash",
       pinSalt: "salt",
       session: {
@@ -104,95 +125,29 @@ describe("wallet session storage serialization", () => {
         pendingOfferIds: [],
         walletId: "wallet-uuid-001",
       },
-      verificationHistory: [],
     };
 
     expect(parseWalletSessionState(serializeWalletSessionState(state))).toEqual(state);
   });
 
-  it("does not require raw activation tokens or out-of-band URLs in persisted state", () => {
+  it("keeps activation URLs optional when there is no pending activation", () => {
     const state: PersistedWalletSessionState = {
       biometricEnabled: false,
       changePinAttempts: 0,
       failedAttempts: 0,
+      onboardingCompleted: true,
       session: {
         authStatus: "signedIn",
         lockStatus: "locked",
         pendingOfferIds: [],
         walletId: "wallet-uuid-001",
       },
-      verificationHistory: [],
     };
 
     const serialized = serializeWalletSessionState(state);
 
     expect(serialized).not.toContain("raw-token");
     expect(serialized).not.toContain("https://issuer.advanceuct.test/oob");
-    expect(parseWalletSessionState(serialized)).toEqual(state);
-  });
-
-  it("filters malformed verification history entries", () => {
-    const parsed = parseWalletSessionState(JSON.stringify({
-      biometricEnabled: false,
-      changePinAttempts: 0,
-      failedAttempts: 0,
-      session: { authStatus: "signedIn", lockStatus: "locked", pendingOfferIds: [] },
-      verificationHistory: [
-        {
-          verificationRequestId: "verification-001",
-          kind: "servicePoint",
-          vendorName: "Campus Clinic",
-          servicePointName: "Main desk",
-          status: "Approved",
-          expiresAt: "2026-06-23T10:05:00.000Z",
-          recordedAt: "2026-06-23T10:01:01.000Z",
-        },
-        {
-          verificationRequestId: "verification-002",
-          kind: "servicePoint",
-          vendorName: "Campus Clinic",
-          servicePointName: "Main desk",
-          status: "Pending",
-          expiresAt: "not-a-date",
-          recordedAt: "2026-06-23T10:01:01.000Z",
-        },
-      ],
-    }));
-
-    expect(parsed.verificationHistory).toHaveLength(1);
-    expect(parsed.verificationHistory[0]).toMatchObject({ verificationRequestId: "verification-001" });
-  });
-
-  it("persists verification history without requested attribute values", () => {
-    const state: PersistedWalletSessionState = {
-      biometricEnabled: false,
-      changePinAttempts: 0,
-      failedAttempts: 0,
-      session: {
-        authStatus: "signedIn",
-        lockStatus: "locked",
-        pendingOfferIds: [],
-        walletId: "wallet-uuid-001",
-      },
-      verificationHistory: [
-        {
-          verificationRequestId: "verification-001",
-          kind: "checkout",
-          vendorName: "Campus Store",
-          servicePointName: "Online checkout",
-          status: "Declined",
-          failureCode: "CREDENTIAL_NOT_CURRENT",
-          expiresAt: "2026-06-23T10:05:00.000Z",
-          completedAt: "2026-06-23T10:01:00.000Z",
-          recordedAt: "2026-06-23T10:01:01.000Z",
-        },
-      ],
-    };
-
-    const serialized = serializeWalletSessionState(state);
-
-    expect(serialized).not.toContain("studentNumber");
-    expect(serialized).not.toContain("STU-12345");
     expect(parseWalletSessionState(serialized)).toEqual(state);
   });
 });
