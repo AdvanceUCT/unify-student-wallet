@@ -591,6 +591,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const continuePendingFlow = useCallback(async (): Promise<PendingFlowContinuation> => {
     const current = stateRef.current;
 
+    // Resume the most time-sensitive capability first, then service-point proof,
+    // activation, and finally durable credential offers.
     if (current.pendingCheckoutVerification) {
       const { verificationRequestId, claimToken } = current.pendingCheckoutVerification;
       return {

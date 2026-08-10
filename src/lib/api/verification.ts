@@ -75,6 +75,8 @@ export function startVerificationSession(
   clientRequestId: string,
   signal?: AbortSignal,
 ) {
+  // clientRequestId is stable for the screen lifetime and lets the backend make
+  // repeated scans/retries idempotent without reusing the QR itself.
   return apiClient.post<StartVerificationSessionResult>(
     "/api/wallet/verification/sessions",
     { publicServicePointId, clientRequestId },
@@ -99,6 +101,8 @@ export function getVerificationResult(
   resultToken: string,
   signal?: AbortSignal,
 ) {
+  // resultToken is a scoped capability, not an authentication shortcut; it
+  // grants access only to this session's minimal status response.
   return apiClient.get<VerificationResult>(
     `/api/wallet/verification/sessions/${encodeURIComponent(verificationRequestId)}`,
     { resultToken, signal, timeoutMs: 10_000 },
@@ -121,6 +125,8 @@ export async function pollVerificationResult(
   resultToken: string,
   signal?: AbortSignal,
 ): Promise<VerificationResult> {
+  // Stop only on a backend terminal state. Cancellation propagates through both
+  // the request and the delay so navigation cannot leave an orphan poll loop.
   while (!signal?.aborted) {
     const result = await getVerificationResult(verificationRequestId, resultToken, signal);
     if (result.status !== "Pending") return result;

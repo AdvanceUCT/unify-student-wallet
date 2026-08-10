@@ -39,6 +39,8 @@ function allowedVerificationHosts() {
 }
 
 function isTrustedHttpsVerificationUrl(url: URL) {
+  // Host allowlisting alone is insufficient: reject downgraded URLs, alternate
+  // ports, and embedded credentials before interpreting any path as a deep link.
   return (
     url.protocol === "https:" &&
     allowedVerificationHosts().has(url.hostname.toLowerCase()) &&
@@ -69,6 +71,8 @@ export function parseCheckoutVerificationLink(rawValue: string) {
     }
 
     const claimToken = url.searchParams.get("token");
+    // Accept exactly one capability parameter. Extra query state or fragments
+    // could otherwise create different interpretations across app and browser.
     if (
       !encodedId ||
       !claimToken ||
@@ -80,6 +84,8 @@ export function parseCheckoutVerificationLink(rawValue: string) {
     }
 
     const verificationRequestId = decodeURIComponent(encodedId);
+    // Restrictive alphabets prevent decoded path separators and require enough
+    // entropy for the checkout claim capability.
     if (!PUBLIC_SERVICE_POINT_ID.test(verificationRequestId) || !CHECKOUT_CLAIM_TOKEN.test(claimToken)) {
       return { ok: false as const };
     }

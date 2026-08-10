@@ -1017,6 +1017,8 @@ export async function receiveVerificationProofRequest(
 
   const invitation = oob.parseInvitation ? await oob.parseInvitation(invitationUrl) : undefined;
   const existingProofs = await proofs.getAll();
+  // Reopening the same invitation after navigation or process resume should
+  // attach to its existing proof exchange instead of creating a duplicate.
   const existingInvitationProof = invitation
     ? existingProofs.find(
         (record) => record.parentThreadId === invitation.id && record.state === "request-received",
@@ -1062,6 +1064,8 @@ export async function selectVerificationCredentials(
   let selection: { proofFormats: SelectedProofFormats } | undefined;
   let selectionError: unknown;
   try {
+    // Normal selection always enforces the verifier's non-revocation interval;
+    // a credential with unknown status must not be presented as current.
     selection = await proofs.selectCredentialsForRequest({
       proofExchangeRecordId: proofRecordId,
       proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
@@ -1074,6 +1078,8 @@ export async function selectVerificationCredentials(
   if (!selectedAttributes || Object.keys(selectedAttributes).length === 0) {
     let diagnosticError: unknown;
     try {
+      // A non-revocation-free lookup is diagnostic only. It distinguishes a
+      // revoked match from no match, but its result is never returned for proof.
       const diagnostic = await proofs.selectCredentialsForRequest({
         proofExchangeRecordId: proofRecordId,
         proofFormats: { anoncreds: { filterByNonRevocationRequirements: false } },
@@ -1143,6 +1149,8 @@ export async function acceptVerificationProof(selection: VerificationProofSelect
     throw new Error("Credo holder agent is missing proof presentation support.");
   }
 
+  // Callers invoke this only after displaying the selected values and receiving
+  // explicit consent; this operation performs the irreversible presentation.
   await proofs.acceptRequest({
     proofExchangeRecordId: selection.proofRecordId,
     proofFormats: selection.proofFormats,

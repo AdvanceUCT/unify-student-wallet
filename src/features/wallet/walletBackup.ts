@@ -18,6 +18,8 @@ const BACKUP_FILE_EXTENSION = ".unifywallet";
 const BACKUP_BUNDLE_FORMAT = "unify.wallet.backup.bundle";
 const BACKUP_BUNDLE_VERSION = 1;
 const ASKAR_SQLITE_EXTENSION = ".sqlite";
+// SQLite can keep committed wallet data in WAL/SHM sidecars, so the portable
+// bundle must preserve all existing files rather than copy only the main DB.
 const ASKAR_SQLITE_SIDECARS = ["", "-wal", "-shm"] as const;
 
 export type BackupMetadata = {
@@ -153,6 +155,8 @@ async function readAskarBackupBundleFiles(path: string): Promise<BackupBundleFil
 function parseBackupBundle(raw: string): BackupBundle {
   const parsed = JSON.parse(raw) as Partial<BackupBundle>;
 
+  // This validates the outer transport format only. Askar subsequently opens
+  // the encrypted store to verify its password, profile, and cryptographic data.
   if (
     parsed.format !== BACKUP_BUNDLE_FORMAT ||
     parsed.version !== BACKUP_BUNDLE_VERSION ||
@@ -181,6 +185,8 @@ async function unpackBackupBundle(bundlePath: string, outputPath: string) {
   const RNFS = await getReactNativeFs();
   const bundle = parseBackupBundle(await RNFS.readFile(bundlePath, "utf8"));
 
+  // Remove every previous sidecar before reconstructing the set; mixing files
+  // from two SQLite snapshots can produce a corrupt or inconsistent wallet.
   await deleteAskarFiles(outputPath);
 
   for (const file of bundle.files) {
@@ -228,6 +234,8 @@ export async function createAndShareEncryptedBackup(recoveryPassword: string) {
   try {
     await deleteAskarFiles(askarExportPath);
     await exportEncryptedHolderWalletLazy(askarExportPath, recoveryPassword);
+    // Validate both the raw export and the round-tripped bundle. The second
+    // check catches packaging errors before the student is offered the file.
     await validateEncryptedHolderWalletBackupLazy(askarExportPath, recoveryPassword);
     await writeBackupBundle(backupPath, await readAskarBackupBundleFiles(askarExportPath));
     await unpackBackupBundle(backupPath, askarExportPath);
@@ -238,6 +246,8 @@ export async function createAndShareEncryptedBackup(recoveryPassword: string) {
     }
     throw error;
   } finally {
+    // Temporary Askar export paths never outlive the operation; only the
+    // password-encrypted portable bundle is shared or retained.
     await deleteAskarFiles(askarExportPath);
   }
 
