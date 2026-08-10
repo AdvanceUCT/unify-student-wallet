@@ -4746,6 +4746,11 @@ expo-keep-awake@~15.0.8:
   resolved "https://registry.yarnpkg.com/expo-keep-awake/-/expo-keep-awake-15.0.8.tgz#911c5effeba9baff2ccde79ef0ff5bf856215f8d"
   integrity sha512-YK9M1VrnoH1vLJiQzChZgzDvVimVoriibiDIFLbQMpjYBnvyfUeHJcin/Gx1a+XgupNXy92EQJLgI/9ZuXajYQ==
 
+expo-linear-gradient@~15.0.8:
+  version "15.0.8"
+  resolved "https://registry.yarnpkg.com/expo-linear-gradient/-/expo-linear-gradient-15.0.8.tgz#17cb49522699d2a033eae93146bc820ef180f4f8"
+  integrity sha512-V2d8Wjn0VzhPHO+rrSBtcl+Fo+jUUccdlmQ6OoL9/XQB7Qk3d9lYrqKDJyccwDxmQT10JdST3Tmf2K52NLc3kw==
+
 expo-linking@~8.0.11:
   version "8.0.11"
   resolved "https://registry.yarnpkg.com/expo-linking/-/expo-linking-8.0.11.tgz#b13ca9fc409ef0536352443221eb50e5e2bee366"
@@ -4760,11 +4765,6 @@ expo-local-authentication@~17.0.8:
   integrity sha512-Q5fXHhu6w3pVPlFCibU72SYIAN+9wX7QpFn9h49IUqs0Equ44QgswtGrxeh7fdnDqJrrYGPet5iBzjnE70uolA==
   dependencies:
     invariant "^2.2.4"
-
-expo-linear-gradient@~15.0.8:
-  version "15.0.8"
-  resolved "https://registry.yarnpkg.com/expo-linear-gradient/-/expo-linear-gradient-15.0.8.tgz#17cb49522699d2a033eae93146bc820ef180f4f8"
-  integrity sha512-V2d8Wjn0VzhPHO+rrSBtcl+Fo+jUUccdlmQ6OoL9/XQB7Qk3d9lYrqKDJyccwDxmQT10JdST3Tmf2K52NLc3kw==
 
 expo-modules-autolinking@3.0.24:
   version "3.0.24"
@@ -7174,9 +7174,9 @@ mz@^2.7.0:
     thenify-all "^1.0.0"
 
 nanoid@^3.3.11, nanoid@^3.3.7, nanoid@^3.3.8:
-  version "3.3.11"
-  resolved "https://registry.yarnpkg.com/nanoid/-/nanoid-3.3.11.tgz#4f4f112cefbe303202f2199838128936266d185b"
-  integrity sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==
+  version "3.3.18"
+  resolved "https://registry.yarnpkg.com/nanoid/-/nanoid-3.3.18.tgz#f66a2de1199ffde0fcf21c8a5f13106b1c081913"
+  integrity sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==
 
 napi-postinstall@^0.3.0:
   version "0.3.4"
