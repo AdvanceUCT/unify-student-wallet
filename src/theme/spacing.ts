@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the wallet spacing scale.
+ * @module theme/spacing
+ */
+
 export const spacing = {
   xs: 4,
   sm: 8,

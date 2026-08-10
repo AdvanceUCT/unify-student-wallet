@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays one stored credential and its normalized attributes.
+ * @module app/(wallet)/credential/[id]
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, IdCard } from "lucide-react-native";

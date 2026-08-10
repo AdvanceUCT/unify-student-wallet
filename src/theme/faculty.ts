@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Maps faculty names onto stable student-card accent themes.
+ * @module theme/faculty
+ */
+
 export type FacultyCardTheme = {
   key:
     | "ched"

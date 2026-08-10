@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Lazily loads native holder operations so unsupported web bundles do not import them.
+ * @module features/wallet/holderAgentRuntime
+ */
+
 import type * as HolderAgentModule from "./holderAgent";
 
 export type HolderAgentRuntime = typeof HolderAgentModule;

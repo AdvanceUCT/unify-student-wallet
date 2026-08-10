@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Collects reusable border and divider styles.
+ * @module theme/rules
+ */
+
 import { StyleSheet } from "react-native";
 
 export const rules = {

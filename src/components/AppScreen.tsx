@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides the standard safe-area, scrolling, width, and footer screen layout.
+ * @module components/AppScreen
+ */
+
 import { type PropsWithChildren, type ReactNode } from "react";
 import { ScrollView, View, type ScrollViewProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

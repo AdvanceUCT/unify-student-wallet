@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders horizontally paged credential cards with accessible selection.
+ * @module components/CredentialCarousel
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,

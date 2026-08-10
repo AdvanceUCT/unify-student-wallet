@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines semantic text styles for light and dark themes.
+ * @module theme/typography
+ */
+
 import { type TextStyle } from "react-native";
 
 import { colors } from "@/src/theme/colors";

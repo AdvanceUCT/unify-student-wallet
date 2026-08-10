@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Routes an interrupted deep link or credential offer back to its pending flow.
+ * @module app/(auth)/resume
+ */
+
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 

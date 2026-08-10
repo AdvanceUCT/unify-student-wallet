@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Manages theme, onboarding replay, PIN changes, backup, and wallet reset actions.
+ * @module app/(wallet)/settings
+ */
+
 import { router, useFocusEffect } from "expo-router";
 import { Alert, Pressable, Switch, Text, View } from "react-native";
 import { useCallback, useState, type PropsWithChildren } from "react";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays progress, success, and failure states for long-running wallet operations.
+ * @module components/OperationStateScreen
+ */
+
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";

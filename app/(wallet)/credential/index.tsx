@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Lists the credentials currently held in the unlocked wallet.
+ * @module app/(wallet)/credential/index
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { IdCard } from "lucide-react-native";

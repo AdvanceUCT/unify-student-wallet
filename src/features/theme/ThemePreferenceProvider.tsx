@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Loads, applies, and persists the student's light, dark, or system theme choice.
+ * @module features/theme/ThemePreferenceProvider
+ */
+
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Appearance, useColorScheme } from "react-native";
 

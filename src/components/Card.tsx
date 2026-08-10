@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides the shared elevated card container.
+ * @module components/Card
+ */
+
 import { type PropsWithChildren, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 

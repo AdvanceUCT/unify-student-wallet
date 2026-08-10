@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Classifies verification failures into safe retry and recovery guidance.
+ * @module features/verification/verificationErrors
+ */
+
 export type WalletVerificationErrorCode = "CREDENTIAL_REVOKED" | "REVOCATION_CHECK_FAILED";
 
 export class WalletVerificationError extends Error {

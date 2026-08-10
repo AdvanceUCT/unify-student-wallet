@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Builds the Expo application configuration, native identifiers, and deep-link settings.
+ * @module app.config
+ */
+
 const appJson = require("./app.json");
 
 const activationHost = process.env.EXPO_PUBLIC_UNIFY_ACTIVATION_HOST ?? process.env.UNIFY_ACTIVATION_HOST ?? "localhost";

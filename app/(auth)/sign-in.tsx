@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Chooses between creating, restoring, and reopening a wallet.
+ * @module app/(auth)/sign-in
+ */
+
 import { router } from "expo-router";
 import { Fingerprint, ScanLine, ShieldCheck } from "lucide-react-native";
 import { Text, useWindowDimensions, View } from "react-native";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Draws the standard divider used between wallet sections.
+ * @module components/Rule
+ */
+
 import { View } from "react-native";
 
 import { colors } from "@/src/theme/colors";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Claims and presents against a single-use checkout verification capability.
+ * @module app/verify/checkout/[verificationRequestId]
+ */
+
 import { useLocalSearchParams } from "expo-router";
 
 import { VerificationFlowScreen } from "@/src/features/verification/VerificationFlowScreen";

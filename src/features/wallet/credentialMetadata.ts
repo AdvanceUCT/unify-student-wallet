@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Extracts issuer, schema, and display metadata from Credo credential records.
+ * @module features/wallet/credentialMetadata
+ */
+
 export type CredentialAttribute = {
   name: string;
   value: string;

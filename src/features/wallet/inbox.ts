@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Builds actionable wallet alerts from credential and offer state.
+ * @module features/wallet/inbox
+ */
+
 import {
   credentialMetadata,
   formatCredentialDate,

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Coordinates proof receipt, credential selection, explicit consent, presentation, and result polling.
+ * @module features/verification/VerificationFlowScreen
+ */
+
 import * as Crypto from "expo-crypto";
 import * as Haptics from "expo-haptics";
 import { router, Stack } from "expo-router";
@@ -140,6 +145,10 @@ async function persistVerificationActivity({
   }
 }
 
+/**
+ * Runs one service-point or checkout proof flow from session preparation through
+ * explicit student consent and the verifier's terminal result.
+ */
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
   const { ensureWalletReady } = useHolderAgent();
   const { clearPendingFlow, pendingCheckoutVerification, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();
@@ -160,6 +169,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   const missingTargetMessage = target.kind === "checkout" ? "This checkout verification link is incomplete." : "This verification link is missing a service-point ID.";
 
   const preparePresentation = useCallback(async () => {
+    // React effects and retry actions can converge here. Share the in-flight
+    // promise so one screen cannot claim or open the same session twice.
     if (preparationRef.current) return preparationRef.current;
 
     const preparation = (async () => {
@@ -193,6 +204,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         pendingCheckoutVerification?.verificationRequestId === targetId
           ? pendingCheckoutVerification.claimedSession
           : undefined;
+      // Checkout claim tokens are single-use capabilities. Persist the claimed
+      // session so an app lock or restart resumes it instead of consuming it again.
       started = target.kind === "checkout"
         ? savedClaim ?? await claimCheckoutVerificationSession(targetId, claimToken!, controller.signal)
         : await startVerificationSession(targetId, clientRequestIdRef.current, controller.signal);
@@ -256,6 +269,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       return;
     }
     if (!session.walletId || session.lockStatus !== "unlocked") {
+      // Preserve deep links until the wallet is unlocked; route state alone does
+      // not survive process death and must not cause the verification to disappear.
       if (target.kind === "checkout") void setPendingCheckoutVerification({ verificationRequestId: targetId, claimToken: claimToken! });
       else void setPendingVerificationPublicServicePointId(targetId);
       return;
@@ -300,11 +315,15 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
 
     let shared = false;
     try {
+      // This is the consent boundary: no proof is sent until the student presses
+      // Present credential on the preceding review screen.
       await acceptVerificationProofLazy(selection);
       shared = true;
       if (controller.signal.aborted) return;
       setProgressStep("awaiting-verifier");
       setPhase("polling");
+      // Proof delivery is not itself approval. Only the verifier's
+      // capability-protected result endpoint supplies the final decision.
       const authoritativeResult = await pollVerificationResult(sessionInfo.verificationRequestId, sessionInfo.resultToken, controller.signal);
       if (controller.signal.aborted) return;
       await saveResult(authoritativeResult);
@@ -321,6 +340,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         return;
       }
       setError(verificationRequestErrorMessage(caught));
+      // Retry guidance must distinguish a safe pre-share failure from an
+      // ambiguous post-share failure that may already have reached the verifier.
       setErrorKind(classifyFlowError(caught, shared ? "after-sharing" : "before-sharing"));
       setPhase("error");
     }

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines wallet session and resumable-flow state shared by providers and routes.
+ * @module features/wallet/sessionTypes
+ */
+
 export type WalletAuthStatus = "signedOut" | "signedIn";
 export type WalletLockStatus = "locked" | "unlocked";
 export type FirstRunSetupStatus = "idle" | "preparing" | "creating" | "ready" | "error";

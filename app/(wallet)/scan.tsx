@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Scans supported QR payloads and routes them to activation or verification.
+ * @module app/(wallet)/scan
+ */
+
 import * as Haptics from "expo-haptics";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useFocusEffect } from "expo-router";

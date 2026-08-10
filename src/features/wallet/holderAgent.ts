@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Owns the native Credo holder agent, encrypted wallet, offers, credentials, and proof exchanges.
+ * @module features/wallet/holderAgent
+ */
+
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
@@ -283,6 +288,7 @@ async function readEncryptedBackupWalletId(path: string, recoveryPassword: strin
   }
 }
 
+/** Opens a backup read-only and returns the wallet profile it can restore. */
 export async function validateEncryptedHolderWalletBackup(path: string, recoveryPassword: string) {
   return readEncryptedBackupWalletId(path, recoveryPassword);
 }
@@ -502,6 +508,7 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   await startMediatorPickup(mediationRecipient, mediation, mediatorPickupStrategy);
 }
 
+/** Initializes the native Credo agent for one wallet and provisions its mediator connection. */
 export async function initializeHolderAgent(
   config: HolderAgentConfig,
   importStore?: HolderAgentImport,
@@ -742,6 +749,7 @@ const modules: Record<string, unknown> = {
   }
 }
 
+/** Exports the active Askar wallet using the student's recovery password. */
 export async function exportEncryptedHolderWallet(path: string, recoveryPassword: string) {
   if (!agentRef || !activeWalletId) {
     throw new Error("Unlock the wallet before creating a backup.");
@@ -758,6 +766,7 @@ export async function exportEncryptedHolderWallet(path: string, recoveryPassword
   });
 }
 
+/** Imports an encrypted Askar export and returns its restored wallet identifier. */
 export async function restoreEncryptedHolderWallet(
   path: string,
   recoveryPassword: string,
@@ -777,6 +786,7 @@ export async function restoreEncryptedHolderWallet(
   }
 }
 
+/** Creates a new random wallet identifier and initializes its holder agent. */
 export async function createLocalHolderWallet(): Promise<CreateHolderWalletResult> {
   const walletId = Crypto.randomUUID();
   const agent = await initializeHolderAgent({ walletId });
@@ -784,6 +794,7 @@ export async function createLocalHolderWallet(): Promise<CreateHolderWalletResul
   return { walletId, agent };
 }
 
+/** Reuses the active agent when possible or reopens the requested local wallet. */
 export async function resumeHolderAgentSession(walletId: string): Promise<HolderAgent | null> {
   if (agentRef && activeWalletId === walletId) {
     return agentRef;
@@ -865,6 +876,7 @@ export async function receiveCredentialOffer(invitationUrl: string): Promise<Cre
   );
 }
 
+/** Accepts the named offer after the student confirms it in the wallet UI. */
 export async function acceptCredentialOffer(credentialRecordId: string): Promise<void> {
   if (!agentRef) {
     throw new Error("Wallet has not been created yet.");
@@ -884,6 +896,7 @@ export async function acceptCredentialOffer(credentialRecordId: string): Promise
 );
 }
 
+/** Declines the named offer without changing other credential exchanges. */
 export async function declineCredentialOffer(credentialRecordId: string): Promise<void> {
   if (!agentRef) {
     throw new Error("Wallet has not been created yet.");
@@ -961,6 +974,7 @@ async function withDisplayAttributes(
   return withOfferAttributes(credentials, await withStoredCredentialAttributes(record));
 }
 
+/** Returns one credential exchange record when it exists in the active wallet. */
 export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
   if (!agentRef) {
     return null;
@@ -976,6 +990,7 @@ export async function getCredentialRecord(credentialRecordId: string): Promise<C
   return withDisplayAttributes(credentials, record);
 }
 
+/** Returns only completed or received credential records suitable for display. */
 export async function getStoredCredentials(): Promise<CredentialRecord[]> {
   if (!agentRef) {
     return [];
@@ -1003,6 +1018,7 @@ function throwIfCancelled(signal?: AbortSignal) {
   }
 }
 
+/** Opens a verifier invitation and attaches to the proof exchange created for it. */
 export async function receiveVerificationProofRequest(
   invitationUrl: string,
   signal?: AbortSignal,
@@ -1017,6 +1033,8 @@ export async function receiveVerificationProofRequest(
 
   const invitation = oob.parseInvitation ? await oob.parseInvitation(invitationUrl) : undefined;
   const existingProofs = await proofs.getAll();
+  // Reopening the same invitation after navigation or process resume should
+  // attach to its existing proof exchange instead of creating a duplicate.
   const existingInvitationProof = invitation
     ? existingProofs.find(
         (record) => record.parentThreadId === invitation.id && record.state === "request-received",
@@ -1050,6 +1068,7 @@ export async function receiveVerificationProofRequest(
   throw new Error("The invitation opened, but no proof request was received.");
 }
 
+/** Selects a current, non-revoked credential set and returns the values for consent review. */
 export async function selectVerificationCredentials(
   proofRecordId: string,
   requestedAttributes: readonly string[],
@@ -1062,6 +1081,8 @@ export async function selectVerificationCredentials(
   let selection: { proofFormats: SelectedProofFormats } | undefined;
   let selectionError: unknown;
   try {
+    // Normal selection always enforces the verifier's non-revocation interval;
+    // a credential with unknown status must not be presented as current.
     selection = await proofs.selectCredentialsForRequest({
       proofExchangeRecordId: proofRecordId,
       proofFormats: { anoncreds: { filterByNonRevocationRequirements: true } },
@@ -1074,6 +1095,8 @@ export async function selectVerificationCredentials(
   if (!selectedAttributes || Object.keys(selectedAttributes).length === 0) {
     let diagnosticError: unknown;
     try {
+      // A non-revocation-free lookup is diagnostic only. It distinguishes a
+      // revoked match from no match, but its result is never returned for proof.
       const diagnostic = await proofs.selectCredentialsForRequest({
         proofExchangeRecordId: proofRecordId,
         proofFormats: { anoncreds: { filterByNonRevocationRequirements: false } },
@@ -1137,12 +1160,15 @@ export async function selectVerificationCredentials(
   return { proofRecordId, proofFormats: selection!.proofFormats, values };
 }
 
+/** Presents the reviewed credential selection to the verifier. */
 export async function acceptVerificationProof(selection: VerificationProofSelection): Promise<void> {
   const proofs = agentRef?.didcomm?.proofs;
   if (!proofs?.acceptRequest) {
     throw new Error("Credo holder agent is missing proof presentation support.");
   }
 
+  // Callers invoke this only after displaying the selected values and receiving
+  // explicit consent; this operation performs the irreversible presentation.
   await proofs.acceptRequest({
     proofExchangeRecordId: selection.proofRecordId,
     proofFormats: selection.proofFormats,

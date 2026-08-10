@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Hashes, verifies, and replaces the local wallet PIN using SecureStore-backed values.
+ * @module features/wallet/pin
+ */
+
 import * as Crypto from "expo-crypto";
 
 import { MAX_PIN_LENGTH, MIN_PIN_LENGTH } from "./sessionTypes";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Renders the wallet home screen, credential carousel, and pending actions.
+ * @module app/(wallet)/home
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";

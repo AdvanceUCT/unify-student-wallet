@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Stores minimal local verification outcomes without retaining disclosed attributes.
+ * @module features/verification/activityHistory
+ */
+
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 import { type VerificationFailureCode, type VerificationStatus } from "@/src/lib/api/verification";
 

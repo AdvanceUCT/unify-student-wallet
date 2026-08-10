@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Displays PIN entry progress without revealing the entered digits.
+ * @module features/auth/PinDots
+ */
+
 import { StyleSheet, View } from "react-native";
 
 import { colors } from "@/src/theme/colors";

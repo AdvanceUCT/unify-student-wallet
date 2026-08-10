@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Shows the student's privacy-preserving verification activity history.
+ * @module app/(wallet)/activity
+ */
+
 import { useFocusEffect } from "expo-router";
 import { Activity as ActivityIcon } from "lucide-react-native";
 import { useCallback, useState } from "react";

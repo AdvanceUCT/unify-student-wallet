@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Starts, claims, and polls capability-protected verification sessions.
+ * @module lib/api/verification
+ */
+
 import { ApiClientError, apiClient } from "@/src/lib/api/apiClient";
 import { createAbortError } from "@/src/lib/abortError";
 
@@ -70,11 +75,14 @@ export function verificationRequestErrorMessage(error: unknown) {
   return "Verification could not be completed. Try again or request a new verification link.";
 }
 
+/** Starts an idempotent proof session for a static service-point scan. */
 export function startVerificationSession(
   publicServicePointId: string,
   clientRequestId: string,
   signal?: AbortSignal,
 ) {
+  // clientRequestId is stable for the screen lifetime and lets the backend make
+  // repeated scans/retries idempotent without reusing the QR itself.
   return apiClient.post<StartVerificationSessionResult>(
     "/api/wallet/verification/sessions",
     { publicServicePointId, clientRequestId },
@@ -82,6 +90,7 @@ export function startVerificationSession(
   );
 }
 
+/** Consumes a checkout claim token and returns the invitation plus result capability. */
 export function claimCheckoutVerificationSession(
   verificationRequestId: string,
   claimToken: string,
@@ -94,11 +103,14 @@ export function claimCheckoutVerificationSession(
   );
 }
 
+/** Reads the minimal backend decision protected by this session's result token. */
 export function getVerificationResult(
   verificationRequestId: string,
   resultToken: string,
   signal?: AbortSignal,
 ) {
+  // resultToken is a scoped capability, not an authentication shortcut; it
+  // grants access only to this session's minimal status response.
   return apiClient.get<VerificationResult>(
     `/api/wallet/verification/sessions/${encodeURIComponent(verificationRequestId)}`,
     { resultToken, signal, timeoutMs: 10_000 },
@@ -116,11 +128,14 @@ function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
+/** Polls until the backend reaches a terminal state or the caller cancels the flow. */
 export async function pollVerificationResult(
   verificationRequestId: string,
   resultToken: string,
   signal?: AbortSignal,
 ): Promise<VerificationResult> {
+  // Stop only on a backend terminal state. Cancellation propagates through both
+  // the request and the delay so navigation cannot leave an orphan poll loop.
   while (!signal?.aborted) {
     const result = await getVerificationResult(verificationRequestId, resultToken, signal);
     if (result.status !== "Pending") return result;

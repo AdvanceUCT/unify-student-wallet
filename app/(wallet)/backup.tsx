@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Guides creation of a password-encrypted portable wallet backup.
+ * @module app/(wallet)/backup
+ */
+
 import { router } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";

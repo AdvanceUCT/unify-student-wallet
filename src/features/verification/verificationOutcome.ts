@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Maps verifier status and failure codes onto student-facing outcomes.
+ * @module features/verification/verificationOutcome
+ */
+
 import type { VerificationActivityRecord } from "@/src/features/verification/activityHistory";
 import type { VerificationFailureCode } from "@/src/lib/api/verification";
 

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines activation and verification API contracts used by the wallet.
+ * @module lib/api/types
+ */
+
 export type CredentialAttribute = {
   name: string;
   value: string;

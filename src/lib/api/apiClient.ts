@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Selects the mock or network API implementation from runtime configuration.
+ * @module lib/api/apiClient
+ */
+
 import * as Crypto from "expo-crypto";
 
 const DEFAULT_TIMEOUT_MS = 10_000;

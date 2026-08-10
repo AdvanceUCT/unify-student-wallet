@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Shows the requested values and explicit presentation consent action.
+ * @module components/VerificationConsentPanel
+ */
+
 import { Clock3, ShieldCheck, Store } from "lucide-react-native";
 import { Text, View, type ViewStyle } from "react-native";
 

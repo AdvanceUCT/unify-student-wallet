@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Shows issuer and cryptographic trust details for a credential.
+ * @module components/TrustSeal
+ */
+
 import * as Haptics from "expo-haptics";
 import { AlertTriangle, Check, LockKeyhole, ShieldCheck, X } from "lucide-react-native";
 import { useEffect } from "react";

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Downloads and caches ledger genesis data required by the native agent.
+ * @module features/wallet/genesisCache
+ */
+
 const GENESIS_CACHE_FILENAME = "bcovrin-test-genesis.txn";
 
 type ReactNativeFs = {

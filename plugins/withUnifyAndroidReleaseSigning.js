@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Injects the configured Android release keystore into the generated Gradle project.
+ * @module plugins/withUnifyAndroidReleaseSigning
+ */
+
 const { withAppBuildGradle } = require("@expo/config-plugins");
 
 const SIGNING_CONFIG = `    def unifyReleaseStoreFile = findProperty("UNIFY_RELEASE_STORE_FILE") ?: System.getenv("UNIFY_RELEASE_STORE_FILE")

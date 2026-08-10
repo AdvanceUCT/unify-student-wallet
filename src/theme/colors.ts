@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines light and dark semantic color palettes and the active palette view.
+ * @module theme/colors
+ */
+
 import { brandGradientEnd, brandGradientStart } from "./brand";
 
 export type ColorPalette = {

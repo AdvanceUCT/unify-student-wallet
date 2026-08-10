@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Creates and confirms the PIN that protects a new local wallet.
+ * @module app/(auth)/set-pin
+ */
+
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useRef, useState } from "react";

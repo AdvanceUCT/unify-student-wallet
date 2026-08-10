@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Sends JSON requests to the portal API with timeout, cancellation, and normalized errors.
+ * @module lib/api/client
+ */
+
 import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import type { PaymentRecord, StoredCredential, WalletSummary } from "@/src/lib/api/types";
 

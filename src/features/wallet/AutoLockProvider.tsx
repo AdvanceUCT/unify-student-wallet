@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Locks the wallet after inactivity or a sustained background interval.
+ * @module features/wallet/AutoLockProvider
+ */
+
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, type AppStateStatus, View } from "react-native";
 
@@ -21,6 +26,7 @@ type AutoLockContextValue = {
 
 const AutoLockContext = createContext<AutoLockContextValue | null>(null);
 
+/** Applies inactivity and background locks while preserving resumable wallet work. */
 export function AutoLockProvider({ children }: PropsWithChildren) {
   const { lockWallet, session } = useWalletSession();
   const isUnlocked = session.lockStatus === "unlocked";

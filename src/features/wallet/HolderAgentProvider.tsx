@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Exposes the initialized holder agent and its startup failure state to React screens.
+ * @module features/wallet/HolderAgentProvider
+ */
+
 import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import type { HolderAgent } from "./holderAgent";

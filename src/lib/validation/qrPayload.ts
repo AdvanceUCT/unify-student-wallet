@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Strictly parses activation, service-point, checkout, and generic QR payloads.
+ * @module lib/validation/qrPayload
+ */
+
 import { z } from "zod";
 
 const paymentQrPayloadSchema = z.object({
@@ -10,6 +15,7 @@ const paymentQrPayloadSchema = z.object({
 
 export type QrPayload = z.infer<typeof paymentQrPayloadSchema>;
 
+/** Classifies a scanned value without treating arbitrary text as a trusted deep link. */
 export function parseQrPayload(rawPayload: string) {
   try {
     const result = paymentQrPayloadSchema.safeParse(JSON.parse(rawPayload) as unknown);
@@ -39,6 +45,8 @@ function allowedVerificationHosts() {
 }
 
 function isTrustedHttpsVerificationUrl(url: URL) {
+  // Host allowlisting alone is insufficient: reject downgraded URLs, alternate
+  // ports, and embedded credentials before interpreting any path as a deep link.
   return (
     url.protocol === "https:" &&
     allowedVerificationHosts().has(url.hostname.toLowerCase()) &&
@@ -53,6 +61,7 @@ export type CheckoutVerificationLink = {
   claimToken: string;
 };
 
+/** Parses a trusted checkout URL and extracts its single-use claim capability. */
 export function parseCheckoutVerificationLink(rawValue: string) {
   try {
     const url = new URL(rawValue.trim());
@@ -69,6 +78,8 @@ export function parseCheckoutVerificationLink(rawValue: string) {
     }
 
     const claimToken = url.searchParams.get("token");
+    // Accept exactly one capability parameter. Extra query state or fragments
+    // could otherwise create different interpretations across app and browser.
     if (
       !encodedId ||
       !claimToken ||
@@ -80,6 +91,8 @@ export function parseCheckoutVerificationLink(rawValue: string) {
     }
 
     const verificationRequestId = decodeURIComponent(encodedId);
+    // Restrictive alphabets prevent decoded path separators and require enough
+    // entropy for the checkout claim capability.
     if (!PUBLIC_SERVICE_POINT_ID.test(verificationRequestId) || !CHECKOUT_CLAIM_TOKEN.test(claimToken)) {
       return { ok: false as const };
     }
@@ -90,6 +103,7 @@ export function parseCheckoutVerificationLink(rawValue: string) {
   }
 }
 
+/** Parses a trusted static service-point verification URL. */
 export function parseVerificationLink(rawValue: string) {
   try {
     const url = new URL(rawValue.trim());

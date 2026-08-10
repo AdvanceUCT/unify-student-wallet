@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Provides an accessible icon-only button with selected state.
+ * @module components/IconButton
+ */
+
 import { type ComponentType } from "react";
 import { Pressable } from "react-native";
 import { type LucideProps } from "lucide-react-native";

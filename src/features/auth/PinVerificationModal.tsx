@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Collects and verifies a PIN before a sensitive wallet action.
+ * @module features/auth/PinVerificationModal
+ */
+
 import { useEffect } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Manages bounded PIN input, deletion, and submit timing.
+ * @module features/auth/usePinEntry
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type UsePinEntryOptions = {
