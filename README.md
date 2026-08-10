@@ -1,238 +1,243 @@
 # UNIFY Student Wallet
-[![React Native](https://img.shields.io/badge/React_Native-61DAFB?logo=react&logoColor=black)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Expo Router](https://img.shields.io/badge/Expo_Router-000020?logo=expo&logoColor=white)](https://docs.expo.dev/router/introduction/)
-[![React Query](https://img.shields.io/badge/React_Query-FF4154?logo=reactquery&logoColor=white)](https://tanstack.com/query/latest)
-[![Credo TS](https://img.shields.io/badge/Credo_TS-2D3748?logo=typescript&logoColor=white)](https://credo.js.org/)
-[![AnonCreds](https://img.shields.io/badge/AnonCreds-00599C?logo=hyperledger&logoColor=white)](https://hyperledger.github.io/anoncreds-spec/)
-[![Yarn](https://img.shields.io/badge/Yarn-2C8EBB?logo=yarn&logoColor=white)](https://classic.yarnpkg.com/)
 
-<div align="center">
+[![React Native](https://img.shields.io/badge/React_Native_0.81-61DAFB?logo=react&logoColor=black)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo_54-000020?logo=expo&logoColor=white)](https://expo.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript_5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Credo](https://img.shields.io/badge/Credo_0.6-2D3748?logo=hyperledger&logoColor=white)](https://credo.js.org/)
+[![Yarn](https://img.shields.io/badge/Yarn_1.22-2C8EBB?logo=yarn&logoColor=white)](https://classic.yarnpkg.com/)
 
-React Native wallet app for students to receive, store, and present their
-university digital credential.
+The holder-side mobile application for the UNIFY student digital credential system. Students use it to activate a local wallet, receive university credentials, and consent to privacy-preserving verification requests.
 
-Built as a native Expo Android app because the wallet uses Credo, Askar,
-AnonCreds, and Indy VDR modules that are unavailable in Expo Go.
-</div>
+The wallet is a proof of concept. Payment screens and balances are illustrative and do not move real money.
 
----
+## Current capabilities
 
-## Overview
+| Area | What is implemented |
+|---|---|
+| First run | Three-page skippable onboarding, wallet creation, PIN setup, and pending-link resumption |
+| Local security | Salted PIN protection, failed-attempt limits, automatic inactivity/background locking, optional device biometric unlock, and secure session storage |
+| Holder wallet | Native Credo holder agent using Askar, AnonCreds, Indy VDR, DIDComm, and mediator pickup |
+| Credentials | Activation links, out-of-band offers, accept/decline handling, local credential storage, detail views, expiry alerts, and inbox state |
+| Verification | QR and App Link handling, verifier/requested-attribute review, explicit consent, proof presentation, result polling, and local activity history |
+| Recovery | Password-encrypted `.unifywallet` backup, share/export, restore, backup reminders, PIN changes, and deliberate wallet reset |
+| Preferences | System/light/dark theme support, onboarding replay, biometric controls, and accessibility/reduced-motion behavior |
+| PoC payments | Placeholder balance, activity, and payment QR parsing for demonstrations only |
 
-UNIFY Student Wallet is the holder-side mobile app for the student digital
-identity proof of concept. Students open an activation link from the Admin
-Portal, create a local wallet PIN, initialize a Credo holder agent, and store
-their issued student credential on the device.
+## Security and privacy model
 
-The app features:
+- Holder keys, connections, and credentials live in the device's encrypted Askar wallet.
+- The app stores session and lock metadata locally; it does not upload a copy of the student's wallet to the Admin Portal.
+- A student sees the vendor/service point and requested attributes before approving a proof.
+- Verification trust decisions are made by the UNIFY Agent Service. The wallet presents the proof but cannot declare itself verified.
+- Verification activity kept by the app is device-local and capped; vendor result records contain status and timing metadata rather than disclosed credential attributes.
+- The ledger contains public identity infrastructure such as DIDs, schemas, credential definitions, and revocation data—not student records or wallet backups.
+- Backup files are protected by a recovery password of at least 12 characters. Losing both the device and the backup means the local wallet cannot be recovered.
 
-- **Credential Activation** - Opens `unifywallet://activate?...` links from email or QR flows
-- **Secure Wallet Setup** - Protects local wallet access with a PIN and optional biometrics
-- **Credo Holder Agent** - Initializes the mobile holder agent and stores credentials locally
-- **Credential Review** - Shows stored credential details in a student-friendly layout
-- **Offer Handling** - Accepts or declines pending credential offers
-- **QR Scanner** - Routes activation links, payment requests, and verification requests
-- **Simulated Payments** - Displays placeholder balance and payment activity for the PoC
+## Supported runtimes
 
----
+| Runtime | Support |
+|---|---|
+| Android native development build | Primary supported development target |
+| Signed Android APK | Supported through the guarded local release script |
+| iOS native build | Source and Expo configuration are present; requires macOS/Xcode and compatible native wallet dependencies |
+| Web | UI/export target only; native Credo holder and backup operations are unavailable |
+| Expo Go | Not supported because Credo, Askar, AnonCreds, Indy VDR, and SecureStore require native modules |
 
-## Tech Stack
+## Tech stack
 
-### Mobile App
-[![React Native](https://img.shields.io/badge/React_Native-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev/)
+| Layer | Technology |
+|---|---|
+| Application | Expo 54, React Native 0.81, React 19.1, Expo Router 6, TypeScript 5.9 |
+| Wallet | Credo TS 0.6.3, Aries Askar, AnonCreds, Indy VDR, DIDComm |
+| Device | Expo SecureStore, Local Authentication, Camera, File System, Document Picker, Sharing |
+| State and validation | React Query 5, Zod 4 |
+| Testing | Jest 29, jest-expo, React Native Testing Library |
 
-[![Expo](https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
+## Repository layout
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-
-[![Expo Router](https://img.shields.io/badge/Expo_Router-000020?style=for-the-badge&logo=expo&logoColor=white)](https://docs.expo.dev/router/introduction/)
-
-[![React Query](https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white)](https://tanstack.com/query/latest)
-
-### Wallet / Credentials
-[![Credo TS](https://img.shields.io/badge/Credo_TS-2D3748?style=for-the-badge&logo=typescript&logoColor=white)](https://credo.js.org/)
-
-[![Aries Askar](https://img.shields.io/badge/Aries_Askar-4B5563?style=for-the-badge&logo=hyperledger&logoColor=white)](https://github.com/hyperledger/aries-askar)
-
-[![AnonCreds](https://img.shields.io/badge/AnonCreds-00599C?style=for-the-badge&logo=hyperledger&logoColor=white)](https://hyperledger.github.io/anoncreds-spec/)
-
-[![Indy VDR](https://img.shields.io/badge/Indy_VDR-003B57?style=for-the-badge&logo=hyperledger&logoColor=white)](https://github.com/hyperledger/indy-vdr)
-
-### Testing
-[![Jest](https://img.shields.io/badge/Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
-
-[![Testing Library](https://img.shields.io/badge/Testing_Library-E33332?style=for-the-badge&logo=testinglibrary&logoColor=white)](https://callstack.github.io/react-native-testing-library/)
-
----
-
-## Project Structure
-
-```
+```text
 unify-student-wallet/
-├── app/                      # Expo Router screens and navigation groups
-│   ├── (auth)/               # Sign-in, activation, PIN setup, unlock screens
-│   └── (wallet)/             # Home, credentials, offers, scan, payments, settings
+├── app/                              # Expo Router screens
+│   ├── (auth)/                       # Onboarding, activation, PIN, unlock, restore
+│   ├── (wallet)/                     # Home, credentials, inbox, scan, backup, settings
+│   └── verify/                       # Service-point and checkout proof routes
 ├── src/
-│   ├── components/           # Shared UI components
-│   ├── features/             # Wallet, auth, credential, payment, and QR logic
-│   ├── lib/                  # API client, storage wrappers, validation helpers
-│   └── theme/                # Shared colors, spacing, typography, shadows
-├── android/                  # Generated native Android project
-├── plugins/                  # Tracked Expo native build configuration
-├── scripts/                  # Repeatable local release build commands
-├── patches/                  # patch-package fixes for native dependencies
-├── __tests__/                # Jest and React Native Testing Library tests
-├── package.json              # Scripts and dependencies
-└── README.md                 # This file
+│   ├── components/                   # Shared wallet UI and operation states
+│   ├── features/
+│   │   ├── verification/             # Consent, presentation, polling, local history
+│   │   └── wallet/                   # Holder agent, sessions, lock, backup, credentials
+│   ├── lib/                          # API, environment, link and QR validation helpers
+│   └── theme/                        # Colors, typography, spacing, motion, themes
+├── android/                          # Generated/native Android project
+├── plugins/                          # Expo native configuration and release signing
+├── scripts/                          # Guarded Android release build
+├── patches/                          # patch-package fixes for native dependencies
+├── __tests__/                        # Jest and component/flow tests
+├── .env.example
+├── app.config.js
+└── package.json
 ```
 
----
-
-## Brief Setup
-
-```powershell
-git clone https://github.com/AdvanceUCT/unify-student-wallet.git
-cd unify-student-wallet
-corepack enable
-corepack yarn install --frozen-lockfile
-npx yarn@1.22.22 android:release-apk
-```
-
-Expo Go cannot run this app because the holder wallet requires native Credo,
-Askar, AnonCreds, Indy VDR, and SecureStore modules.
-
----
-
-## Setup
+## Local setup
 
 ### Prerequisites
 
-- **Git**
-- **Node.js 20+**
-- **Corepack**
-- **Yarn 1.22.22**
-- **Android Studio**
-- **Android SDK Platform Tools**
-- **Android SDK Platform 36**
-- **Android SDK Build-Tools 36**
-- **Android NDK 27.1.12297006**
-- **CMake 3.22.1**
-- **Android emulator or physical Android device**
+- Git
+- Node.js 20 or later
+- Corepack and Yarn 1.22.22
+- Android Studio with its bundled JDK
+- Android SDK Platform and Build-Tools 36
+- Android NDK `27.1.12297006`
+- CMake `3.22.1`
+- An Android emulator or physical device
 
-Expo Go is not enough for this app because the holder-agent flow uses native
-Credo, Askar, AnonCreds, Indy VDR, and SecureStore modules.
+### 1. Install dependencies
 
-### Installation
-
-1. **Clone the repository**
-   ```powershell
-   git clone https://github.com/AdvanceUCT/unify-student-wallet.git
-   cd unify-student-wallet
-   ```
-
-2. **Install dependencies**
-   ```powershell
-   corepack enable
-   corepack yarn install --frozen-lockfile
-   ```
-
-   If `yarn` is not available on PATH:
-
-   ```powershell
-   npx yarn@1.22.22 install --frozen-lockfile
-   ```
-
-3. **Set Android environment variables**
-   ```powershell
-   $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-   $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-   $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-   $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
-   ```
-
-4. **Configure release signing**
-
-   Keep the keystore in the ignored `credentials/` directory. Add these values
-   to `C:\Users\<you>\.gradle\gradle.properties`:
-
-   ```properties
-   UNIFY_RELEASE_STORE_FILE=C:/absolute/path/to/unify-student-wallet/credentials/unify-student-wallet-release.keystore
-   UNIFY_RELEASE_STORE_PASSWORD=your-store-password
-   UNIFY_RELEASE_KEY_ALIAS=your-key-alias
-   UNIFY_RELEASE_KEY_PASSWORD=your-key-password
-   ```
-
-   Do not commit the keystore or these values.
-
-5. **Build the signed release APK**
-
-   ```powershell
-   npx yarn@1.22.22 android:release-apk
-   ```
-
-   The APK is written to `android/app/build/outputs/apk/release/app-release.apk`.
-
-6. **Install the release APK**
-
-   Start an emulator or connect an Android device, then run:
-
-   ```powershell
-   adb install -r android/app/build/outputs/apk/release/app-release.apk
-   ```
-
-7. **Confirm the device connection when needed**
-
-   Open Android Studio, start an Android Virtual Device, then confirm it is
-   visible:
-
-   ```powershell
-   adb devices
-   ```
-
-8. **Test a local activation link**
-   ```powershell
-   adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
-   ```
-
-   Expected flow:
-
-   - The deep link opens the wallet app
-   - The app routes to activation or PIN setup
-   - The student creates a wallet PIN
-   - Credo initializes the local holder wallet
-   - The wallet opens to the credential or offers flow
-
-9. **Reset local app state**
-   ```powershell
-   adb shell pm clear com.advanceuct.unifystudentwallet
-   ```
-
-   Use this before retesting the first-run setup flow.
-
----
-
-## Testing
-
-### Lint
 ```powershell
-npx yarn@1.22.22 lint
+git clone https://github.com/AdvanceUCT/unify-student-wallet.git
+Set-Location unify-student-wallet
+corepack enable
+corepack yarn install --frozen-lockfile
 ```
 
-### TypeScript Checks
+If Yarn is not available on `PATH`, use `npx yarn@1.22.22` in place of `yarn`.
+
+### 2. Configure the app
+
 ```powershell
-npx yarn@1.22.22 typecheck
+Copy-Item .env.example .env.local
 ```
 
-### Unit Tests
+| Variable | Purpose |
+|---|---|
+| `EXPO_PUBLIC_MEDIATOR_INVITATION_URL` | Real DIDComm mediator invitation URL; copy the invitation, not the mediator landing-page URL |
+| `EXPO_PUBLIC_MEDIATOR_PICKUP_STRATEGY` | Credo message pickup strategy; the current public mediator uses `Implicit` |
+| `EXPO_PUBLIC_UNIFY_ACTIVATION_HOST` | Primary Admin Portal host used for Android App Links |
+| `EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS` | Comma-separated allowlist for activation and verification HTTPS links |
+| `EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL` | Public base URL used for activation resolution and verification-session APIs |
+
+The values are compiled into the mobile app and therefore are not secrets. Do not put private API keys, wallet keys, database credentials, or signing material in `EXPO_PUBLIC_*` variables.
+
+For local link testing, add the required development host, such as `10.0.2.2`, to `EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS`. Plain HTTP is accepted only for the built-in local development hosts; configured non-local verification links must use HTTPS with no alternate port or embedded credentials.
+
+### 3. Configure Android tools
+
+The build script detects the standard Windows Android Studio locations. If your tools are elsewhere, set them for the current PowerShell session:
+
 ```powershell
-npx yarn@1.22.22 test
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
 ```
 
-### Expo Export Build
+### 4. Run a native development build
+
+Start an emulator or connect a device, confirm it appears under `adb devices`, then run:
+
 ```powershell
-npx yarn@1.22.22 build
+corepack yarn android
 ```
 
----
+This uses `expo run:android`; it is a native development build, not Expo Go.
+
+## Links and verification flows
+
+The wallet accepts the custom `unifywallet://` scheme and trusted HTTPS App Links from the configured Admin Portal host.
+
+| Flow | Example |
+|---|---|
+| Credential activation | `unifywallet://activate?token=...` or `https://voskuils.com/activate?token=...` |
+| Out-of-band activation | `unifywallet://activate?oob=...` |
+| Static service point | `unifywallet://verify/{publicServicePointId}` or `https://voskuils.com/verify/{publicServicePointId}` |
+| Checkout verification | `unifywallet://verify/checkout/{verificationRequestId}?token=...` or the HTTPS equivalent |
+
+Activation links must contain exactly one of `token` or `oob`. Checkout tokens are single-use capabilities and should be obtained from a real vendor checkout session rather than copied into documentation or logs.
+
+A protected link opened before onboarding, PIN setup, or unlock is retained and resumed after the wallet is ready.
+
+For a basic Android activation routing check:
+
+```powershell
+adb shell am start -W -a android.intent.action.VIEW -d "unifywallet://activate?token=test-token" com.advanceuct.unifystudentwallet
+```
+
+A made-up token can test routing but cannot complete activation.
+
+## Backup, restore, and reset
+
+Create an encrypted backup from **Settings → Wallet backup**. The app validates the exported Askar data before sharing a `.unifywallet` bundle. Restore is available from the signed-out recovery flow and requires the same recovery password.
+
+Resetting or clearing app data removes the local holder wallet from that device. Create and safely store a current backup first if the credentials must be recoverable.
+
+To clear an Android test installation:
+
+```powershell
+adb shell pm clear com.advanceuct.unifystudentwallet
+```
+
+## Signed Android release APK
+
+Keep the release keystore in the ignored `credentials/` directory and add the following values to your user-level Gradle properties file, normally `C:\Users\<you>\.gradle\gradle.properties`:
+
+```properties
+UNIFY_RELEASE_STORE_FILE=C:/absolute/path/to/unify-student-wallet/credentials/unify-student-wallet-release.keystore
+UNIFY_RELEASE_STORE_PASSWORD=your-store-password
+UNIFY_RELEASE_KEY_ALIAS=your-key-alias
+UNIFY_RELEASE_KEY_PASSWORD=your-key-password
+```
+
+Never commit the keystore or its passwords. Build the APK with:
+
+```powershell
+corepack yarn android:release-apk
+```
+
+The script performs a clean Expo Android prebuild, runs Gradle `assembleRelease`, and verifies this artifact exists:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+Install it on a connected device with:
+
+```powershell
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+Because the release script regenerates `android/`, commit native changes through Expo configuration/plugins rather than editing generated files only.
+
+## Commands and CI
+
+```powershell
+corepack yarn start                # Start the Expo development server
+corepack yarn android              # Build and run the Android native app
+corepack yarn ios                  # Build and run iOS on a supported macOS host
+corepack yarn web                  # Run the web UI target
+corepack yarn lint                 # Run Expo ESLint
+corepack yarn typecheck            # Run TypeScript without emitting
+corepack yarn test                 # Run Jest in watch-capable local mode
+corepack yarn test:ci              # Run Jest serially and exit cleanly in CI
+corepack yarn build                # Export Android, iOS, and web bundles
+corepack yarn android:release-apk  # Produce a signed Android release APK
+```
+
+GitHub Actions uses Node.js 22 and Yarn's frozen lockfile. CI runs lint, type checking, and `test:ci`; the separate build workflow runs the Expo export. Release tags matching `v*.*.*` create GitHub release notes but do not build or attach an APK.
+
+Before opening a pull request, run:
+
+```powershell
+corepack yarn lint
+corepack yarn typecheck
+corepack yarn test:ci
+corepack yarn build
+```
+
+## Troubleshooting
+
+- **Expo Go cannot load the wallet:** use `yarn android`; the holder stack requires custom native modules.
+- **Mediator setup opens a webpage instead of connecting:** copy the mediator's invitation URL from the page, not the page URL itself.
+- **A trusted HTTPS link is rejected:** check `EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS`, rebuild the app, and verify the URL uses HTTPS without a custom port.
+- **Android App Links open in the browser:** ensure the Admin Portal serves `/.well-known/assetlinks.json` with the installed APK's SHA-256 signing-certificate fingerprint, then reinstall the app.
+- **Jest appears to finish but never exits:** use `yarn test:ci`. The test environment disables infinite Reanimated loops while retaining their production behavior.
+- **The web build reports unsupported wallet operations:** this is expected; use a native Android or iOS build for Credo holder, biometric, and backup flows.
