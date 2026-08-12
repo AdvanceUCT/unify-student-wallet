@@ -147,6 +147,7 @@ describe("wallet screens", () => {
     expect(screen.getByText("Your identity")).toBeTruthy();
     expect(screen.queryByText("UNIFY student wallet")).toBeNull();
     expect(screen.queryByText("Wallet ready")).toBeNull();
+    expect(screen.queryByLabelText("Open settings")).toBeNull();
     expect(screen.getByText("Scan to receive")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
