@@ -6,7 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import { Activity as ActivityIcon, ArrowRight, QrCode, Settings } from "lucide-react-native";
+import { Activity as ActivityIcon, ArrowRight, QrCode } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
@@ -15,7 +15,6 @@ import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { EmptyState } from "@/src/components/EmptyState";
-import { IconButton } from "@/src/components/IconButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { CredentialSkeleton } from "@/src/components/Skeleton";
 import { StatusPill } from "@/src/components/StatusPill";
@@ -73,10 +72,7 @@ export default function HomeScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader
-        title="Your identity"
-        trailing={<IconButton accessibilityLabel="Open settings" icon={Settings} onPress={() => router.push("/(wallet)/settings")} />}
-      />
+      <ScreenHeader title="Your identity" />
 
       <View style={styles.content}>
         <View
