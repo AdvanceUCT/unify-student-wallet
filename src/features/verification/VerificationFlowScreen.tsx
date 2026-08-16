@@ -26,6 +26,7 @@ import {
 } from "@/src/features/wallet/holderAgentRuntime";
 import type { VerificationProofSelection } from "@/src/features/wallet/holderAgent";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
+import { useAutoLock } from "@/src/features/wallet/AutoLockProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { ApiClientError } from "@/src/lib/api/apiClient";
 import {
@@ -151,6 +152,7 @@ async function persistVerificationActivity({
  */
 export function VerificationFlowScreen({ target }: { target: VerificationTarget }) {
   const { ensureWalletReady } = useHolderAgent();
+  const { resumeAutoLock, suspendAutoLock } = useAutoLock();
   const { clearPendingFlow, pendingCheckoutVerification, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();
   const clientRequestIdRef = useRef(Crypto.randomUUID());
   const controllerRef = useRef<AbortController | null>(null);
@@ -167,6 +169,14 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   const targetId = target.kind === "checkout" ? target.verificationRequestId : target.publicServicePointId;
   const claimToken = target.kind === "checkout" ? target.claimToken : undefined;
   const missingTargetMessage = target.kind === "checkout" ? "This checkout verification link is incomplete." : "This verification link is missing a service-point ID.";
+  const holdsAutoLock = phase === "loading" || phase === "presenting" || phase === "polling";
+
+  useEffect(() => {
+    if (!holdsAutoLock) return;
+    const suspensionKey = "verification-flow";
+    suspendAutoLock(suspensionKey);
+    return () => resumeAutoLock(suspensionKey);
+  }, [holdsAutoLock, resumeAutoLock, suspendAutoLock]);
 
   const preparePresentation = useCallback(async () => {
     // React effects and retry actions can converge here. Share the in-flight
@@ -228,7 +238,11 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       setPhase("review");
     } catch (caught) {
       if (controller.signal.aborted) return;
-      if (caught instanceof WalletVerificationError && started) {
+      if (
+        caught instanceof WalletVerificationError &&
+        caught.code !== "PROOF_REQUEST_TIMEOUT" &&
+        started
+      ) {
         const revoked = caught.code === "CREDENTIAL_REVOKED";
         const verificationResult: VerificationResult = {
           status: revoked ? "Declined" : "Failed",
@@ -248,8 +262,16 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
         setPhase("result");
         return;
       }
-      setError(verificationRequestErrorMessage(caught));
-      setErrorKind(classifyFlowError(caught, "before-sharing"));
+      setError(
+        caught instanceof WalletVerificationError && caught.code === "PROOF_REQUEST_TIMEOUT"
+          ? caught.message
+          : verificationRequestErrorMessage(caught),
+      );
+      setErrorKind(
+        caught instanceof WalletVerificationError && caught.code === "PROOF_REQUEST_TIMEOUT"
+          ? "before-sharing"
+          : classifyFlowError(caught, "before-sharing"),
+      );
       setPhase("error");
     }
     })();
@@ -269,6 +291,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       return;
     }
     if (!session.walletId || session.lockStatus !== "unlocked") {
+      autoPreparedTargetRef.current = null;
       // Preserve deep links until the wallet is unlocked; route state alone does
       // not survive process death and must not cause the verification to disappear.
       if (target.kind === "checkout") void setPendingCheckoutVerification({ verificationRequestId: targetId, claimToken: claimToken! });

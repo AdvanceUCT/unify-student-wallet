@@ -4,6 +4,8 @@ import { Text as mockText } from "react-native";
 import { render, waitFor } from "@testing-library/react-native";
 import RootLayout from "@/app/_layout";
 
+const mockStackScreen = jest.fn((_props: unknown) => null);
+
 jest.mock("@expo-google-fonts/ibm-plex-sans", () => ({
   IBMPlexSans_400Regular: "sans-regular",
   IBMPlexSans_500Medium: "sans-medium",
@@ -23,7 +25,11 @@ jest.mock("@tanstack/react-query", () => ({
 }));
 
 jest.mock("expo-router", () => ({
-  Stack: () => mockReact.createElement(mockText, null, "stack-mounted"),
+  Stack: Object.assign(
+    ({ children }: { children?: ReactNode }) =>
+      mockReact.createElement(mockReact.Fragment, null, mockReact.createElement(mockText, null, "stack-mounted"), children),
+    { Screen: (props: unknown) => mockStackScreen(props) },
+  ),
 }));
 
 jest.mock("expo-status-bar", () => ({
@@ -55,5 +61,9 @@ describe("root layout", () => {
 
     await waitFor(() => expect(screen.getByText("auto-lock-mounted")).toBeTruthy());
     expect(screen.getByText("stack-mounted")).toBeTruthy();
+    expect(mockStackScreen).toHaveBeenCalledWith(expect.objectContaining({
+      dangerouslySingular: true,
+      name: "verify/checkout/[verificationRequestId]",
+    }));
   });
 });
