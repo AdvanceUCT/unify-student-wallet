@@ -16,6 +16,11 @@ import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { VerificationConsentPanel } from "@/src/components/VerificationConsentPanel";
 import { addVerificationActivity } from "@/src/features/verification/activityHistory";
+import {
+  acquireCheckoutPreparation,
+  checkoutPreparationKey,
+  clearCheckoutPreparation,
+} from "@/src/features/verification/checkoutPreparationCoordinator";
 import { isAbortError, WalletVerificationError } from "@/src/features/verification/verificationErrors";
 import { formatCredentialLabel, formatCredentialValue } from "@/src/features/wallet/credentialDisplay";
 import {
@@ -154,9 +159,13 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   const { resumeAutoLock, suspendAutoLock } = useAutoLock();
   const { clearPendingFlow, pendingCheckoutVerification, session, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId } = useWalletSession();
   const clientRequestIdRef = useRef(Crypto.randomUUID());
+  const instanceIdRef = useRef(Crypto.randomUUID());
   const controllerRef = useRef<AbortController | null>(null);
+  const checkoutPreparationReleaseRef = useRef<(() => void) | null>(null);
   const preparationRef = useRef<Promise<void> | null>(null);
   const autoPreparedTargetRef = useRef<string | null>(null);
+  const pendingCheckoutVerificationRef = useRef(pendingCheckoutVerification);
+  pendingCheckoutVerificationRef.current = pendingCheckoutVerification;
   const [phase, setPhase] = useState<Phase>("idle");
   const [progressStep, setProgressStep] = useState<VerificationProgressStep>("opening-request");
   const [sessionInfo, setSessionInfo] = useState<StartVerificationSessionResult | null>(null);
@@ -172,10 +181,16 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
 
   useEffect(() => {
     if (!holdsAutoLock) return;
-    const suspensionKey = "verification-flow";
+    const suspensionKey = `verification-flow:${instanceIdRef.current}`;
     suspendAutoLock(suspensionKey);
     return () => resumeAutoLock(suspensionKey);
   }, [holdsAutoLock, resumeAutoLock, suspendAutoLock]);
+
+  const clearSharedCheckoutPreparation = useCallback(() => {
+    if (target.kind === "checkout" && targetId && session.walletId) {
+      clearCheckoutPreparation(checkoutPreparationKey(session.walletId, targetId));
+    }
+  }, [session.walletId, target.kind, targetId]);
 
   const preparePresentation = useCallback(async () => {
     // React effects and retry actions can converge here. Share the in-flight
@@ -193,9 +208,6 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       setPhase("error");
       return;
     }
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
     setError(null);
     setErrorKind("request");
     setResult(null);
@@ -205,38 +217,79 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
 
     let started: StartVerificationSessionResult | undefined;
     let proofRecordId: string | undefined;
+    let controller: AbortController | undefined;
     try {
-      await ensureWalletReady(session.walletId);
-      if (controller.signal.aborted) return;
-      const savedClaim =
-        target.kind === "checkout" &&
-        pendingCheckoutVerification?.verificationRequestId === targetId
-          ? pendingCheckoutVerification.claimedSession
-          : undefined;
-      // Checkout claim tokens are single-use capabilities. Persist the claimed
-      // session so an app lock or restart resumes it instead of consuming it again.
-      started = target.kind === "checkout"
-        ? savedClaim ?? await claimCheckoutVerificationSession(targetId, claimToken!, controller.signal)
-        : await startVerificationSession(targetId, clientRequestIdRef.current, controller.signal);
-      if (target.kind === "checkout" && !savedClaim) {
+      if (target.kind === "checkout") {
+        // Persist before claiming so scanner-originated and unlocked App Link flows
+        // can recover without asking WalletRouteGate to navigate a second time.
         await setPendingCheckoutVerification({
           verificationRequestId: targetId,
           claimToken: claimToken!,
-          claimedSession: started,
         });
+        checkoutPreparationReleaseRef.current?.();
+        const acquired = acquireCheckoutPreparation({
+          key: checkoutPreparationKey(session.walletId, targetId),
+          onProgress: setProgressStep,
+          prepare: async ({ signal, setProgress }) => {
+            await ensureWalletReady(session.walletId!);
+            if (signal.aborted) {
+              const abortError = new Error("Checkout preparation aborted");
+              abortError.name = "AbortError";
+              throw abortError;
+            }
+            const currentPending = pendingCheckoutVerificationRef.current;
+            const savedClaim = currentPending?.verificationRequestId === targetId
+              ? currentPending.claimedSession
+              : undefined;
+            const preparedSession = savedClaim ?? await claimCheckoutVerificationSession(targetId, claimToken!, signal);
+            started = preparedSession;
+            if (!savedClaim) {
+              await setPendingCheckoutVerification({
+                verificationRequestId: targetId,
+                claimToken: claimToken!,
+                claimedSession: preparedSession,
+              });
+            }
+            setProgress("receiving-request");
+            const proof = await receiveVerificationProofRequestLazy(preparedSession.invitationUrl, signal);
+            proofRecordId = proof.id;
+            setProgress("matching-credential");
+            const selected = await selectVerificationCredentialsLazy(proof.id, preparedSession.requestedAttributes);
+            if (signal.aborted) {
+              const abortError = new Error("Checkout preparation aborted");
+              abortError.name = "AbortError";
+              throw abortError;
+            }
+            return { selection: selected, sessionInfo: preparedSession };
+          },
+        });
+        checkoutPreparationReleaseRef.current = acquired.release;
+        const prepared = await acquired.promise;
+        started = prepared.sessionInfo;
+        proofRecordId = prepared.selection.proofRecordId;
+        setSessionInfo(prepared.sessionInfo);
+        setSelection(prepared.selection);
+        setPhase("review");
+      } else {
+        controllerRef.current?.abort();
+        controller = new AbortController();
+        controllerRef.current = controller;
+        await ensureWalletReady(session.walletId);
+        if (controller.signal.aborted) return;
+        started = await startVerificationSession(targetId, clientRequestIdRef.current, controller.signal);
+        setSessionInfo(started);
+        setProgressStep("receiving-request");
+        const proof = await receiveVerificationProofRequestLazy(started.invitationUrl, controller.signal);
+        proofRecordId = proof.id;
+        setProgressStep("matching-credential");
+        const selected = await selectVerificationCredentialsLazy(proof.id, started.requestedAttributes);
+        if (controller.signal.aborted) return;
+        await setPendingVerificationPublicServicePointId(undefined);
+        setSelection(selected);
+        setPhase("review");
       }
-      setSessionInfo(started);
-      setProgressStep("receiving-request");
-      const proof = await receiveVerificationProofRequestLazy(started.invitationUrl, controller.signal);
-      proofRecordId = proof.id;
-      setProgressStep("matching-credential");
-      const selected = await selectVerificationCredentialsLazy(proof.id, started.requestedAttributes);
-      if (controller.signal.aborted) return;
-      if (target.kind === "servicePoint") await setPendingVerificationPublicServicePointId(undefined);
-      setSelection(selected);
-      setPhase("review");
     } catch (caught) {
-      if (controller.signal.aborted) return;
+      if (controller?.signal.aborted || (caught instanceof Error && caught.name === "AbortError")) return;
       if (
         caught instanceof WalletVerificationError &&
         caught.code !== "PROOF_REQUEST_TIMEOUT" &&
@@ -257,6 +310,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
           walletId: session.walletId,
         });
         await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+        clearSharedCheckoutPreparation();
         setResult(verificationResult);
         setPhase("result");
         return;
@@ -281,7 +335,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     } finally {
       preparationRef.current = null;
     }
-  }, [claimToken, clearPendingFlow, ensureWalletReady, missingTargetMessage, pendingCheckoutVerification, session.walletId, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
+  }, [claimToken, clearPendingFlow, clearSharedCheckoutPreparation, ensureWalletReady, missingTargetMessage, session.walletId, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
 
   useEffect(() => {
     if (!targetId || (target.kind === "checkout" && !claimToken)) {
@@ -301,7 +355,11 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     if (autoPreparedTargetRef.current === preparationKey) return;
     autoPreparedTargetRef.current = preparationKey;
     void preparePresentation();
-    return () => controllerRef.current?.abort();
+    return () => {
+      controllerRef.current?.abort();
+      checkoutPreparationReleaseRef.current?.();
+      checkoutPreparationReleaseRef.current = null;
+    };
   }, [claimToken, missingTargetMessage, preparePresentation, session.lockStatus, session.walletId, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, target.kind, targetId]);
 
   async function saveResult(
@@ -350,6 +408,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       if (controller.signal.aborted) return;
       await saveResult(authoritativeResult);
       await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+      clearSharedCheckoutPreparation();
       setResult(authoritativeResult);
       setPhase("result");
     } catch (caught) {
@@ -357,6 +416,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       if (caught instanceof ApiClientError && caught.status === 410) {
         const expired: VerificationResult = { status: "Expired", expiresAt: sessionInfo.expiresAt };
         await saveResult(expired);
+        clearSharedCheckoutPreparation();
         setResult(expired);
         setPhase("result");
         return;
@@ -389,6 +449,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       if (controller.signal.aborted) return;
       await saveResult(authoritativeResult);
       await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+      clearSharedCheckoutPreparation();
       setResult(authoritativeResult);
       setPhase("result");
     } catch (caught) {
@@ -396,6 +457,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       if (caught instanceof ApiClientError && caught.status === 410) {
         const expired: VerificationResult = { status: "Expired", expiresAt: sessionInfo.expiresAt };
         await saveResult(expired);
+        clearSharedCheckoutPreparation();
         setResult(expired);
         setPhase("result");
         return;
@@ -408,12 +470,14 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
 
   async function continueToWallet() {
     await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+    clearSharedCheckoutPreparation();
     router.replace("/(wallet)/home");
   }
 
   async function dismissPresentation() {
     controllerRef.current?.abort();
     await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+    clearSharedCheckoutPreparation();
     router.replace("/(wallet)/home");
   }
 

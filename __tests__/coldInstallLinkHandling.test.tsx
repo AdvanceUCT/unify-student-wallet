@@ -4,6 +4,7 @@ import { Text } from "react-native";
 import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
 import {
   useWalletSession,
+  WalletRouteGate,
   WalletSessionProvider,
 } from "@/src/features/wallet/WalletSessionProvider";
 
@@ -11,6 +12,9 @@ const mockSecureValues = new Map<string, string>();
 const mockHolderAgent = { id: "holder-agent-001" };
 const mockReceiveCredentialOffer = jest.fn(async (_url: string) => ({ id: "credential-cold-1", state: "credential-received" }));
 const originalFetch = global.fetch;
+const mockReplace = jest.fn();
+let mockSegments = ["(auth)", "set-pin"];
+let mockLinkListener: ((event: { url: string }) => void) | undefined;
 
 jest.mock("@/src/lib/storage/secureStore", () => ({
   deleteSecureValue: jest.fn(async (key: string) => {
@@ -47,9 +51,17 @@ jest.mock("expo-local-authentication", () => ({
   isEnrolledAsync: jest.fn(async () => false),
 }));
 
+jest.mock("expo-linking", () => ({
+  addEventListener: jest.fn((_event: string, listener: (event: { url: string }) => void) => {
+    mockLinkListener = listener;
+    return { remove: jest.fn() };
+  }),
+  getInitialURL: jest.fn(async () => null),
+}));
+
 jest.mock("expo-router", () => ({
-  router: { replace: jest.fn(), push: jest.fn() },
-  useSegments: jest.fn(() => ["(auth)", "set-pin"]),
+  router: { replace: (...args: unknown[]) => mockReplace(...args), push: jest.fn() },
+  useSegments: jest.fn(() => mockSegments),
 }));
 
 let walletContext:
@@ -60,6 +72,7 @@ let walletContext:
       continuePendingFlow: () => Promise<{ ok: boolean; kind: string; href?: string; error?: string }>;
       processIncomingLink: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       pendingActivationUrl?: string;
+      pendingCheckoutVerification?: { verificationRequestId: string; claimToken: string };
       isHydrated: boolean;
       onboardingCompleted: boolean;
       setPendingCheckoutVerification: (value?: { verificationRequestId: string; claimToken: string }) => Promise<void>;
@@ -75,6 +88,9 @@ function CaptureWalletContext() {
 describe("cold install link handling", () => {
   beforeEach(() => {
     mockReceiveCredentialOffer.mockClear();
+    mockReplace.mockClear();
+    mockSegments = ["(auth)", "set-pin"];
+    mockLinkListener = undefined;
     mockSecureValues.clear();
     walletContext = undefined;
     process.env.EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL = "http://localhost:3001";
@@ -164,5 +180,35 @@ describe("cold install link handling", () => {
         href: "/verify/service-point-1",
       });
     });
+  });
+
+  it("does not create a competing checkout route for an unlocked Expo App Link", async () => {
+    render(
+      <HolderAgentProvider>
+        <WalletSessionProvider>
+          <WalletRouteGate>
+            <CaptureWalletContext />
+          </WalletRouteGate>
+        </WalletSessionProvider>
+      </HolderAgentProvider>,
+    );
+
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    await act(async () => {
+      await walletContext?.createWallet("2468", "2468");
+      await walletContext?.completeOnboarding();
+    });
+    mockSegments = ["(wallet)", "home"];
+    mockReplace.mockClear();
+
+    await act(async () => {
+      mockLinkListener?.({
+        url: `https://voskuils.com/verify/checkout/checkout-1?token=${"a".repeat(43)}`,
+      });
+      await Promise.resolve();
+    });
+
+    expect(walletContext?.pendingCheckoutVerification).toBeUndefined();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

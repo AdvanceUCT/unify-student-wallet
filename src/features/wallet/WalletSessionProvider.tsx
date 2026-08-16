@@ -407,10 +407,16 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       if (!url) return;
       const checkout = parseCheckoutVerificationLink(url);
       if (checkout.ok) {
-        void setPendingCheckoutVerification({
-          verificationRequestId: checkout.verificationRequestId,
-          claimToken: checkout.claimToken,
-        });
+        // Expo Router already owns navigation for an App Link while the wallet is
+        // unlocked. Persist only when routing must wait for unlock/setup; otherwise
+        // WalletRouteGate can race Expo and create a second checkout screen.
+        const current = stateRef.current;
+        if (!current.session.walletId || current.session.lockStatus !== "unlocked") {
+          void setPendingCheckoutVerification({
+            verificationRequestId: checkout.verificationRequestId,
+            claimToken: checkout.claimToken,
+          });
+        }
         return;
       }
       const parsed = parseVerificationLink(url);
@@ -1140,23 +1146,6 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
       !onResumeRoute
     ) {
       router.replace("/(auth)/resume");
-      return;
-    }
-
-    if (
-      routeAccess === "wallet" &&
-      pendingCheckoutVerification &&
-      !onVerificationRoute &&
-      !onOnboardingRoute &&
-      !onResumeRoute
-    ) {
-      router.replace({
-        pathname: "/verify/checkout/[verificationRequestId]",
-        params: {
-          verificationRequestId: pendingCheckoutVerification.verificationRequestId,
-          token: pendingCheckoutVerification.claimToken,
-        },
-      });
       return;
     }
 
