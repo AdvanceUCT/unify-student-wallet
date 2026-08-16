@@ -70,7 +70,15 @@ function RootNavigator() {
                     headerShown: false,
                     contentStyle: { backgroundColor: colors.background },
                   }}
-                />
+                >
+                  {/* A checkout link can arrive through both Android App Links and
+                      the wallet's link listener. Keep one route per request so the
+                      same proof flow cannot be stacked and prepared twice. */}
+                  <Stack.Screen
+                    name="verify/checkout/[verificationRequestId]"
+                    dangerouslySingular
+                  />
+                </Stack>
               </WalletRouteGate>
             </AutoLockProvider>
           </WalletSessionProvider>

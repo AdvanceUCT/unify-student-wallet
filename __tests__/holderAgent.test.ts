@@ -389,3 +389,157 @@ describe("holder agent mediator pickup", () => {
     expect(initiateMessagePickup).toHaveBeenCalledWith(mediation, strategy);
   });
 });
+
+describe("holder verification invitation deadline", () => {
+  afterEach(() => {
+    clearActiveHolderAgent();
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  function stalledInvitationAgent() {
+    let proofListener: ((event: unknown) => void) | undefined;
+    let rejectReceive: ((error: unknown) => void) | undefined;
+    const on = jest.fn((_eventType: string, listener: (event: unknown) => void) => {
+      proofListener = listener;
+    });
+    const off = jest.fn();
+    const receiveInvitationFromUrl = jest.fn(
+      () => new Promise<never>((_resolve, reject) => { rejectReceive = reject; }),
+    );
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        oob: {
+          parseInvitation: jest.fn(async () => ({ id: "invitation-001" })),
+          receiveInvitationFromUrl,
+        },
+        proofs: { getAll: jest.fn(async () => []) },
+      },
+      events: { on, off },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+    return {
+      emitProof: (proof: object) => proofListener?.({ payload: { proofRecord: proof } }),
+      off,
+      on,
+      receiveInvitationFromUrl,
+      rejectReceive: (error: unknown) => rejectReceive?.(error),
+    };
+  }
+
+  it("resolves from a correlated proof event while native OOB receive stays pending", async () => {
+    const agent = stalledInvitationAgent();
+    const received = receiveVerificationProofRequest("https://verifier.example/oob");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(agent.on).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+    expect(agent.on.mock.invocationCallOrder[0]).toBeLessThan(
+      agent.receiveInvitationFromUrl.mock.invocationCallOrder[0],
+    );
+    let resolved = false;
+    void received.then(() => { resolved = true; });
+    agent.emitProof({
+      id: "unrelated-proof",
+      parentThreadId: "another-invitation",
+      state: "request-received",
+    });
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    agent.emitProof({
+      id: "proof-event-001",
+      parentThreadId: "invitation-001",
+      state: "request-received",
+    });
+
+    await expect(received).resolves.toMatchObject({ id: "proof-event-001" });
+    expect(agent.off).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+
+    // Credo may reject its outer receive after the proof event. That rejection is handled.
+    agent.rejectReceive(new Error("late OOB receive rejection"));
+    await Promise.resolve();
+  });
+
+  it("discovers a stored proof when the native receive and proof event both stay pending", async () => {
+    jest.useFakeTimers();
+    const proof = {
+      id: "proof-stored-001",
+      parentThreadId: "invitation-001",
+      state: "request-received",
+    };
+    const getAll = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([proof]);
+    const receiveInvitationFromUrl = jest.fn(() => new Promise<never>(() => undefined));
+    const off = jest.fn();
+    __holderAgentTestInternals.setActiveHolderAgentForTest({
+      didcomm: {
+        oob: {
+          parseInvitation: jest.fn(async () => ({ id: "invitation-001" })),
+          receiveInvitationFromUrl,
+        },
+        proofs: { getAll },
+      },
+      events: { on: jest.fn(), off },
+      initialize: jest.fn(),
+    } as unknown as HolderAgent);
+
+    const received = receiveVerificationProofRequest("https://verifier.example/oob");
+    await Promise.resolve();
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(300);
+
+    await expect(received).resolves.toMatchObject({ id: "proof-stored-001" });
+    expect(getAll).toHaveBeenCalledTimes(2);
+    expect(off).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+  });
+
+  it("surfaces a prompt native receive failure when no correlated proof was stored", async () => {
+    const agent = stalledInvitationAgent();
+    const received = receiveVerificationProofRequest("https://verifier.example/oob");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const receiveError = new Error("invalid connectionless invitation");
+    agent.rejectReceive(receiveError);
+
+    await expect(received).rejects.toBe(receiveError);
+    expect(agent.off).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+  });
+
+  it("cleans up the proof listener when a stalled invitation times out", async () => {
+    jest.useFakeTimers();
+    const agent = stalledInvitationAgent();
+    const received = receiveVerificationProofRequest("https://verifier.example/oob");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    jest.advanceTimersByTime(15_000);
+
+    await expect(received).rejects.toMatchObject({
+      code: "PROOF_REQUEST_TIMEOUT",
+      message: expect.stringContaining("reuse the existing verification session"),
+    });
+    expect(agent.off).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+  });
+
+  it("removes proof and abort listeners when the caller cancels", async () => {
+    const agent = stalledInvitationAgent();
+    const controller = new AbortController();
+    const removeAbortListener = jest.spyOn(controller.signal, "removeEventListener");
+    const received = receiveVerificationProofRequest(
+      "https://verifier.example/oob",
+      controller.signal,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    controller.abort();
+
+    await expect(received).rejects.toMatchObject({ name: "AbortError" });
+    expect(agent.off).toHaveBeenCalledWith("DidCommProofStateChanged", expect.any(Function));
+    expect(removeAbortListener).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+});

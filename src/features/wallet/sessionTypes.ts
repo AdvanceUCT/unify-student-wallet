@@ -21,6 +21,20 @@ export type PendingCheckoutVerification = {
   };
 };
 
+/** Keeps the consumed claim result when the same deep link is stashed again. */
+export function mergePendingCheckoutVerification(
+  current?: PendingCheckoutVerification,
+  next?: PendingCheckoutVerification,
+): PendingCheckoutVerification | undefined {
+  if (next && !next.claimedSession && current?.claimedSession) {
+    const sameClaim =
+      current.verificationRequestId === next.verificationRequestId &&
+      current.claimToken === next.claimToken;
+    if (sameClaim) return { ...next, claimedSession: current.claimedSession };
+  }
+  return next;
+}
+
 export type PendingFlowKind = "checkout" | "servicePoint" | "activation" | "offer" | "home";
 
 export type PendingFlowContinuation =

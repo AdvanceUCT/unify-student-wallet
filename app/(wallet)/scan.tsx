@@ -96,7 +96,16 @@ export default function ScanScreen() {
 
     const checkout = parseCheckoutVerificationLink(rawPayload);
     if (checkout.ok) {
-      router.push({ pathname: "/verify/checkout/[verificationRequestId]", params: { verificationRequestId: checkout.verificationRequestId, token: checkout.claimToken } });
+      router.navigate(
+        {
+          pathname: "/verify/checkout/[verificationRequestId]",
+          params: {
+            verificationRequestId: checkout.verificationRequestId,
+            token: checkout.claimToken,
+          },
+        },
+        { dangerouslySingular: true },
+      );
       return;
     }
 

@@ -3,7 +3,10 @@
  * @module features/verification/verificationErrors
  */
 
-export type WalletVerificationErrorCode = "CREDENTIAL_REVOKED" | "REVOCATION_CHECK_FAILED";
+export type WalletVerificationErrorCode =
+  | "CREDENTIAL_REVOKED"
+  | "REVOCATION_CHECK_FAILED"
+  | "PROOF_REQUEST_TIMEOUT";
 
 export class WalletVerificationError extends Error {
   constructor(

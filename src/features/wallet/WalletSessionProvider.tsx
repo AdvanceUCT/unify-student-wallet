@@ -23,6 +23,7 @@ import { clearWalletSessionState, loadWalletSessionState, saveWalletSessionState
 import {
   hasStoredPin,
   isSessionHardLocked,
+  mergePendingCheckoutVerification,
   MAX_CHANGE_PIN_ATTEMPTS,
   MAX_PIN_ATTEMPTS,
   type FirstRunSetupStatus,
@@ -378,6 +379,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const setPendingCheckoutVerification = useCallback(async (request?: PendingCheckoutVerification) => {
     const current = stateRef.current;
+    const pendingCheckoutVerification = mergePendingCheckoutVerification(
+      current.pendingCheckoutVerification,
+      request,
+    );
     const nextState: PersistedWalletSessionState = {
       biometricEnabled: current.biometricEnabled,
       changePinAttempts: current.changePinAttempts,
@@ -386,7 +391,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pinHash: current.pinHash,
       pinSalt: current.pinSalt,
       pendingActivationUrl: current.pendingActivationUrl,
-      pendingCheckoutVerification: request,
+      pendingCheckoutVerification,
       pendingVerificationPublicServicePointId: current.pendingVerificationPublicServicePointId,
       session: current.session,
     };

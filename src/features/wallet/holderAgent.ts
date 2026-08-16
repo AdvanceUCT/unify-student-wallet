@@ -23,6 +23,8 @@ const CREDENTIAL_STORED_STATES = new Set(["credential-received", "done"]);
 const CREDENTIAL_OFFER_WAIT_MS = 45_000;
 const CREDENTIAL_OFFER_GRACE_MS = 5_000;
 const CREDENTIAL_OFFER_POLL_MS = 1_000;
+const PROOF_INVITATION_RECEIVE_TIMEOUT_MS = 15_000;
+const PROOF_INVITATION_POLL_MS = 300;
 
 export type HolderAgentConfig = {
   walletId: string;
@@ -1030,9 +1032,11 @@ export async function receiveVerificationProofRequest(
   if (!oob?.receiveInvitationFromUrl || !proofs?.getAll) {
     throw new Error("Credo holder agent is missing the proof request APIs.");
   }
+  const receiveInvitationFromUrl = oob.receiveInvitationFromUrl.bind(oob);
+  const getAllProofs = proofs.getAll.bind(proofs);
 
   const invitation = oob.parseInvitation ? await oob.parseInvitation(invitationUrl) : undefined;
-  const existingProofs = await proofs.getAll();
+  const existingProofs = await getAllProofs();
   // Reopening the same invitation after navigation or process resume should
   // attach to its existing proof exchange instead of creating a duplicate.
   const existingInvitationProof = invitation
@@ -1044,28 +1048,105 @@ export async function receiveVerificationProofRequest(
 
   const existingIds = new Set(existingProofs.map((record) => record.id));
   throwIfCancelled(signal);
-  await oob.receiveInvitationFromUrl(invitationUrl, {
-    autoAcceptConnection: true,
-    autoAcceptInvitation: true,
-    label: "UNIFY Student Wallet",
-  });
+  const events = agentRef.events;
+  const eventType = "DidCommProofStateChanged";
+  const correlates = (record: ProofExchangeRecord) =>
+    invitation
+      ? record.parentThreadId === invitation.id
+      : !existingIds.has(record.id);
 
-  const deadline = Date.now() + 45_000;
-  while (Date.now() < deadline) {
-    throwIfCancelled(signal);
-    const proof = (await proofs.getAll()).find(
-      (record) =>
-        !existingIds.has(record.id) ||
-        (invitation ? record.parentThreadId === invitation.id : false),
+  return new Promise<ProofExchangeRecord>((resolve, reject) => {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let proofPoll: ReturnType<typeof setInterval> | undefined;
+    let proofLookupInFlight = false;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      if (proofPoll) clearInterval(proofPoll);
+      signal?.removeEventListener("abort", cancel);
+      if (events?.off) events.off.call(events, eventType, listener);
+    };
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const acceptRecord = (record?: ProofExchangeRecord) => {
+      if (!record || !correlates(record)) return false;
+      if (record.state === "request-received") {
+        finish(() => resolve(record));
+        return true;
+      }
+      if (record.state === "abandoned") {
+        finish(() => reject(new Error(record.errorMessage || "The verifier abandoned the proof request.")));
+        return true;
+      }
+      return false;
+    };
+    const listener = (event: unknown) => {
+      const record = (event as { payload?: { proofRecord?: ProofExchangeRecord } })?.payload?.proofRecord;
+      acceptRecord(record);
+    };
+    const cancel = () =>
+      finish(() => reject(createAbortError("The verification was cancelled.")));
+    const inspectStoredProofOnce = async (receiveError?: unknown) => {
+      if (settled || proofLookupInFlight) return;
+      proofLookupInFlight = true;
+      try {
+        const record = (await getAllProofs()).find(correlates);
+        if (acceptRecord(record)) return;
+      } catch {
+        // A prompt native error below remains more useful than a secondary lookup failure.
+      } finally {
+        proofLookupInFlight = false;
+      }
+      if (receiveError !== undefined) finish(() => reject(receiveError));
+    };
+
+    // Subscribe before Credo begins processing. Connectionless OOB receive can
+    // remain pending after it has already stored and emitted the proof request.
+    events?.on?.call(events, eventType, listener);
+    signal?.addEventListener("abort", cancel, { once: true });
+    // Some native Credo builds persist the proof record but do not deliver the
+    // state event to JavaScript while the outer OOB receive promise is pending.
+    // Poll the local wallet store as a recovery signal; this does not contact
+    // the verifier and remains bound to this invitation's parent thread.
+    proofPoll = setInterval(
+      () => void inspectStoredProofOnce(),
+      PROOF_INVITATION_POLL_MS,
     );
-    if (proof?.state === "request-received") return proof;
-    if (proof?.state === "abandoned") {
-      throw new Error(proof.errorMessage || "The verifier abandoned the proof request.");
-    }
-    await sleep(500);
-  }
+    timeout = setTimeout(
+      () =>
+        finish(() =>
+          reject(
+            new WalletVerificationError(
+              "PROOF_REQUEST_TIMEOUT",
+              "The verifier stopped responding while sending its request. Keep the checkout open and try again; this wallet will reuse the existing verification session.",
+            ),
+          ),
+        ),
+      PROOF_INVITATION_RECEIVE_TIMEOUT_MS,
+    );
 
-  throw new Error("The invitation opened, but no proof request was received.");
+    if (signal?.aborted) {
+      cancel();
+      return;
+    }
+
+    // Always attach both handlers: a late native rejection must never become an
+    // unhandled promise rejection after the proof event has already resolved.
+    void receiveInvitationFromUrl(invitationUrl, {
+        autoAcceptConnection: true,
+        autoAcceptInvitation: true,
+        label: "UNIFY Student Wallet",
+      })
+      .then(
+        () => void inspectStoredProofOnce(),
+        (error: unknown) => void inspectStoredProofOnce(error),
+      );
+  });
 }
 
 /** Selects a current, non-revoked credential set and returns the values for consent review. */

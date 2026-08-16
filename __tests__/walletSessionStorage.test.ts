@@ -1,7 +1,34 @@
 import { parseWalletSessionState, serializeWalletSessionState } from "@/src/features/wallet/sessionStorage";
-import type { PersistedWalletSessionState } from "@/src/features/wallet/sessionTypes";
+import {
+  mergePendingCheckoutVerification,
+  type PersistedWalletSessionState,
+} from "@/src/features/wallet/sessionTypes";
 
 describe("wallet session storage serialization", () => {
+  it("keeps a claimed invitation when the same checkout link is stashed during lock", () => {
+    const claimed = {
+      verificationRequestId: "verification-001",
+      claimToken: "single-use-claim-token",
+      claimedSession: {
+        verificationRequestId: "verification-001",
+        invitationUrl: "https://agent.example/oob/claimed",
+        resultToken: "result-capability",
+        vendorName: "Campus Store",
+        servicePointName: "Main Branch",
+        requestedAttributes: ["studentNumber"],
+        expiresAt: "2026-08-08T12:05:00.000Z",
+      },
+    };
+
+    expect(
+      mergePendingCheckoutVerification(claimed, {
+        verificationRequestId: "verification-001",
+        claimToken: "single-use-claim-token",
+      }),
+    ).toEqual(claimed);
+    expect(mergePendingCheckoutVerification(claimed, undefined)).toBeUndefined();
+  });
+
   it("round-trips persisted session state", () => {
     const state: PersistedWalletSessionState = {
       biometricEnabled: true,

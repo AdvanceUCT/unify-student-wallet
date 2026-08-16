@@ -16,6 +16,8 @@ const mockClearPendingFlow = jest.fn(async () => undefined);
 const mockAddActivity = jest.fn(async (_record?: unknown) => undefined);
 const mockPollResult = jest.fn();
 const mockReplace = jest.fn();
+const mockResumeAutoLock = jest.fn();
+const mockSuspendAutoLock = jest.fn();
 
 const claimedSession = {
   verificationRequestId: "verification-001",
@@ -89,6 +91,12 @@ jest.mock("@/src/components/VerificationConsentPanel", () => ({
 }));
 jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
   useHolderAgent: () => ({ ensureWalletReady: mockEnsureWalletReady }),
+}));
+jest.mock("@/src/features/wallet/AutoLockProvider", () => ({
+  useAutoLock: () => ({
+    resumeAutoLock: mockResumeAutoLock,
+    suspendAutoLock: mockSuspendAutoLock,
+  }),
 }));
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   useWalletSession: () => ({
@@ -188,10 +196,12 @@ describe("checkout verification readiness", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Receiving request")).toBeTruthy());
+    expect(mockSuspendAutoLock).toHaveBeenCalledWith("verification-flow");
     resolveProof({ id: "proof-001" });
     await waitFor(() => expect(screen.getByText("Matching credential")).toBeTruthy());
     resolveSelection({ proofRecordId: "proof-001", proofFormats: { anoncreds: {} }, values: { studentNumber: "STU001" } });
     await waitFor(() => expect(screen.getByText("Review before sharing")).toBeTruthy());
+    expect(mockResumeAutoLock).toHaveBeenCalledWith("verification-flow");
   });
 
   it("clears the local pending flow when the student chooses Not now", async () => {
@@ -353,6 +363,40 @@ describe("checkout verification readiness", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Verification was interrupted")).toBeTruthy());
+  });
+
+  it("retries a stalled proof invitation with the stored claim instead of claiming twice", async () => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = {
+      verificationRequestId: "verification-001",
+      claimToken: "single-use-claim-token",
+      claimedSession,
+    };
+    mockReceiveProof
+      .mockRejectedValueOnce(
+        new WalletVerificationError(
+          "PROOF_REQUEST_TIMEOUT",
+          "The verifier stopped responding while sending its request. Keep the checkout open and try again; this wallet will reuse the existing verification session.",
+        ),
+      )
+      .mockResolvedValueOnce({ id: "proof-001" });
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Connection lost")).toBeTruthy());
+    expect(
+      screen.getByText(
+        "The verifier stopped responding while sending its request. Keep the checkout open and try again; this wallet will reuse the existing verification session.",
+      ),
+    ).toBeTruthy();
+    fireEvent.press(screen.getByText("Try again"));
+
+    await waitFor(() => expect(screen.getByText("Review before sharing")).toBeTruthy());
+    expect(mockClaimCheckoutSession).not.toHaveBeenCalled();
+    expect(mockReceiveProof).toHaveBeenCalledTimes(2);
+    expect(mockReceiveProof).toHaveBeenNthCalledWith(2, claimedSession.invitationUrl, expect.anything());
   });
 
   it("shows registry outages separately from revoked credentials", async () => {
