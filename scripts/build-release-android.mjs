@@ -17,6 +17,23 @@ const defaultAndroidSdk = env.LOCALAPPDATA ? join(env.LOCALAPPDATA, "Android", "
 
 env.NODE_ENV ??= "production";
 
+const requiredPublicEnvironment = [
+  "EXPO_PUBLIC_MEDIATOR_INVITATION_URL",
+  "EXPO_PUBLIC_MEDIATOR_PICKUP_STRATEGY",
+  "EXPO_PUBLIC_UNIFY_ACTIVATION_HOST",
+  "EXPO_PUBLIC_UNIFY_ACTIVATION_HOSTS",
+  "EXPO_PUBLIC_UNIFY_AGENT_API_BASE_URL",
+];
+const missingPublicEnvironment = requiredPublicEnvironment.filter(
+  (name) => !env[name]?.trim(),
+);
+
+if (missingPublicEnvironment.length > 0) {
+  throw new Error(
+    `Release build is missing required public environment variables: ${missingPublicEnvironment.join(", ")}`,
+  );
+}
+
 if (!env.JAVA_HOME && isWindows && existsSync(androidStudioJbr)) {
   env.JAVA_HOME = androidStudioJbr;
 }
@@ -34,8 +51,20 @@ function run(command, args) {
 }
 
 run(process.execPath, [expoCli, "prebuild", "--platform", "android", "--clean", "--no-install"]);
-if (isWindows) run("cmd.exe", ["/d", "/s", "/c", gradle, "-p", join(root, "android"), "assembleRelease"]);
-else run(gradle, ["-p", join(root, "android"), "assembleRelease"]);
+if (isWindows) {
+  run("cmd.exe", [
+    "/d",
+    "/s",
+    "/c",
+    gradle,
+    "-p",
+    join(root, "android"),
+    "--no-daemon",
+    "assembleRelease",
+  ]);
+} else {
+  run(gradle, ["-p", join(root, "android"), "--no-daemon", "assembleRelease"]);
+}
 
 const apk = join(root, "android", "app", "build", "outputs", "apk", "release", "app-release.apk");
 if (!existsSync(apk)) {

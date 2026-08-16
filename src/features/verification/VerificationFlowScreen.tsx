@@ -11,7 +11,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppScreen } from "@/src/components/AppScreen";
-import { AppButton } from "@/src/components/AppButton";
 import { BrandGradient } from "@/src/components/BrandGradient";
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
@@ -441,14 +440,7 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   }
 
   return (
-    <AppScreen
-      footer={sessionInfo && selection ? (
-        <View style={{ gap: spacing.sm }}>
-          <AppButton label="Present credential" onPress={() => void presentCredential()} size="lg" />
-          <AppButton label="Not now" onPress={() => void dismissPresentation()} variant="ghost" />
-        </View>
-      ) : undefined}
-    >
+    <AppScreen>
       <Stack.Screen options={{ title: "Review verification" }} />
       <ScreenHeader eyebrow="Credential presentation" title="Review before sharing" meta="Only the values listed below will be presented after you approve." />
       {sessionInfo && selection ? (
@@ -469,6 +461,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
           </BrandGradient>
 
           <VerificationConsentPanel
+            primaryAction={{ label: "Present credential", onPress: () => void presentCredential() }}
+            secondaryAction={{ label: "Not now", onPress: () => void dismissPresentation() }}
             servicePointName={sessionInfo.servicePointName}
             showContext={false}
             values={sessionInfo.requestedAttributes.map((attribute) => ({ name: attribute, value: formatCredentialValue(attribute, selection.values[attribute] ?? "") }))}

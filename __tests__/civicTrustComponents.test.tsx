@@ -4,9 +4,10 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { ActivityLedger, activityDateLabel } from "@/src/components/ActivityLedger";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { StatusPill } from "@/src/components/StatusPill";
+import { Tag } from "@/src/components/Tag";
 import { TrustSeal } from "@/src/components/TrustSeal";
 import type { VerificationActivityRecord } from "@/src/features/verification/activityHistory";
-import { darkColors, setActiveColorScheme } from "@/src/theme/colors";
+import { darkColors, lightColors, setActiveColorScheme } from "@/src/theme/colors";
 
 let mockReducedMotion = false;
 
@@ -116,6 +117,18 @@ describe("civic trust components", () => {
 
     expect(StyleSheet.flatten(label.props.style).color).toBe(darkColors.success);
     expect(StyleSheet.flatten(screen.UNSAFE_getByType(View).props.style).backgroundColor).toBe(darkColors.successSoft);
+    setActiveColorScheme("light");
+  });
+
+  it("uses readable primary tag colors in light and dark modes", () => {
+    for (const [scheme, palette] of [["light", lightColors], ["dark", darkColors]] as const) {
+      setActiveColorScheme(scheme);
+      const screen = render(<Tag label="University of Cape Town" tone="primary" />);
+
+      expect(StyleSheet.flatten(screen.getByText("University of Cape Town").props.style).color).toBe(palette.primary);
+      expect(StyleSheet.flatten(screen.UNSAFE_getByType(View).props.style).backgroundColor).toBe(palette.primarySoft);
+      screen.unmount();
+    }
     setActiveColorScheme("light");
   });
 

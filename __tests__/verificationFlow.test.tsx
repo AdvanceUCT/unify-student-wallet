@@ -47,7 +47,7 @@ jest.mock("expo-router", () => ({
 jest.mock("@/src/components/AppScreen", () => ({
   AppScreen: ({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) => {
     const { View } = require("react-native");
-    return <View>{children}{footer}</View>;
+    return <View>{children}{footer ? <View testID="app-screen-footer">{footer}</View> : null}</View>;
   },
 }));
 jest.mock("@/src/components/ScreenHeader", () => ({
@@ -75,9 +75,18 @@ jest.mock("@/src/components/OperationStateScreen", () => ({
   },
 }));
 jest.mock("@/src/components/VerificationConsentPanel", () => ({
-  VerificationConsentPanel: () => {
-    const { Text } = require("react-native");
-    return <Text>Requested values</Text>;
+  VerificationConsentPanel: ({ primaryAction, secondaryAction }: {
+    primaryAction?: { label: string; onPress: () => void };
+    secondaryAction?: { label: string; onPress: () => void };
+  }) => {
+    const { Text, TouchableOpacity, View } = require("react-native");
+    return (
+      <View testID="verification-consent-panel">
+        <Text>Requested values</Text>
+        {primaryAction ? <TouchableOpacity onPress={primaryAction.onPress}><Text>{primaryAction.label}</Text></TouchableOpacity> : null}
+        {secondaryAction ? <TouchableOpacity onPress={secondaryAction.onPress}><Text>{secondaryAction.label}</Text></TouchableOpacity> : null}
+      </View>
+    );
   },
 }));
 jest.mock("@/src/features/wallet/HolderAgentProvider", () => ({
@@ -212,6 +221,24 @@ describe("checkout verification readiness", () => {
     await waitFor(() => expect(mockClearPendingFlow).toHaveBeenCalledWith("checkout"));
     expect(mockReplace).toHaveBeenCalledWith("/(wallet)/home");
     expect(mockAddActivity).not.toHaveBeenCalled();
+  });
+
+  it("keeps presentation actions inside the scrollable review content", async () => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockPendingCheckout = {
+      verificationRequestId: "verification-001",
+      claimToken: "single-use-claim-token",
+      claimedSession,
+    };
+
+    const screen = render(
+      <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("verification-consent-panel")).toBeTruthy());
+    expect(screen.getByText("Present credential")).toBeTruthy();
+    expect(screen.getByText("Not now")).toBeTruthy();
+    expect(screen.queryByTestId("app-screen-footer")).toBeNull();
   });
 
   it("shows a terminal revoked screen without presenting credential values", async () => {

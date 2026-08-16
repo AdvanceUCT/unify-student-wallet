@@ -4,6 +4,7 @@ import { StyleSheet } from "react-native";
 import HomeScreen from "@/app/(wallet)/home";
 import ActivityScreen from "@/app/(wallet)/activity";
 import InboxScreen from "@/app/(wallet)/inbox";
+import OffersScreen from "@/app/(wallet)/offers";
 import ScanScreen from "@/app/(wallet)/scan";
 import SettingsScreen from "@/app/(wallet)/settings";
 
@@ -25,6 +26,10 @@ let mockStoredCredentials: Array<{
   state?: string;
   credentialAttributes?: Array<{ name: string; value: string }>;
 }> = [];
+let mockPendingOffers: Array<{
+  id: string;
+  credentialAttributes?: Array<{ name: string; value: string }>;
+}> = [];
 const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]; enabled?: boolean }) => {
   if (queryKey[0] === "stored-credentials") {
     const data = !enabled && mockStoredCredentials.length === 0 ? undefined : mockStoredCredentials;
@@ -37,6 +42,10 @@ const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]
 
   if (queryKey[0] === "payment-history") {
     return { data: [], isError: false, isLoading: false };
+  }
+
+  if (queryKey[0] === "pending-offers") {
+    return { data: mockPendingOffers, isError: false, isLoading: false };
   }
 
   return { data: undefined, isError: false, isLoading: false };
@@ -122,6 +131,7 @@ describe("wallet screens", () => {
     mockCameraGranted = false;
     mockRecentActivity = [];
     mockStoredCredentials = [];
+    mockPendingOffers = [];
     mockHolderAgent = {
       ensureWalletReady: jest.fn(async () => null),
       error: undefined,
@@ -137,6 +147,7 @@ describe("wallet screens", () => {
     expect(screen.getByText("Your identity")).toBeTruthy();
     expect(screen.queryByText("UNIFY student wallet")).toBeNull();
     expect(screen.queryByText("Wallet ready")).toBeNull();
+    expect(screen.queryByLabelText("Open settings")).toBeNull();
     expect(screen.getByText("Scan to receive")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
@@ -150,6 +161,29 @@ describe("wallet screens", () => {
 
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("Credential offers ready")).toBeTruthy();
+  });
+
+  it("shows the credential skeleton while the first credential is being accepted", async () => {
+    let completeAcceptance!: (result: { ok: true }) => void;
+    mockWalletSession.pendingOfferIds = ["offer-1"];
+    mockPendingOffers = [{
+      id: "offer-1",
+      credentialAttributes: [
+        { name: "institution", value: "University of Cape Town" },
+        { name: "programme", value: "Computer Science" },
+      ],
+    }];
+    mockWalletSession.acceptOffer.mockImplementationOnce(
+      () => new Promise((resolve) => { completeAcceptance = resolve; }),
+    );
+
+    const screen = render(<OffersScreen />);
+    fireEvent.press(screen.getByText("Accept"));
+
+    expect(screen.getByText("Adding credential")).toBeTruthy();
+    expect(screen.getByLabelText("Loading credential")).toBeTruthy();
+
+    await act(async () => completeAcceptance({ ok: true }));
   });
 
   it("shows at most three recent presentations on Home", async () => {

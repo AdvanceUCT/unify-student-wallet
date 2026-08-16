@@ -20,7 +20,7 @@ type TagProps = {
 function toneStyles(tone: TagTone, colors: ColorPalette) {
   switch (tone) {
     case "primary":
-      return { bg: colors.primarySoft, fg: colors.primaryDeep };
+      return { bg: colors.primarySoft, fg: colors.primary };
     case "success":
       return { bg: colors.successSoft, fg: colors.success };
     case "warning":
