@@ -40,7 +40,7 @@ import {
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-
+  
 type Phase = "idle" | "loading" | "review" | "presenting" | "polling" | "result" | "error";
 export type VerificationProgressStep = "opening-request" | "receiving-request" | "matching-credential" | "building-proof" | "awaiting-verifier";
 type FlowErrorKind = "before-sharing" | "after-sharing" | "cancelled" | "request";

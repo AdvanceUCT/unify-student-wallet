@@ -25,7 +25,7 @@ function normalizeUrl(value: string) {
   return value.trim().replace(/\/+$/, "");
 }
 
-export function validateMediatorInvitationUrl(value: string | undefined): string {
+export function validateMediatorInvitationUrl(value: string | undefined): string {  
   const invitationUrl = value?.trim();
 
   if (!invitationUrl) {

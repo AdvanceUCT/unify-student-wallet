@@ -92,7 +92,7 @@ async function request<T>(
 }
 
 export const apiClient = {
-  get<T>(path: string, options: { resultToken: string; signal?: AbortSignal; timeoutMs?: number }) {
+  get<T>(path: string, options: { resultToken?: string; signal?: AbortSignal; timeoutMs?: number } = {}) {
     return request<T>(path, { ...options, method: "GET" });
   },
   post<T>(path: string, body: object, options: { signal?: AbortSignal; timeoutMs?: number } = {}) {

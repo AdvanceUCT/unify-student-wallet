@@ -10,6 +10,13 @@ const autoVerify = activationHost !== "localhost" && activationHost !== "127.0.0
 
 module.exports = {
   ...appJson.expo,
+  extra: {
+    ...appJson.expo.extra,
+    ethereumRpcUrl: process.env.EXPO_PUBLIC_ETHEREUM_RPC_URL,
+    studentRegistryAddress: process.env.EXPO_PUBLIC_STUDENT_REGISTRY_ADDRESS,
+    walletBalanceAddress: process.env.EXPO_PUBLIC_WALLET_BALANCE_ADDRESS,
+    studentPaymentAddress: process.env.EXPO_PUBLIC_STUDENT_PAYMENT_ADDRESS,
+  },
   plugins: [
     ...(appJson.expo.plugins ?? []),
     "./plugins/withUnifyAndroidReleaseSigning",

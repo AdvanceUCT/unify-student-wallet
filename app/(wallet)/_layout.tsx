@@ -4,7 +4,7 @@
  */
 
 import { Tabs } from "expo-router";
-import { Activity, Home, Inbox, ScanLine, type LucideIcon } from "lucide-react-native";
+import { Activity, CreditCard, Home, Inbox, ScanLine, type LucideIcon } from "lucide-react-native";
 import { Platform, useWindowDimensions } from "react-native";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
@@ -47,10 +47,12 @@ export default function WalletLayout() {
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(Home) }} />
       <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: tabIcon(Inbox) }} />
       <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(ScanLine) }} />
+      <Tabs.Screen name="payment-wallet" options={{ title: "Wallet", tabBarIcon: tabIcon(CreditCard) }} />
       <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: tabIcon(Activity) }} />
       <Tabs.Screen name="credential" options={{ href: null }} />
       <Tabs.Screen name="offers" options={{ href: null }} />
       <Tabs.Screen name="payments" options={{ href: null }} />
+      <Tabs.Screen name="payment-result" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="backup" options={{ href: null }} />
     </Tabs>

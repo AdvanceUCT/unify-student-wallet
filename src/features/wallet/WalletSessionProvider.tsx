@@ -10,12 +10,15 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
+import { createOrLoadEthereumWallet, getEthereumAddress } from "@/src/features/payment/ethereumWallet";
+import { linkEthereumAddress } from "@/src/features/payment/paymentApi";
 import { clearVerificationActivity } from "@/src/features/verification/activityHistory";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
-import { loadHolderAgentRuntime } from "./holderAgentRuntime";
+import { credentialAttributeValue } from "./credentialMetadata";
+import { getStoredCredentialsLazy, loadHolderAgentRuntime } from "./holderAgentRuntime";
 import { useHolderAgent } from "./HolderAgentProvider";
 import { createPinSalt, hashPin, validateNewPin, validatePinConfirmation, verifyPin } from "./pin";
 import { getWalletRouteAccess, getWalletRouteHref, isRouteAllowedForAccess } from "./routeGuards";
@@ -123,6 +126,46 @@ function actionErrorFromUnknown(error: unknown, fallback: string): { ok: false; 
   }
 
   return { ok: false, error: fallback };
+}
+
+/** Links the device's Ethereum payment address to the student's number, if already known. Never blocks wallet creation. */
+async function linkPaymentWalletBestEffort() {
+  try {
+    const ethWallet = await createOrLoadEthereumWallet();
+    const credentials = await getStoredCredentialsLazy();
+    const studentNumber = credentialAttributeValue(credentials[0] ?? {}, "studentNumber", "studentId");
+    if (studentNumber) {
+      await linkEthereumAddress(studentNumber, ethWallet.address);
+    }
+  } catch (error) {
+    console.warn("[payment] Ethereum wallet link failed.", error);
+  }
+}
+
+/**
+ * Links the device's Ethereum payment address once the student's number is actually known.
+ *
+ * Wallet creation runs before any credential exists, so the earlier link attempt in
+ * createWallet() usually no-ops. Accepting the first credential offer is the first point
+ * studentNumber is available, so this retries the link then. Never blocks credential
+ * acceptance.
+ */
+async function linkPaymentWalletForCredential(credentialRecordId: string) {
+  try {
+    const ethAddress = await getEthereumAddress();
+    const credentials = await getStoredCredentialsLazy();
+    const accepted = credentials.find((credential) => credential.id === credentialRecordId);
+    const studentNumber = accepted && credentialAttributeValue(accepted, "studentNumber", "studentId");
+
+    if (ethAddress && studentNumber) {
+      const result = await linkEthereumAddress(studentNumber, ethAddress);
+      if (!result.ok) {
+        console.warn("[payment] Ethereum link failed.", result.error);
+      }
+    }
+  } catch (error) {
+    console.warn("[payment] Ethereum address linking failed.", error);
+  }
 }
 
 function activationRequestKey(request: ActivationLinkRequest) {
@@ -681,6 +724,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       };
 
       await persistState(nextState);
+      void linkPaymentWalletBestEffort();
 
       return { ok: true };
     },
@@ -730,6 +774,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         const runtime = await loadHolderAgentRuntime();
         await runtime.acceptCredentialOffer(credentialRecordId);
         await removePendingOfferId(credentialRecordId);
+        void linkPaymentWalletForCredential(credentialRecordId);
         router.replace("/(wallet)/credential");
         return { ok: true };
       } catch (error) {

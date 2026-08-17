@@ -509,7 +509,7 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
 }
 
 /** Initializes the native Credo agent for one wallet and provisions its mediator connection. */
-export async function initializeHolderAgent(
+export async function initializeHolderAgent(  
   config: HolderAgentConfig,
   importStore?: HolderAgentImport,
 ): Promise<HolderAgent | null> {
@@ -813,7 +813,7 @@ export async function resumeHolderAgentSession(walletId: string): Promise<Holder
  * @returns The new credential record created by this invitation.
  * @throws If the wallet is not ready, Credo is missing the needed APIs, or no new record appears in time.
  */
-export async function receiveCredentialOffer(invitationUrl: string): Promise<CredentialRecord> {
+export async function receiveCredentialOffer(invitationUrl: string): Promise<CredentialRecord> {  
   if (!agentRef) {
     throw new Error("Wallet has not been created yet.");
   }
@@ -1161,7 +1161,7 @@ export async function selectVerificationCredentials(
 }
 
 /** Presents the reviewed credential selection to the verifier. */
-export async function acceptVerificationProof(selection: VerificationProofSelection): Promise<void> {
+export async function acceptVerificationProof(selection: VerificationProofSelection): Promise<void> {  
   const proofs = agentRef?.didcomm?.proofs;
   if (!proofs?.acceptRequest) {
     throw new Error("Credo holder agent is missing proof presentation support.");

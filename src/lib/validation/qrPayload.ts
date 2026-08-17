@@ -44,7 +44,7 @@ function allowedVerificationHosts() {
   );
 }
 
-function isTrustedHttpsVerificationUrl(url: URL) {
+function isTrustedHttpsVerificationUrl(url: URL) {    
   // Host allowlisting alone is insufficient: reject downgraded URLs, alternate
   // ports, and embedded credentials before interpreting any path as a deep link.
   return (
@@ -62,7 +62,7 @@ export type CheckoutVerificationLink = {
 };
 
 /** Parses a trusted checkout URL and extracts its single-use claim capability. */
-export function parseCheckoutVerificationLink(rawValue: string) {
+export function parseCheckoutVerificationLink(rawValue: string) { 
   try {
     const url = new URL(rawValue.trim());
     let encodedId: string | undefined;

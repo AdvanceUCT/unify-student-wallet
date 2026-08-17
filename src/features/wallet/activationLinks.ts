@@ -62,7 +62,7 @@ function nonEmptyParam(url: URL, name: string) {
 }
 
 /** Accepts only configured activation hosts or the native UNIFY activation scheme. */
-export function parseActivationLink(rawUrl: string): ActivationLinkParseResult {
+export function parseActivationLink(rawUrl: string): ActivationLinkParseResult {  
   let url: URL;
 
   try {

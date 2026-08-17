@@ -1,0 +1,24 @@
+[
+  {
+    "type": "function",
+    "name": "pay",
+    "inputs": [
+      { "name": "vendor", "type": "address" },
+      { "name": "servicePointId", "type": "bytes32" }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "event",
+    "name": "PaymentProcessed",
+    "inputs": [
+      { "name": "student", "type": "address", "indexed": true },
+      { "name": "vendor", "type": "address", "indexed": true },
+      { "name": "originalAmount", "type": "uint256", "indexed": false },
+      { "name": "finalAmount", "type": "uint256", "indexed": false },
+      { "name": "discountApplied", "type": "bool", "indexed": false },
+      { "name": "servicePointId", "type": "bytes32", "indexed": false }
+    ]
+  }
+]
