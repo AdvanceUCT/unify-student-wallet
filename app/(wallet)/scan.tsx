@@ -13,7 +13,6 @@ import Animated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useR
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
-import { useQrPayment } from "@/src/features/payment/useQrPayment";
 import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
@@ -27,7 +26,6 @@ export default function ScanScreen() {
   const colors = useThemePalette();
   const { processIncomingLink } = useWalletSession();
   const { preloadRuntime } = useHolderAgent();
-  const { processPayment } = useQrPayment();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
   const [captureState, setCaptureState] = useState<"idle" | "captured" | "processing">("idle");
@@ -110,27 +108,13 @@ export default function ScanScreen() {
 
     const payment = parseQrPayload(rawPayload);
     if (payment.ok) {
-      const result = await processPayment(payment.data);
-      if (result.success) {
-        router.push({
-          pathname: "/(wallet)/payment-result",
-          params: {
-            amountPaid: result.amountPaid,
-            servicePointId: result.servicePointId,
-            txHash: result.txHash ?? "",
-            discountApplied: String(result.discountApplied),
-            paidAt: new Date().toISOString(),
-          },
-        });
-        return;
-      }
-
-      const paymentErrorMessages: Record<string, string> = {
-        not_verified: "Your credential must be active before making a payment.",
-        insufficient_balance: "Insufficient wallet balance. Contact your campus finance office to top up.",
-      };
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setScanError(paymentErrorMessages[result.error ?? ""] ?? "Payment could not be processed. Try again.");
+      router.push({
+        pathname: "/(wallet)/payment-amount",
+        params: {
+          vendorId: payment.data.vendorId,
+          servicePointId: payment.data.servicePointId,
+        },
+      });
       return;
     }
 

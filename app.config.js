@@ -16,6 +16,7 @@ module.exports = {
     studentRegistryAddress: process.env.EXPO_PUBLIC_STUDENT_REGISTRY_ADDRESS,
     walletBalanceAddress: process.env.EXPO_PUBLIC_WALLET_BALANCE_ADDRESS,
     studentPaymentAddress: process.env.EXPO_PUBLIC_STUDENT_PAYMENT_ADDRESS,
+    vendorEthAddress: process.env.EXPO_PUBLIC_VENDOR_ETH_ADDRESS,
   },
   plugins: [
     ...(appJson.expo.plugins ?? []),

@@ -5,7 +5,7 @@
 
 import { router, useLocalSearchParams } from "expo-router";
 import { CheckCircle } from "lucide-react-native";
-import { View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
@@ -14,6 +14,7 @@ import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { spacing } from "@/src/theme/spacing";
+import { typography } from "@/src/theme/typography";
 
 function truncateTxHash(txHash: string) {
   return `${txHash.slice(0, 10)}...${txHash.slice(-6)}`;
@@ -53,6 +54,23 @@ export default function PaymentResultScreen() {
         <InfoRow divider label="Transaction" value={txHash ? truncateTxHash(txHash) : "—"} />
         <InfoRow label="Network" value="Sepolia testnet" />
       </Card>
+
+      {txHash ? (
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => void Linking.openURL(`https://sepolia.etherscan.io/tx/${txHash}`)}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingVertical: spacing.md,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={typography.body}>View transaction</Text>
+          <Text style={[typography.bodyStrong, { color: colors.primary }]}>sepolia.etherscan.io →</Text>
+        </Pressable>
+      ) : null}
     </AppScreen>
   );
 }

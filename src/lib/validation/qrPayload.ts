@@ -9,8 +9,10 @@ const paymentQrPayloadSchema = z.object({
   type: z.literal("payment"),
   vendorId: z.string().min(1),
   servicePointId: z.string().min(1),
-  nonce: z.string().min(1),
-  amount: z.number().nonnegative(),
+  // The static vendor payment QR carries neither field: the wallet generates
+  // the nonce and the student enters the amount at payment time.
+  nonce: z.string().min(1).optional(),
+  amount: z.number().nonnegative().optional(),
 });
 
 export type QrPayload = z.infer<typeof paymentQrPayloadSchema>;

@@ -22,6 +22,23 @@ describe("parseQrPayload", () => {
     }
   });
 
+  it("accepts a static vendor payment payload with no amount or nonce", () => {
+    const result = parseQrPayload(
+      JSON.stringify({
+        type: "payment",
+        vendorId: "vendor-001",
+        servicePointId: "library-cafe",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.vendorId).toBe("vendor-001");
+      expect(result.data.amount).toBeUndefined();
+      expect(result.data.nonce).toBeUndefined();
+    }
+  });
+
   it("rejects legacy verification JSON containing vendor and nonce data", () => {
     const result = parseQrPayload(
       JSON.stringify({
