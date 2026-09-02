@@ -17,7 +17,7 @@ import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import { parseCheckoutVerificationLink, parseQrPayload, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -91,6 +91,15 @@ export default function ScanScreen() {
         return;
       }
       router.push("/(wallet)/offers");
+      return;
+    }
+
+    const payment = parseQrPayload(rawPayload);
+    if (payment.ok) {
+      router.push({
+        pathname: "/(wallet)/payment-amount",
+        params: { vendorId: payment.data.vendorId, servicePointId: payment.data.servicePointId },
+      });
       return;
     }
 

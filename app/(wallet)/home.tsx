@@ -6,13 +6,14 @@
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import { Activity as ActivityIcon, ArrowRight, QrCode, Settings } from "lucide-react-native";
+import { Activity as ActivityIcon, ArrowRight, ChevronRight, QrCode, Settings, Wallet as WalletIcon } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AnimatedEntry } from "@/src/components/AnimatedEntry";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { Card } from "@/src/components/Card";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { EmptyState } from "@/src/components/EmptyState";
 import { IconButton } from "@/src/components/IconButton";
@@ -22,6 +23,7 @@ import { StatusPill } from "@/src/components/StatusPill";
 import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
 import { verificationOutcomeLabel } from "@/src/features/verification/verificationOutcome";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { useWallet } from "@/src/features/payment/useWallet";
 import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
@@ -39,6 +41,7 @@ export default function HomeScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { pendingOfferIds, session } = useWalletSession();
   const holderAgent = useHolderAgent();
+  const { balanceCents, balanceZar, isLoading: isWalletLoading, hasCredential } = useWallet();
   const [recentActivity, setRecentActivity] = useState<VerificationActivityRecord[]>([]);
 
   const credentialsQuery = useQuery({
@@ -121,6 +124,31 @@ export default function HomeScreen() {
             />
           )}
         </View>
+
+        <Pressable
+          accessibilityLabel="Open campus wallet"
+          accessibilityRole="button"
+          onPress={() => router.push("/(wallet)/payment-wallet")}
+        >
+          <Card elevation="sm">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <WalletIcon color={colors.primary} size={20} strokeWidth={1.9} />
+              <View style={{ flex: 1, gap: 1, minWidth: 0 }}>
+                <Text style={typography.bodyStrong}>Campus wallet</Text>
+                {isWalletLoading ? (
+                  <Text style={typography.caption}>Loading...</Text>
+                ) : !hasCredential ? (
+                  <Text style={typography.caption}>Activate credential first</Text>
+                ) : balanceCents > 0 ? (
+                  <Text style={[typography.caption, { color: colors.success }]}>{`${balanceZar} available`}</Text>
+                ) : (
+                  <Text style={typography.caption}>R 0.00 — top up to get started</Text>
+                )}
+              </View>
+              <ChevronRight color={colors.inkSubtle} size={20} strokeWidth={1.5} />
+            </View>
+          </Card>
+        </Pressable>
 
         {credentials.length > 0 && holderAgent.status === "ready" && !credentialsQuery.isLoading ? (
           <AnimatedEntry delay={motion.stagger * 2}>
