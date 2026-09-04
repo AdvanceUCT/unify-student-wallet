@@ -24,7 +24,7 @@ import { typography } from "@/src/theme/typography";
 
 export default function ScanScreen() {
   const colors = useThemePalette();
-  const { processIncomingLink } = useWalletSession();
+  const { processIncomingLink, setPendingCheckoutVerification } = useWalletSession();
   const { preloadRuntime } = useHolderAgent();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
@@ -96,6 +96,10 @@ export default function ScanScreen() {
 
     const checkout = parseCheckoutVerificationLink(rawPayload);
     if (checkout.ok) {
+      await setPendingCheckoutVerification({
+        verificationRequestId: checkout.verificationRequestId,
+        claimToken: checkout.claimToken,
+      });
       router.navigate(
         {
           pathname: "/verify/checkout/[verificationRequestId]",
