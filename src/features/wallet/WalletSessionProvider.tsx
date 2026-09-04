@@ -10,6 +10,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
+import { clearPaymentSession } from "@/src/features/payment/paymentSession";
 import { clearVerificationActivity } from "@/src/features/verification/activityHistory";
 import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 
@@ -1008,9 +1009,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [persistState, state]);
 
   const signOut = useCallback(async () => {
-    await clearWalletSessionState();
-    await clearVerificationActivity();
-    await resetAgent();
+    const cleanupResults = await Promise.allSettled([
+      clearWalletSessionState(),
+      clearPaymentSession(),
+      clearVerificationActivity(),
+      resetAgent(),
+    ]);
     firstRunSetupDraftRef.current = null;
     firstRunSetupPromiseRef.current = null;
     setFirstRunSetupError(undefined);
@@ -1028,6 +1032,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       pendingVerificationPublicServicePointId: undefined,
       session: signedOutSession,
     }));
+
+    const failedCleanup = cleanupResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failedCleanup) throw failedCleanup.reason;
   }, [resetAgent]);
 
   const value = useMemo<WalletSessionContextValue>(

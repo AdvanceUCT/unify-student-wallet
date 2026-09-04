@@ -126,7 +126,7 @@ describe("wallet creation flow", () => {
     expect(persistedValues).not.toContain("https://issuer.advanceuct.test/oob");
   });
 
-  it("clears wallet session and private verification activity on sign-out", async () => {
+  it("clears wallet, payment, and private verification state on sign-out", async () => {
     mockSecureValues.set("unify.wallet.session.v1", JSON.stringify({
       biometricEnabled: false,
       changePinAttempts: 0,
@@ -134,6 +134,7 @@ describe("wallet creation flow", () => {
       onboardingCompleted: true,
       session: { authStatus: "signedIn", lockStatus: "unlocked", pendingOfferIds: [], walletId: "wallet-uuid-001" },
     }));
+    mockSecureValues.set("unify.payment.session.v1", "payment bearer session");
     mockSecureValues.set("unify.verification.activity.v1", "private activity");
 
     render(
@@ -150,6 +151,7 @@ describe("wallet creation flow", () => {
     });
 
     expect(mockSecureValues.has("unify.wallet.session.v1")).toBe(false);
+    expect(mockSecureValues.has("unify.payment.session.v1")).toBe(false);
     expect(mockSecureValues.has("unify.verification.activity.v1")).toBe(false);
   });
 
