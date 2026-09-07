@@ -23,6 +23,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   insufficient_balance: "Insufficient balance. Top up your wallet and try again.",
   wallet_disabled: "Payments are currently unavailable. Please try again later.",
   session_expired: "Your session expired. Please try again.",
+  no_session: "Please accept your student credential to activate payments.",
 };
 
 export default function PaymentConfirmScreen() {

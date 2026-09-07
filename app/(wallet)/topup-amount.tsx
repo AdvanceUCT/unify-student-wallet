@@ -4,7 +4,7 @@
  */
 
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -22,14 +22,10 @@ const QUICK_AMOUNTS = ["50", "100", "200", "500"];
 
 export default function TopUpAmountScreen() {
   const colors = useThemePalette();
-  const { balanceZar, hasCredential } = useWallet();
+  const { balanceZar } = useWallet();
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!hasCredential) router.replace("/(wallet)/payment-wallet");
-  }, [hasCredential]);
 
   const parsed = parseFloat(amount);
   const isValidAmount = Number.isFinite(parsed) && parsed > 0;

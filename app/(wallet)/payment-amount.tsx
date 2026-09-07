@@ -23,33 +23,7 @@ export default function PaymentAmountScreen() {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (!hasCredential) {
-    return (
-      <AppScreen>
-        <View style={{ gap: spacing.xl }}>
-          <ScreenHeader eyebrow="Payment" title="How much?" />
-          <Card>
-            <Text style={typography.body}>You need an active student credential to make payments.</Text>
-          </Card>
-          <AppButton label="Go back" onPress={() => router.back()} />
-        </View>
-      </AppScreen>
-    );
-  }
-
-  if (!isActive) {
-    return (
-      <AppScreen>
-        <View style={{ gap: spacing.xl }}>
-          <ScreenHeader eyebrow="Payment" title="How much?" />
-          <Card>
-            <Text style={typography.body}>Your wallet is not yet active. Accept your student credential first.</Text>
-          </Card>
-          <AppButton label="Go back" onPress={() => router.back()} />
-        </View>
-      </AppScreen>
-    );
-  }
+  const credentialNotReady = !hasCredential || !isActive;
 
   const parsed = parseFloat(amount);
   const isValidAmount = Number.isFinite(parsed) && parsed > 0;
@@ -77,10 +51,19 @@ export default function PaymentAmountScreen() {
       <View style={{ gap: spacing.xl }}>
         <ScreenHeader eyebrow="Payment" title="How much?" meta={`Paying at ${servicePointId}`} />
 
+        {credentialNotReady ? (
+          <Card elevation="sm">
+            <Text style={typography.body}>
+              Your wallet activates once you accept your student credential. You can keep going, but paying will need
+              that first.
+            </Text>
+          </Card>
+        ) : null}
+
         <Card>
           <View style={{ gap: spacing.sm }}>
             <Text style={typography.body}>{`Available balance: ${balanceZar}`}</Text>
-            {balanceCents === 0 ? (
+            {balanceCents === 0 && !credentialNotReady ? (
               <>
                 <Text style={[typography.caption, { color: colors.warning }]}>Your balance is R 0.00. Top up before paying.</Text>
                 <AppButton label="Top up now" onPress={() => router.push("/(wallet)/topup-amount")} />

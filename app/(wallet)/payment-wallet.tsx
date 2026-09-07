@@ -79,7 +79,6 @@ export default function PaymentWalletScreen() {
           <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
             <View style={{ flex: 1 }}>
               <AppButton
-                disabled={!hasCredential}
                 label="Top up"
                 onPress={() => router.push("/(wallet)/topup-amount")}
                 variant="primary"
@@ -87,7 +86,6 @@ export default function PaymentWalletScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <AppButton
-                disabled={!hasCredential || !isActive}
                 label="Scan to pay"
                 onPress={() => router.push("/(wallet)/scan")}
                 variant="secondary"
