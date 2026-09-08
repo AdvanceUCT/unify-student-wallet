@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import { VerificationFlowScreen } from "@/src/features/verification/VerificationFlowScreen";
+import { clearAllCheckoutPreparationsForTests } from "@/src/features/verification/checkoutPreparationCoordinator";
 import { WalletVerificationError } from "@/src/features/verification/verificationErrors";
 import { ApiClientError } from "@/src/lib/api/apiClient";
 
@@ -126,6 +127,7 @@ jest.mock("@/src/lib/api/verification", () => ({
 
 describe("checkout verification readiness", () => {
   beforeEach(() => {
+    clearAllCheckoutPreparationsForTests();
     jest.clearAllMocks();
     mockPendingCheckout = {
       verificationRequestId: "verification-001",
@@ -143,6 +145,27 @@ describe("checkout verification readiness", () => {
       expiresAt: claimedSession.expiresAt,
       completedAt: "2026-08-08T12:01:00.000Z",
     });
+  });
+
+  it("shares checkout preparation across duplicate route consumers", async () => {
+    let resolveProof!: (proof: { id: string }) => void;
+    mockEnsureWalletReady.mockResolvedValue(null);
+    mockReceiveProof.mockReturnValueOnce(new Promise((resolve) => { resolveProof = resolve; }));
+
+    const screen = render(
+      <>
+        <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />
+        <VerificationFlowScreen target={{ kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }} />
+      </>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Receiving request")).toHaveLength(2));
+    expect(mockClaimCheckoutSession).toHaveBeenCalledTimes(1);
+    expect(mockReceiveProof).toHaveBeenCalledTimes(1);
+
+    resolveProof({ id: "proof-001" });
+    await waitFor(() => expect(screen.getAllByText("Review before sharing")).toHaveLength(2));
+    expect(mockSelectCredentials).toHaveBeenCalledTimes(1);
   });
 
   it("does not consume the checkout claim until the holder wallet is ready", async () => {
@@ -196,12 +219,12 @@ describe("checkout verification readiness", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Receiving request")).toBeTruthy());
-    expect(mockSuspendAutoLock).toHaveBeenCalledWith("verification-flow");
+    expect(mockSuspendAutoLock).toHaveBeenCalledWith(expect.stringMatching(/^verification-flow:/));
     resolveProof({ id: "proof-001" });
     await waitFor(() => expect(screen.getByText("Matching credential")).toBeTruthy());
     resolveSelection({ proofRecordId: "proof-001", proofFormats: { anoncreds: {} }, values: { studentNumber: "STU001" } });
     await waitFor(() => expect(screen.getByText("Review before sharing")).toBeTruthy());
-    expect(mockResumeAutoLock).toHaveBeenCalledWith("verification-flow");
+    expect(mockResumeAutoLock).toHaveBeenCalledWith(expect.stringMatching(/^verification-flow:/));
   });
 
   it("clears the local pending flow when the student chooses Not now", async () => {
