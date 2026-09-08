@@ -77,6 +77,9 @@ describe("wallet navigation theme", () => {
     expect(screen.getByTestId("tab-credential").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-offers").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-payments").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-amount").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-confirm").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-result").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-backup").props.children).toBe("hidden");
   });
 });

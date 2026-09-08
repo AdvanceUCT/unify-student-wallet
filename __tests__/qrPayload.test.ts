@@ -1,44 +1,38 @@
 import {
   parseCheckoutVerificationLink,
-  parseQrPayload,
+  parsePaymentLink,
   parseVerificationLink,
 } from "@/src/lib/validation/qrPayload";
 
-describe("parseQrPayload", () => {
-  it("accepts a valid service-point payment payload", () => {
-    const result = parseQrPayload(
+describe("parsePaymentLink", () => {
+  it("accepts an opaque branch payment link", () => {
+    expect(parsePaymentLink("unifywallet://pay/branch_qr-001")).toEqual({
+      ok: true,
+      qrIdentifier: "branch_qr-001",
+    });
+  });
+
+  it("rejects legacy JSON containing vendor-controlled payment details", () => {
+    expect(parsePaymentLink(
       JSON.stringify({
         vendorId: "vendor-001",
         servicePointId: "library-cafe",
         type: "payment",
         amount: 42.5,
-        nonce: "demo-nonce",
       }),
-    );
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.servicePointId).toBe("library-cafe");
-    }
+    ).ok).toBe(false);
   });
 
-  it("rejects legacy verification JSON containing vendor and nonce data", () => {
-    const result = parseQrPayload(
-      JSON.stringify({
-        vendorId: "vendor-001",
-        servicePointId: "main-library",
-        type: "verification",
-        nonce: "proof-request-nonce",
-      }),
-    );
-
-    expect(result.ok).toBe(false);
-  });
-
-  it("rejects malformed payloads", () => {
-    const result = parseQrPayload("not-json");
-
-    expect(result.ok).toBe(false);
+  it.each([
+    "not-a-link",
+    "unifywallet://payment/branch_qr-001",
+    "unifywallet://pay/short",
+    "unifywallet://pay/branch_qr-001/extra",
+    "unifywallet://pay/branch_qr-001?amount=42.50",
+    "unifywallet://pay/branch_qr-001#vendor",
+    "https://voskuils.com/pay/branch_qr-001",
+  ])("rejects an unsupported or data-bearing payment link: %s", (value) => {
+    expect(parsePaymentLink(value).ok).toBe(false);
   });
 });
 

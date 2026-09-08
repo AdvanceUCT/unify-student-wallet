@@ -3,32 +3,42 @@
  * @module lib/validation/qrPayload
  */
 
-import { z } from "zod";
-
-const paymentQrPayloadSchema = z.object({
-  type: z.literal("payment"),
-  vendorId: z.string().min(1),
-  servicePointId: z.string().min(1),
-  nonce: z.string().min(1),
-  amount: z.number().nonnegative(),
-});
-
-export type QrPayload = z.infer<typeof paymentQrPayloadSchema>;
-
-/** Classifies a scanned value without treating arbitrary text as a trusted deep link. */
-export function parseQrPayload(rawPayload: string) {
-  try {
-    const result = paymentQrPayloadSchema.safeParse(JSON.parse(rawPayload) as unknown);
-    return result.success
-      ? { ok: true as const, data: result.data }
-      : { ok: false as const, error: result.error };
-  } catch (error) {
-    return { ok: false as const, error };
-  }
-}
-
 const PUBLIC_SERVICE_POINT_ID = /^[A-Za-z0-9_-]+$/;
 const CHECKOUT_CLAIM_TOKEN = /^[A-Za-z0-9_-]{20,256}$/;
+const PAYMENT_QR_IDENTIFIER = /^[A-Za-z0-9_-]{8,128}$/;
+
+/** Checks an opaque branch identifier before it is used in an API path. */
+export function isPaymentQrIdentifier(value: string) {
+  return PAYMENT_QR_IDENTIFIER.test(value);
+}
+
+/** Parses a payment QR without accepting embedded amounts, vendor data, or secrets. */
+export function parsePaymentLink(rawValue: string) {
+  try {
+    const url = new URL(rawValue.trim());
+    const segments = url.pathname.split("/").filter(Boolean);
+
+    if (
+      url.protocol !== "unifywallet:" ||
+      url.hostname !== "pay" ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.search ||
+      url.hash ||
+      segments.length !== 1
+    ) {
+      return { ok: false as const };
+    }
+
+    const qrIdentifier = decodeURIComponent(segments[0]);
+    if (!isPaymentQrIdentifier(qrIdentifier)) return { ok: false as const };
+
+    return { ok: true as const, qrIdentifier };
+  } catch {
+    return { ok: false as const };
+  }
+}
 
 function allowedVerificationHosts() {
   const configured: string =
