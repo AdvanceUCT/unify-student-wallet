@@ -10,6 +10,7 @@ import SettingsScreen from "@/app/(wallet)/settings";
 
 const mockRequestPermission = jest.fn();
 const mockSetThemePreference = jest.fn(async () => undefined);
+const mockIsPaymentOnline = jest.fn(async () => true);
 let mockCameraGranted = false;
 let mockRecentActivity: Array<{
   id: string;
@@ -98,6 +99,10 @@ jest.mock("expo-haptics", () => ({
   NotificationFeedbackType: { Warning: "warning" },
 }));
 
+jest.mock("@/src/features/payment/network", () => ({
+  isPaymentOnline: () => mockIsPaymentOnline(),
+}));
+
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
@@ -129,6 +134,7 @@ describe("wallet screens", () => {
     jest.clearAllMocks();
     mockWalletSession.pendingOfferIds = [];
     mockCameraGranted = false;
+    mockIsPaymentOnline.mockResolvedValue(true);
     mockRecentActivity = [];
     mockStoredCredentials = [];
     mockPendingOffers = [];
@@ -366,6 +372,36 @@ describe("wallet screens", () => {
     expect(screen.getByText("Code captured")).toBeTruthy();
 
     await waitFor(() => expect(routerMock.push).toHaveBeenCalledTimes(1));
+  });
+
+  it("starts an opaque vendor payment flow only once", async () => {
+    mockCameraGranted = true;
+    const routerMock = jest.requireMock("expo-router").router as { push: jest.Mock };
+    const screen = render(<ScanScreen />);
+    const camera = screen.getByTestId("camera-view");
+
+    fireEvent(camera, "barcodeScanned", { data: "unifywallet://pay/branch_qr-001" });
+    fireEvent(camera, "barcodeScanned", { data: "unifywallet://pay/branch_qr-001" });
+
+    await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith({
+      pathname: "/(wallet)/payment-amount",
+      params: { qrIdentifier: "branch_qr-001" },
+    }));
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a payment QR while offline without navigating", async () => {
+    mockCameraGranted = true;
+    mockIsPaymentOnline.mockResolvedValueOnce(false);
+    const routerMock = jest.requireMock("expo-router").router as { push: jest.Mock };
+    const screen = render(<ScanScreen />);
+
+    fireEvent(screen.getByTestId("camera-view"), "barcodeScanned", {
+      data: "unifywallet://pay/branch_qr-001",
+    });
+
+    await waitFor(() => expect(screen.getByText("Payments need an internet connection. Reconnect, then scan again.")).toBeTruthy());
+    expect(routerMock.push).not.toHaveBeenCalled();
   });
 
   it("changes the persisted appearance preference from settings", async () => {

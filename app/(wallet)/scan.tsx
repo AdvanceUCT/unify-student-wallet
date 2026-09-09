@@ -17,7 +17,8 @@ import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import { isPaymentOnline } from "@/src/features/payment/network";
+import { parseCheckoutVerificationLink, parsePaymentLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -94,6 +95,20 @@ export default function ScanScreen() {
       return;
     }
 
+    const payment = parsePaymentLink(rawPayload);
+    if (payment.ok) {
+      if (!(await isPaymentOnline())) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setScanError("Payments need an internet connection. Reconnect, then scan again.");
+        return;
+      }
+      router.push({
+        pathname: "/(wallet)/payment-amount",
+        params: { qrIdentifier: payment.qrIdentifier },
+      });
+      return;
+    }
+
     const checkout = parseCheckoutVerificationLink(rawPayload);
     if (checkout.ok) {
       await setPendingCheckoutVerification({
@@ -120,7 +135,7 @@ export default function ScanScreen() {
     }
 
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setScanError("This is not a supported UNIFY activation or verification QR code.");
+    setScanError("This is not a supported UNIFY activation, verification, or payment QR code.");
   }
 
   return (
@@ -132,7 +147,7 @@ export default function ScanScreen() {
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.lg }}>
             <View style={{ width: 72, height: 72, borderRadius: radii.pill, borderWidth: 1, borderColor: "#496058", alignItems: "center", justifyContent: "center" }}><Camera color={colors.cameraInk} size={30} /></View>
             <Text style={[typography.title, { color: colors.cameraInk, textAlign: "center" }]}>Camera access needed</Text>
-            <Text style={[typography.body, { color: "#C5D0CB", textAlign: "center", maxWidth: 320 }]}>UNIFY uses the camera only to read activation and verification QR codes.</Text>
+            <Text style={[typography.body, { color: "#C5D0CB", textAlign: "center", maxWidth: 320 }]}>UNIFY uses the camera only to read activation, verification, and payment QR codes.</Text>
             <AppButton label="Allow camera" onPress={() => void requestPermission()} />
           </View>
         )}
