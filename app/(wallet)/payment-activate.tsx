@@ -17,7 +17,7 @@ import {
   verifyPaymentActivation,
   type PaymentActivationChallenge,
 } from "@/src/features/payment/paymentApi";
-import { paymentFailure } from "@/src/features/payment/paymentErrors";
+import { paymentActivationFailure } from "@/src/features/payment/paymentErrors";
 import {
   getOrCreatePaymentDeviceId,
   savePaymentSession,
@@ -55,7 +55,7 @@ export default function PaymentActivateScreen() {
       setChallenge(nextChallenge);
       setStage("otp");
     } catch (caught) {
-      const failure = paymentFailure(caught);
+      const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
       setBusy(false);
@@ -81,7 +81,7 @@ export default function PaymentActivateScreen() {
       await savePaymentSession(session);
       router.replace("/(wallet)/payments");
     } catch (caught) {
-      const failure = paymentFailure(caught);
+      const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
       setBusy(false);

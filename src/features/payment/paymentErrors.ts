@@ -73,6 +73,10 @@ const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcome
     title: "Payment session expired",
     message: "Reactivate your payment wallet before trying this payment again.",
   },
+  PAYMENT_OTP_DELIVERY_FAILED: {
+    title: "Activation code not sent",
+    message: "The activation code could not be sent. Ask the team to check the preview email setup, then try again.",
+  },
   PAYMENT_WALLET_DISABLED: {
     title: "Payments unavailable",
     message: "Wallet payments are temporarily unavailable. No payment was made.",
@@ -110,4 +114,21 @@ export function paymentFailure(error: unknown): PaymentFailure {
     message: "We could not confirm the outcome. Retry this payment using the same request reference.",
     outcomeUnknown: true,
   };
+}
+
+export function paymentActivationFailure(error: unknown): PaymentFailure {
+  const failure = paymentFailure(error);
+  if (
+    error instanceof ApiClientError &&
+    !error.code &&
+    (error.kind === "network" || error.kind === "timeout" || (error.status !== undefined && error.status >= 500))
+  ) {
+    return {
+      title: "Activation not confirmed",
+      message: "We could not confirm the activation request. Reconnect and try sending the code again.",
+      requestId: failure.requestId,
+      outcomeUnknown: true,
+    };
+  }
+  return failure;
 }
