@@ -1,4 +1,9 @@
-import { clearPaymentSession, loadPaymentSession } from "@/src/features/payment/paymentSession";
+import {
+  clearPaymentSession,
+  loadPaymentDeviceId,
+  loadPaymentSession,
+  savePaymentSession,
+} from "@/src/features/payment/paymentSession";
 import { ApiClientError, paymentApiClient } from "@/src/lib/api/apiClient";
 
 jest.mock("expo-crypto", () => ({
@@ -7,7 +12,9 @@ jest.mock("expo-crypto", () => ({
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
   clearPaymentSession: jest.fn(),
+  loadPaymentDeviceId: jest.fn(),
   loadPaymentSession: jest.fn(),
+  savePaymentSession: jest.fn(),
 }));
 
 const originalFetch = global.fetch;
@@ -27,8 +34,12 @@ describe("payment API client", () => {
     process.env.EXPO_PUBLIC_UNIFY_PAYMENT_API_BASE_URL = "https://portal.example/";
     jest.mocked(loadPaymentSession).mockResolvedValue({
       accessToken: "payment-token",
-      expiresAt: "2099-01-01T00:00:00.000Z",
+      accessExpiresAt: "2099-01-01T00:00:00.000Z",
+      refreshToken: "payment-refresh-token",
+      refreshExpiresAt: "2099-01-02T00:00:00.000Z",
+      sessionId: "session-001",
     });
+    jest.mocked(loadPaymentDeviceId).mockResolvedValue("device-001");
     global.fetch = jest.fn();
   });
 
@@ -143,15 +154,48 @@ describe("payment API client", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("clears an unauthorized session and preserves the response request ID", async () => {
+  it("refreshes once after an unauthorized payment response and retries the request", async () => {
+    const refreshedSession = {
+      accessToken: "fresh-payment-token",
+      accessExpiresAt: "2099-01-01T00:15:00.000Z",
+      refreshToken: "fresh-refresh-token",
+      refreshExpiresAt: "2099-01-02T00:00:00.000Z",
+      sessionId: "session-001",
+    };
+    jest.mocked(global.fetch)
+      .mockResolvedValueOnce(mockResponse({ error: { message: "Session expired." } }, 401, "portal-request-401"))
+      .mockResolvedValueOnce(mockResponse(refreshedSession))
+      .mockResolvedValueOnce(mockResponse({ balanceMinor: 5000 }));
+
+    await expect(paymentApiClient.get("/api/wallet/balance")).resolves.toEqual({ balanceMinor: 5000 });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "https://portal.example/api/wallet/v1/sessions/refresh",
+      expect.objectContaining({
+        body: JSON.stringify({ refreshToken: "payment-refresh-token", sessionId: "session-001", deviceId: "device-001" }),
+        method: "POST",
+      }),
+    );
+    expect(savePaymentSession).toHaveBeenCalledWith(refreshedSession);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://portal.example/api/wallet/balance",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer fresh-payment-token" }),
+      }),
+    );
+  });
+
+  it("clears the local session when refresh cannot run", async () => {
+    jest.mocked(loadPaymentDeviceId).mockResolvedValueOnce(null);
     jest.mocked(global.fetch).mockResolvedValueOnce(
       mockResponse({ error: { message: "Session expired." } }, 401, "portal-request-401"),
     );
 
     await expect(paymentApiClient.get("/api/wallet/balance")).rejects.toMatchObject({
+      code: "PAYMENT_SESSION_REQUIRED",
       kind: "auth",
-      requestId: "portal-request-401",
-      status: 401,
     });
     expect(clearPaymentSession).toHaveBeenCalledTimes(1);
   });

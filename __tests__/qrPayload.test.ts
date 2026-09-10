@@ -1,6 +1,7 @@
 import {
   parseCheckoutVerificationLink,
   parsePaymentLink,
+  parseTopUpReturnLink,
   parseVerificationLink,
 } from "@/src/lib/validation/qrPayload";
 
@@ -33,6 +34,23 @@ describe("parsePaymentLink", () => {
     "https://voskuils.com/pay/branch_qr-001",
   ])("rejects an unsupported or data-bearing payment link: %s", (value) => {
     expect(parsePaymentLink(value).ok).toBe(false);
+  });
+});
+
+describe("parseTopUpReturnLink", () => {
+  it("parses only a top-up id from the untrusted browser return link", () => {
+    expect(parseTopUpReturnLink("unifywallet://topup-return?topUpId=topup-001")).toEqual({
+      ok: true,
+      topUpId: "topup-001",
+    });
+  });
+
+  it.each([
+    "unifywallet://topup-return?topUpId=topup-001&status=success",
+    "unifywallet://topup-return?topUpId=topup-001#paid",
+    "https://wallet.example/topup-return?topUpId=topup-001",
+  ])("rejects data-bearing or non-wallet top-up return links: %s", (value) => {
+    expect(parseTopUpReturnLink(value).ok).toBe(false);
   });
 });
 

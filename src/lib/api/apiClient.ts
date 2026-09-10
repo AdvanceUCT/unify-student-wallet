@@ -5,7 +5,13 @@
 
 import * as Crypto from "expo-crypto";
 
-import { clearPaymentSession, loadPaymentSession } from "@/src/features/payment/paymentSession";
+import {
+  clearPaymentSession,
+  loadPaymentDeviceId,
+  loadPaymentSession,
+  savePaymentSession,
+  type PaymentSession,
+} from "@/src/features/payment/paymentSession";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const SAFE_READ_RETRY_DELAYS_MS = [250, 750] as const;
@@ -201,13 +207,20 @@ const agentTransport: TransportConfig = {
 const paymentTransport: TransportConfig = {
   baseUrl: getPaymentApiBaseUrl,
   networkErrorMessage: "The payment service is unavailable.",
-  onUnauthorized: clearPaymentSession,
   retrySafeReads: true,
   timeoutErrorMessage: "The payment service timed out.",
 };
 
+const paymentRefreshTransport: TransportConfig = {
+  baseUrl: getPaymentApiBaseUrl,
+  networkErrorMessage: "The payment service is unavailable.",
+  timeoutErrorMessage: "The payment service timed out.",
+};
+
+let paymentRefreshPromise: Promise<PaymentSession> | null = null;
+
 async function paymentAccessToken() {
-  const session = await loadPaymentSession();
+  const session = await loadPaymentSession({ allowExpired: true });
   if (!session) {
     throw new ApiClientError(
       "Payment wallet activation is required.",
@@ -217,6 +230,107 @@ async function paymentAccessToken() {
     );
   }
   return session.accessToken;
+}
+
+function sessionFromRefreshResponse(value: unknown): PaymentSession {
+  const response = value as {
+    accessToken?: unknown;
+    accessExpiresAt?: unknown;
+    refreshToken?: unknown;
+    refreshExpiresAt?: unknown;
+    sessionId?: unknown;
+  };
+  const session = {
+    accessToken: typeof response.accessToken === "string" ? response.accessToken : "",
+    accessExpiresAt: typeof response.accessExpiresAt === "string" ? response.accessExpiresAt : "",
+    refreshToken: typeof response.refreshToken === "string" ? response.refreshToken : "",
+    refreshExpiresAt: typeof response.refreshExpiresAt === "string" ? response.refreshExpiresAt : "",
+    sessionId: typeof response.sessionId === "string" ? response.sessionId : "",
+  };
+  if (
+    !session.accessToken ||
+    !session.accessExpiresAt ||
+    !session.refreshToken ||
+    !session.refreshExpiresAt ||
+    !session.sessionId ||
+    !Number.isFinite(Date.parse(session.accessExpiresAt)) ||
+    !Number.isFinite(Date.parse(session.refreshExpiresAt))
+  ) {
+    throw new ApiClientError(
+      "The payment service returned an invalid session.",
+      "http",
+      502,
+      "INVALID_PAYMENT_SESSION",
+    );
+  }
+  return session;
+}
+
+async function refreshPaymentSession() {
+  if (paymentRefreshPromise) return paymentRefreshPromise;
+
+  paymentRefreshPromise = (async () => {
+    const current = await loadPaymentSession({ allowExpired: true });
+    const deviceId = await loadPaymentDeviceId();
+    if (!current || !deviceId) {
+      await clearPaymentSession();
+      throw new ApiClientError(
+        "Payment wallet activation is required.",
+        "auth",
+        undefined,
+        "PAYMENT_SESSION_REQUIRED",
+      );
+    }
+
+    try {
+      const response = await request<unknown>(
+        paymentRefreshTransport,
+        "/api/wallet/v1/sessions/refresh",
+        {
+          body: { refreshToken: current.refreshToken, sessionId: current.sessionId, deviceId },
+          method: "POST",
+        },
+      );
+      const next = sessionFromRefreshResponse(response);
+      await savePaymentSession(next);
+      return next;
+    } catch (error) {
+      await clearPaymentSession();
+      throw error;
+    } finally {
+      paymentRefreshPromise = null;
+    }
+  })();
+
+  return paymentRefreshPromise;
+}
+
+async function paymentAuthenticatedRequest<T>(
+  method: "GET" | "POST",
+  path: string,
+  options: { body?: object; signal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const run = async (accessToken: string) => request<T>(paymentTransport, path, {
+    accessToken,
+    body: options.body,
+    method,
+    signal: options.signal,
+    timeoutMs: options.timeoutMs,
+  });
+
+  try {
+    return await run(await paymentAccessToken());
+  } catch (error) {
+    if (
+      error instanceof ApiClientError &&
+      error.status === 401 &&
+      !options.signal?.aborted
+    ) {
+      const refreshed = await refreshPaymentSession();
+      return run(refreshed.accessToken);
+    }
+    throw error;
+  }
 }
 
 export const apiClient = {
@@ -235,18 +349,15 @@ export const apiClient = {
 
 export const paymentApiClient = {
   async get<T>(path: string, options: { signal?: AbortSignal; timeoutMs?: number } = {}) {
-    return request<T>(paymentTransport, path, {
-      accessToken: await paymentAccessToken(),
-      method: "GET",
-      ...options,
-    });
+    return paymentAuthenticatedRequest<T>("GET", path, options);
   },
   async post<T>(path: string, body: object, options: { signal?: AbortSignal; timeoutMs?: number } = {}) {
-    return request<T>(paymentTransport, path, {
-      accessToken: await paymentAccessToken(),
-      body,
-      method: "POST",
-      ...options,
-    });
+    return paymentAuthenticatedRequest<T>("POST", path, { ...options, body });
+  },
+};
+
+export const paymentPublicApiClient = {
+  async post<T>(path: string, body: object, options: { signal?: AbortSignal; timeoutMs?: number } = {}) {
+    return request<T>(paymentRefreshTransport, path, { ...options, body, method: "POST" });
   },
 };

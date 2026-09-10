@@ -9,7 +9,12 @@ export type ParsedZarAmount =
   | { ok: true; amountMinor: number }
   | { ok: false; error: string };
 
-export function parseZarAmount(value: string): ParsedZarAmount {
+export type ZarAmountLimits = {
+  minMinor?: number;
+  maxMinor?: number;
+};
+
+export function parseZarAmount(value: string, limits: ZarAmountLimits = {}): ParsedZarAmount {
   const normalized = value.trim();
   if (!normalized) return { ok: false, error: "Enter an amount." };
 
@@ -26,7 +31,15 @@ export function parseZarAmount(value: string): ParsedZarAmount {
     return { ok: false, error: "Amount is too large." };
   }
 
-  return { ok: true, amountMinor: Number(amountMinor) };
+  const parsedAmountMinor = Number(amountMinor);
+  if (limits.minMinor !== undefined && parsedAmountMinor < limits.minMinor) {
+    return { ok: false, error: `Minimum amount is ${formatZarMinor(limits.minMinor)}.` };
+  }
+  if (limits.maxMinor !== undefined && parsedAmountMinor > limits.maxMinor) {
+    return { ok: false, error: `Maximum amount is ${formatZarMinor(limits.maxMinor)}.` };
+  }
+
+  return { ok: true, amountMinor: parsedAmountMinor };
 }
 
 export function formatZarMinor(amountMinor: number) {

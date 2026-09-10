@@ -6,7 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import { Activity as ActivityIcon, ArrowRight, QrCode } from "lucide-react-native";
+import { Activity as ActivityIcon, ArrowRight, CreditCard, QrCode } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
@@ -120,7 +120,15 @@ export default function HomeScreen() {
 
         {credentials.length > 0 && holderAgent.status === "ready" && !credentialsQuery.isLoading ? (
           <AnimatedEntry delay={motion.stagger * 2}>
-            <AppButton icon={QrCode} label="Scan to verify" onPress={openScanner} size="lg" />
+            <View style={{ gap: spacing.sm }}>
+              <AppButton icon={QrCode} label="Scan to verify" onPress={openScanner} size="lg" />
+              <AppButton
+                icon={CreditCard}
+                label="Payments"
+                onPress={() => router.push("/(wallet)/payments")}
+                variant="secondary"
+              />
+            </View>
           </AnimatedEntry>
         ) : null}
 

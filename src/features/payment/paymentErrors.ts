@@ -33,13 +33,41 @@ const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcome
     title: "Check the amount",
     message: "Go back and enter a valid payment amount.",
   },
+  INVALID_PAYMENT_OTP: {
+    title: "Check the code",
+    message: "Enter the latest 6-digit code sent to your student email.",
+  },
   INVALID_PAYMENT_QR: {
     title: "Payment QR not recognised",
     message: "Return to the scanner and scan the vendor's current UNIFY payment QR.",
   },
+  INVALID_STUDENT_NUMBER: {
+    title: "Check student number",
+    message: "Enter the student number linked to your institution record.",
+  },
+  PAYSTACK_CHECKOUT_FAILED: {
+    title: "Top-up failed",
+    message: "Paystack did not confirm this top-up. No wallet credit was posted.",
+  },
+  TOPUP_FAILED: {
+    title: "Top-up failed",
+    message: "No wallet credit was posted. You can start a new top-up with a new reference.",
+  },
   PAYMENT_SESSION_REQUIRED: {
     title: "Payment activation required",
     message: "Activate your payment wallet before trying this payment.",
+  },
+  INVALID_WALLET_SESSION: {
+    title: "Payment activation expired",
+    message: "Activate payments again before continuing.",
+  },
+  PAYMENT_WALLET_NOT_ELIGIBLE: {
+    title: "Credential required",
+    message: "Accept your active student credential before activating payments.",
+  },
+  RATE_LIMITED: {
+    title: "Try again shortly",
+    message: "Wait before requesting another activation code.",
   },
   PAYMENT_SESSION_UNAUTHORIZED: {
     title: "Payment session expired",

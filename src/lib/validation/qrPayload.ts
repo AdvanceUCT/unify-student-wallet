@@ -6,6 +6,7 @@
 const PUBLIC_SERVICE_POINT_ID = /^[A-Za-z0-9_-]+$/;
 const CHECKOUT_CLAIM_TOKEN = /^[A-Za-z0-9_-]{20,256}$/;
 const PAYMENT_QR_IDENTIFIER = /^[A-Za-z0-9_-]{8,128}$/;
+const TOP_UP_ID = /^[A-Za-z0-9_-]{6,160}$/;
 
 /** Checks an opaque branch identifier before it is used in an API path. */
 export function isPaymentQrIdentifier(value: string) {
@@ -35,6 +36,38 @@ export function parsePaymentLink(rawValue: string) {
     if (!isPaymentQrIdentifier(qrIdentifier)) return { ok: false as const };
 
     return { ok: true as const, qrIdentifier };
+  } catch {
+    return { ok: false as const };
+  }
+}
+
+export function parseTopUpReturnLink(rawValue: string) {
+  try {
+    const url = new URL(rawValue.trim());
+
+    if (
+      url.protocol !== "unifywallet:" ||
+      url.hostname !== "topup-return" ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.pathname !== "" ||
+      url.hash
+    ) {
+      return { ok: false as const };
+    }
+
+    const topUpId = url.searchParams.get("topUpId");
+    if (
+      !topUpId ||
+      url.searchParams.getAll("topUpId").length !== 1 ||
+      [...url.searchParams.keys()].some((key) => key !== "topUpId") ||
+      !TOP_UP_ID.test(topUpId)
+    ) {
+      return { ok: false as const };
+    }
+
+    return { ok: true as const, topUpId };
   } catch {
     return { ok: false as const };
   }
