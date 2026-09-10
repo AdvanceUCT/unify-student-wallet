@@ -1,5 +1,5 @@
 /**
- * @fileoverview Activates a payment-only student session with student number and OTP.
+ * @fileoverview Activates a payment-only student session with student number and optional OTP.
  * @module app/(wallet)/payment-activate
  */
 
@@ -16,6 +16,7 @@ import {
   requestPaymentActivation,
   verifyPaymentActivation,
   type PaymentActivationChallenge,
+  type PaymentSessionResponse,
 } from "@/src/features/payment/paymentApi";
 import { paymentActivationFailure } from "@/src/features/payment/paymentErrors";
 import {
@@ -27,6 +28,10 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type Stage = "studentNumber" | "otp";
+
+function isPaymentSessionResponse(value: PaymentActivationChallenge | PaymentSessionResponse): value is PaymentSessionResponse {
+  return "accessToken" in value;
+}
 
 export default function PaymentActivateScreen() {
   const colors = useThemePalette();
@@ -52,6 +57,11 @@ export default function PaymentActivateScreen() {
         studentNumber: normalizedStudentNumber,
         deviceId,
       });
+      if (isPaymentSessionResponse(nextChallenge)) {
+        await savePaymentSession(nextChallenge);
+        router.replace("/(wallet)/payments");
+        return;
+      }
       setChallenge(nextChallenge);
       setStage("otp");
     } catch (caught) {
@@ -94,7 +104,7 @@ export default function PaymentActivateScreen() {
         <View style={{ gap: spacing.sm }}>
           <AppButton
             disabled={busy}
-            label={busy ? "Checking..." : stage === "studentNumber" ? "Send code" : "Activate payments"}
+            label={busy ? "Checking..." : "Activate payments"}
             onPress={() => void (stage === "studentNumber" ? requestOtp() : verifyOtp())}
             size="lg"
           />

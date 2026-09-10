@@ -40,6 +40,7 @@ const activationChallengeSchema = z.object({
 }).refine((value) => !value.expiresAt || Number.isFinite(Date.parse(value.expiresAt)), {
   message: "Payment activation expiry is invalid.",
 });
+const activationStartResponseSchema = z.union([activationChallengeSchema, paymentSessionResponseSchema]);
 
 const TOP_UP_STATUS = z.enum(["PENDING", "SUCCEEDED", "FAILED", "UNKNOWN"]);
 const topUpStatusShape = {
@@ -85,6 +86,7 @@ export type PaymentDestination = z.infer<typeof paymentDestinationSchema>;
 export type PaymentReceipt = z.infer<typeof paymentReceiptSchema>;
 export type PaymentActivationChallenge = z.infer<typeof activationChallengeSchema>;
 export type PaymentSessionResponse = z.infer<typeof paymentSessionResponseSchema>;
+export type PaymentActivationStartResponse = z.infer<typeof activationStartResponseSchema>;
 export type TopUpStatus = z.infer<typeof topUpStatusSchema>;
 export type CreateTopUpResponse = z.infer<typeof createTopUpResponseSchema>;
 
@@ -150,7 +152,7 @@ export async function requestPaymentActivation(input: { studentNumber: string; d
     { studentNumber, deviceId: input.deviceId },
     { signal },
   );
-  return parseResponse(activationChallengeSchema, response);
+  return parseResponse(activationStartResponseSchema, response);
 }
 
 export async function verifyPaymentActivation(

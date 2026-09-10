@@ -83,7 +83,7 @@ describe("top-up and payment activation screens", () => {
     const screen = render(<PaymentActivateScreen />);
 
     fireEvent.changeText(screen.getByLabelText("Student number"), "ABC123");
-    fireEvent.press(screen.getByText("Send code"));
+    fireEvent.press(screen.getByText("Activate payments"));
 
     await waitFor(() => expect(requestPaymentActivation).toHaveBeenCalledWith({
       studentNumber: "ABC123",
@@ -98,6 +98,28 @@ describe("top-up and payment activation screens", () => {
       deviceId: "device-001",
     }));
     expect(getOrCreatePaymentDeviceId).toHaveBeenCalled();
+    expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }));
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments"));
+  });
+
+  it("activates payments directly when the server bypasses OTP for testing", async () => {
+    jest.mocked(requestPaymentActivation).mockResolvedValueOnce({
+      accessToken: "access-token",
+      accessExpiresAt: "2099-01-01T00:15:00.000Z",
+      refreshToken: "refresh-token",
+      refreshExpiresAt: "2099-01-31T00:00:00.000Z",
+      sessionId: "session-001",
+    });
+    const screen = render(<PaymentActivateScreen />);
+
+    fireEvent.changeText(screen.getByLabelText("Student number"), "ABC123");
+    fireEvent.press(screen.getByText("Activate payments"));
+
+    await waitFor(() => expect(requestPaymentActivation).toHaveBeenCalledWith({
+      studentNumber: "ABC123",
+      deviceId: "device-001",
+    }));
+    expect(verifyPaymentActivation).not.toHaveBeenCalled();
     expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }));
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments"));
   });
