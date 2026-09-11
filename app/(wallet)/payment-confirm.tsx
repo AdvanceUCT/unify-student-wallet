@@ -4,7 +4,7 @@
  */
 
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -26,6 +26,7 @@ function firstParam(value: string | string[] | undefined) {
 
 export default function PaymentConfirmScreen() {
   const colors = useThemePalette();
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{
     qrIdentifier?: string | string[];
     amountMinor?: string | string[];
@@ -64,6 +65,10 @@ export default function PaymentConfirmScreen() {
 
     try {
       const receipt = await submitPayment({ amountMinor, idempotencyKey, qrIdentifier });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet-activity"] }),
+      ]);
       router.replace({
         pathname: "/(wallet)/payment-result",
         params: {

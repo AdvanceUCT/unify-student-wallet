@@ -4,6 +4,7 @@
  */
 
 import { router, useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCcw } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Text, View } from "react-native";
@@ -65,6 +66,7 @@ function statusCopy(status: TopUpStatus["status"] | undefined) {
 
 export default function TopUpResultScreen() {
   const colors = useThemePalette();
+  const queryClient = useQueryClient();
   const { isOffline } = usePaymentNetworkStatus();
   const params = useLocalSearchParams<{ topUpId?: string | string[]; returned?: string | string[] }>();
   const routeTopUpId = firstParam(params.topUpId);
@@ -105,6 +107,10 @@ export default function TopUpResultScreen() {
 
       if (nextStatus.status === "SUCCEEDED" || nextStatus.status === "FAILED") {
         await clearPendingTopUp();
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["wallet-balance"] }),
+          queryClient.invalidateQueries({ queryKey: ["wallet-activity"] }),
+        ]);
         setPending(null);
         return;
       }
@@ -121,7 +127,7 @@ export default function TopUpResultScreen() {
       inFlightRef.current = false;
       if (mountedRef.current) setChecking(false);
     }
-  }, [activeTopUpId, pending]);
+  }, [activeTopUpId, pending, queryClient]);
 
   useEffect(() => {
     mountedRef.current = true;

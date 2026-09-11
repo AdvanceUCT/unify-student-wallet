@@ -22,6 +22,31 @@ const paymentReceiptSchema = paymentDestinationSchema.extend({
   status: z.literal("COMPLETED"),
 });
 
+const walletBalanceSchema = z.object({
+  postedBalanceMinor: z.number().int().nonnegative().safe(),
+  currency: z.literal("ZAR"),
+  accountStatus: z.string().trim().min(1),
+  updatedAt: z.string().trim().min(1).refine((value) => Number.isFinite(Date.parse(value))),
+});
+
+const walletActivitySchema = z.object({
+  id: z.string().trim().min(1),
+  type: z.enum(["TOPUP", "SPEND", "REFUND", "PAYOUT"]),
+  status: z.string().trim().min(1),
+  direction: z.enum(["CREDIT", "DEBIT"]),
+  amountMinor: z.number().int().positive().safe(),
+  currency: z.literal("ZAR"),
+  title: z.string().trim().min(1),
+  subtitle: z.string().trim().min(1).optional(),
+  reference: z.string().trim().min(1).optional(),
+  completedAt: z.string().trim().min(1).optional(),
+  createdAt: z.string().trim().min(1),
+}).refine((value) => !value.completedAt || Number.isFinite(Date.parse(value.completedAt)), {
+  message: "Wallet activity completion time is invalid.",
+}).refine((value) => Number.isFinite(Date.parse(value.createdAt)), {
+  message: "Wallet activity creation time is invalid.",
+});
+
 const paymentSessionResponseSchema = z.object({
   accessToken: z.string().trim().min(1),
   accessExpiresAt: z.string().trim().min(1),
@@ -84,6 +109,8 @@ const createTopUpResponseSchema = z.discriminatedUnion("status", [
 
 export type PaymentDestination = z.infer<typeof paymentDestinationSchema>;
 export type PaymentReceipt = z.infer<typeof paymentReceiptSchema>;
+export type WalletBalance = z.infer<typeof walletBalanceSchema>;
+export type WalletActivity = z.infer<typeof walletActivitySchema>;
 export type PaymentActivationChallenge = z.infer<typeof activationChallengeSchema>;
 export type PaymentSessionResponse = z.infer<typeof paymentSessionResponseSchema>;
 export type PaymentActivationStartResponse = z.infer<typeof activationStartResponseSchema>;
@@ -197,6 +224,16 @@ export async function refreshPaymentActivation(
 
 export async function revokePaymentActivation(signal?: AbortSignal) {
   await paymentApiClient.post<unknown>("/api/wallet/v1/sessions/revoke", {}, { signal });
+}
+
+export async function getWalletBalance(signal?: AbortSignal) {
+  const response = await paymentApiClient.get<unknown>("/api/wallet/v1/balance", { signal });
+  return parseResponse(walletBalanceSchema, response);
+}
+
+export async function getWalletActivity(signal?: AbortSignal) {
+  const response = await paymentApiClient.get<unknown>("/api/wallet/v1/activity", { signal });
+  return parseResponse(z.array(walletActivitySchema), response);
 }
 
 export async function resolvePaymentDestination(qrIdentifier: string, signal?: AbortSignal) {
