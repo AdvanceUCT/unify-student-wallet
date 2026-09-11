@@ -1031,7 +1031,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     const cleanupResults = await Promise.allSettled([
       clearWalletSessionState(),
-      revokePaymentActivation(),
+      revokePaymentActivation().catch(() => undefined),
       clearPendingTopUp(),
       clearPaymentSession(),
       clearPaymentDeviceId(),
