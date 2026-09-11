@@ -7,6 +7,7 @@ import { ApiClientError } from "@/src/lib/api/apiClient";
 import { submitPayment } from "@/src/features/payment/paymentApi";
 
 const mockRefetch = jest.fn();
+const mockInvalidateQueries = jest.fn();
 const mockIsPaymentOnline = jest.fn(async () => true);
 let mockOffline = false;
 let mockParams: Record<string, string> = {};
@@ -37,6 +38,7 @@ jest.mock("expo-router", () => ({
 
 jest.mock("@tanstack/react-query", () => ({
   useQuery: () => mockDestinationQuery,
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 jest.mock("@/src/features/payment/network", () => ({
@@ -170,7 +172,7 @@ describe("payment screens", () => {
     expect(screen.getByRole("button", { name: "Pay R 45.75" }).props.accessibilityState).toEqual({ disabled: true });
   });
 
-  it("renders the successful server receipt and returns home", () => {
+  it("renders the successful server receipt and returns to payments", () => {
     mockParams = {
       amountMinor: "4575",
       resultingBalanceMinor: "5425",
@@ -186,6 +188,6 @@ describe("payment screens", () => {
     expect(screen.getByText("R 54.25")).toBeTruthy();
     expect(screen.getByText("transaction-001")).toBeTruthy();
     fireEvent.press(screen.getByText("Done"));
-    expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/home");
+    expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments");
   });
 });
