@@ -26,4 +26,19 @@ describe("payment money", () => {
     expect(formatZarMinor(4505)).toBe("R 45.05");
     expect(formatZarMinor(123456789)).toBe("R 1 234 567.89");
   });
+
+  it("applies optional top-up limits without changing ordinary parsing", () => {
+    expect(parseZarAmount("9.99", { minMinor: 1000, maxMinor: 500000 })).toEqual({
+      ok: false,
+      error: "Minimum amount is R 10.00.",
+    });
+    expect(parseZarAmount("5000.01", { minMinor: 1000, maxMinor: 500000 })).toEqual({
+      ok: false,
+      error: "Maximum amount is R 5 000.00.",
+    });
+    expect(parseZarAmount("10", { minMinor: 1000, maxMinor: 500000 })).toEqual({
+      ok: true,
+      amountMinor: 1000,
+    });
+  });
 });

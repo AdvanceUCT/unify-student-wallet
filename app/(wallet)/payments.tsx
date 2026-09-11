@@ -4,8 +4,9 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { Wallet as WalletIcon, Receipt as ReceiptIcon } from "lucide-react-native";
+import { router, useFocusEffect } from "expo-router";
+import { CreditCard, Wallet as WalletIcon, Receipt as ReceiptIcon } from "lucide-react-native";
+import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -13,6 +14,9 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { formatZarMinor } from "@/src/features/payment/money";
+import { loadPaymentSession } from "@/src/features/payment/paymentSession";
+import { loadPendingTopUp, type PendingTopUp } from "@/src/features/payment/topUpSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { getPaymentHistory } from "@/src/lib/api/client";
 import { spacing } from "@/src/theme/spacing";
@@ -20,6 +24,8 @@ import { typography } from "@/src/theme/typography";
 
 export default function PaymentsScreen() {
   const colors = useThemePalette();
+  const [paymentActivated, setPaymentActivated] = useState(false);
+  const [pendingTopUp, setPendingTopUp] = useState<PendingTopUp | null>(null);
   // Payments are still a backend placeholder, but this keeps the screen ready to wire.
   const paymentsQuery = useQuery({
     queryKey: ["payment-history"],
@@ -27,6 +33,22 @@ export default function PaymentsScreen() {
   });
 
   const payments = paymentsQuery.data ?? [];
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void Promise.all([loadPaymentSession({ allowExpired: true }), loadPendingTopUp()])
+      .then(([session, pending]) => {
+        if (!active) return;
+        setPaymentActivated(Boolean(session));
+        setPendingTopUp(pending);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPaymentActivated(false);
+        setPendingTopUp(null);
+      });
+    return () => { active = false; };
+  }, []));
 
   return (
     <AppScreen>
@@ -41,8 +63,27 @@ export default function PaymentsScreen() {
             </View>
             <Text style={typography.display}>—</Text>
             <Text style={typography.body}>
-              Your wallet balance will appear here once your institution connects a payment source.
+              Balance appears only after the server confirms top-ups and payments.
             </Text>
+            <View style={{ gap: spacing.sm }}>
+              {pendingTopUp ? (
+                <AppButton
+                  icon={CreditCard}
+                  label={`Resume ${formatZarMinor(pendingTopUp.amountMinor)} top-up`}
+                  onPress={() => router.push({
+                    pathname: "/(wallet)/topup-result",
+                    params: { topUpId: pendingTopUp.topUpId },
+                  })}
+                />
+              ) : paymentActivated ? (
+                <AppButton icon={CreditCard} label="Top up" onPress={() => router.push("/(wallet)/topup-amount")} />
+              ) : (
+                <AppButton icon={CreditCard} label="Activate payments" onPress={() => router.push("/(wallet)/payment-activate")} />
+              )}
+              <Text style={typography.caption}>
+                Payment activation uses your student number and a one-time code, separate from credential proof sharing.
+              </Text>
+            </View>
           </View>
         </Card>
 

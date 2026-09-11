@@ -10,9 +10,15 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
-import { clearPaymentSession } from "@/src/features/payment/paymentSession";
+import { revokePaymentActivation } from "@/src/features/payment/paymentApi";
+import { clearPaymentDeviceId, clearPaymentSession } from "@/src/features/payment/paymentSession";
+import { clearPendingTopUp } from "@/src/features/payment/topUpSession";
 import { clearVerificationActivity } from "@/src/features/verification/activityHistory";
-import { parseCheckoutVerificationLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import {
+  parseCheckoutVerificationLink,
+  parseTopUpReturnLink,
+  parseVerificationLink,
+} from "@/src/lib/validation/qrPayload";
 
 import { parseActivationLink, type ActivationLinkRequest } from "./activationLinks";
 import { resolveWalletActivation } from "./activationResolver";
@@ -422,6 +428,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       }
       const parsed = parseVerificationLink(url);
       if (parsed.ok) void setPendingVerificationPublicServicePointId(parsed.publicServicePointId);
+
+      const topUpReturn = parseTopUpReturnLink(url);
+      if (topUpReturn.ok && stateRef.current.session.lockStatus === "unlocked") {
+        router.replace({
+          pathname: "/(wallet)/topup-result",
+          params: { topUpId: topUpReturn.topUpId, returned: "1" },
+        });
+      }
     };
 
     void Linking.getInitialURL().then(stashVerificationLink);
@@ -1017,7 +1031,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     const cleanupResults = await Promise.allSettled([
       clearWalletSessionState(),
+      revokePaymentActivation().catch(() => undefined),
+      clearPendingTopUp(),
       clearPaymentSession(),
+      clearPaymentDeviceId(),
       clearVerificationActivity(),
       resetAgent(),
     ]);

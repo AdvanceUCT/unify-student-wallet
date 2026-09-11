@@ -55,6 +55,9 @@ export default function WalletLayout() {
       <Tabs.Screen name="payment-amount" options={{ href: null }} />
       <Tabs.Screen name="payment-confirm" options={{ href: null }} />
       <Tabs.Screen name="payment-result" options={{ href: null }} />
+      <Tabs.Screen name="payment-activate" options={{ href: null }} />
+      <Tabs.Screen name="topup-amount" options={{ href: null }} />
+      <Tabs.Screen name="topup-result" options={{ href: null }} />
       <Tabs.Screen name="backup" options={{ href: null }} />
     </Tabs>
   );
