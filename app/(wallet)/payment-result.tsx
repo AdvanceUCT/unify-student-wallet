@@ -39,7 +39,7 @@ export default function PaymentResultScreen() {
   const completedAt = firstParam(params.completedAt);
 
   return (
-    <AppScreen footer={<AppButton label="Done" onPress={() => router.replace("/(wallet)/home")} size="lg" />}>
+    <AppScreen footer={<AppButton label="Done" onPress={() => router.replace("/(wallet)/payments")} size="lg" />}>
       <View style={{ alignItems: "center", gap: spacing.xl }}>
         <CheckCircle color={colors.success} size={56} strokeWidth={1.7} />
         <ScreenHeader eyebrow="Payment complete" title="Paid" meta={`${vendorName} · ${branchName}`} />
