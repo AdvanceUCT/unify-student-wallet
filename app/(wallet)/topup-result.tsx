@@ -14,6 +14,7 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { TrustSeal } from "@/src/components/TrustSeal";
 import { formatZarMinor } from "@/src/features/payment/money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "@/src/features/payment/network";
 import { getTopUp, reconcileTopUp, type TopUpStatus } from "@/src/features/payment/paymentApi";
@@ -202,6 +203,9 @@ export default function TopUpResultScreen() {
     >
       <View style={{ gap: spacing.xl }}>
         <ScreenHeader eyebrow="Wallet top-up" title={copy.title} meta={copy.message} />
+        <View style={{ alignItems: "center" }}>
+          <TrustSeal busy={checking && !terminal} haptic={terminal} state={checking && !terminal ? "loading" : copy.tone} />
+        </View>
 
         {isOffline ? (
           <Card elevation="sm">

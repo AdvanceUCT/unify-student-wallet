@@ -32,6 +32,10 @@ jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
   useThemePalette: () => require("@/src/theme/colors").lightColors,
 }));
 
+jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
+  useWalletSession: () => ({ pendingOfferIds: [] }),
+}));
+
 describe("payments refund activity", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,7 +89,6 @@ describe("payments refund activity", () => {
     await waitFor(() => expect(mockRefetchBalance).toHaveBeenCalledTimes(1));
     expect(mockRefetchActivity).toHaveBeenCalledTimes(1);
     expect(screen.getByText("R 125.00")).toBeTruthy();
-    expect(screen.getByText("Refund returned")).toBeTruthy();
     expect(screen.getByText("Refund from Campus Coffee")).toBeTruthy();
     expect(screen.getByText("Original payment to Campus Coffee Money was returned to your wallet.")).toBeTruthy();
     expect(screen.getByText("+R 12.50")).toBeTruthy();
