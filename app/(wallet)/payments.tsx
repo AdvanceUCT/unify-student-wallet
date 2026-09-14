@@ -17,9 +17,9 @@ import { InboxHeaderButton } from "@/src/components/InboxHeaderButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { UnifiedActivityFeed } from "@/src/components/UnifiedActivityFeed";
 import { formatZarMinor } from "@/src/features/payment/money";
-import { getWalletActivity, getWalletBalance, type WalletActivity } from "@/src/features/payment/paymentApi";
+import { getTopUp, getWalletActivity, getWalletBalance, type WalletActivity } from "@/src/features/payment/paymentApi";
 import { loadPaymentSession } from "@/src/features/payment/paymentSession";
-import { loadPendingTopUp, type PendingTopUp } from "@/src/features/payment/topUpSession";
+import { clearPendingTopUp, loadPendingTopUp, type PendingTopUp } from "@/src/features/payment/topUpSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { normalizeWalletActivity } from "@/src/features/wallet/unifiedActivity";
 import { spacing } from "@/src/theme/spacing";
@@ -51,14 +51,29 @@ export default function PaymentsScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     void Promise.all([loadPaymentSession({ allowExpired: true }), loadPendingTopUp()])
-      .then(([session, pending]) => {
+      .then(async ([session, pending]) => {
         if (!active) return;
         const activated = Boolean(session);
         setPaymentActivated(activated);
-        setPendingTopUp(pending);
         if (activated) {
+          let nextPending = pending;
+          if (pending) {
+            try {
+              const topUp = await getTopUp(pending.topUpId);
+              if (!active) return;
+              if (topUp.status === "SUCCEEDED" || topUp.status === "FAILED") {
+                await clearPendingTopUp();
+                nextPending = null;
+              }
+            } catch {
+              if (!active) return;
+            }
+          }
+          setPendingTopUp(nextPending);
           void refetchBalance();
           void refetchActivity();
+        } else {
+          setPendingTopUp(pending);
         }
       })
       .catch(() => {

@@ -58,6 +58,7 @@ describe("wallet route guards", () => {
     expect(access).toBe("wallet");
     expect(isRouteAllowedForAccess(["(wallet)", "home"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(wallet)", "offers"], access)).toBe(true);
+    expect(isRouteAllowedForAccess(["topup-return"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["(auth)", "change-pin"], access)).toBe(true);
     expect(isRouteAllowedForAccess(["verify", "[publicServicePointId]"], access)).toBe(true);
   });

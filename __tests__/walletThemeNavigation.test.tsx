@@ -19,9 +19,9 @@ jest.mock("expo-router", () => {
       children,
     );
   };
-  Tabs.Screen = ({ name, options }: { name: string; options?: { href?: null; title?: string } }) => React.createElement(
+  Tabs.Screen = ({ name, options }: { name: string; options?: { href?: null; tabBarStyle?: { display?: string }; title?: string } }) => React.createElement(
     Text,
-    { testID: `tab-${name}` },
+    { testID: `tab-${name}`, style: options?.tabBarStyle },
     options?.href === null ? "hidden" : options?.title ?? name,
   );
   return { Tabs };
@@ -77,9 +77,11 @@ describe("wallet navigation theme", () => {
     expect(screen.getByTestId("tab-credential").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-inbox").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-offers").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-amount").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-confirm").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-result").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-amount", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-confirm", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-result", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-amount", { includeHiddenElements: true }).props.style).toEqual({ display: "none" });
+    expect(screen.getByTestId("tab-payment-result", { includeHiddenElements: true }).props.style).toEqual({ display: "none" });
     expect(screen.getByTestId("tab-backup").props.children).toBe("hidden");
   });
 });

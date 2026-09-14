@@ -246,6 +246,9 @@ describe("wallet screens", () => {
     fireEvent(screen.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 312 } } });
 
     expect(screen.getByText("Scan to verify")).toBeTruthy();
+    expect(screen.getByText("Wallet balance")).toBeTruthy();
+    expect(screen.queryByText("Top up")).toBeNull();
+    expect(screen.queryByText("Pay or verify")).toBeNull();
     expect(screen.getByText("Alex Student")).toBeTruthy();
     expect(screen.queryByText("Computer Science")).toBeNull();
     expect(screen.queryByText("2026-01-01")).toBeNull();

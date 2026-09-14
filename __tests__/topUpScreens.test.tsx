@@ -2,23 +2,26 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import PaymentActivateScreen from "@/app/(wallet)/payment-activate";
 import TopUpAmountScreen from "@/app/(wallet)/topup-amount";
+import TopUpReturnRoute from "@/app/topup-return";
 import {
   createTopUp,
+  getTopUp,
   requestPaymentActivation,
   verifyPaymentActivation,
 } from "@/src/features/payment/paymentApi";
 import { getOrCreatePaymentDeviceId, savePaymentSession } from "@/src/features/payment/paymentSession";
-import { loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
+import { clearPendingTopUp, loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
 
 const mockIsPaymentOnline = jest.fn(async () => true);
 let mockOffline = false;
+let mockSearchParams: Record<string, string | string[] | undefined> = {};
 
 jest.mock("expo-crypto", () => ({ randomUUID: jest.fn(() => "topup-request-001") }));
 
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: { replace: jest.fn(), push: jest.fn() },
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock("expo-web-browser", () => ({
@@ -32,6 +35,7 @@ jest.mock("@/src/features/payment/network", () => ({
 
 jest.mock("@/src/features/payment/paymentApi", () => ({
   createTopUp: jest.fn(),
+  getTopUp: jest.fn(),
   requestPaymentActivation: jest.fn(),
   verifyPaymentActivation: jest.fn(),
 }));
@@ -42,6 +46,7 @@ jest.mock("@/src/features/payment/paymentSession", () => ({
 }));
 
 jest.mock("@/src/features/payment/topUpSession", () => ({
+  clearPendingTopUp: jest.fn(),
   loadPendingTopUp: jest.fn(async () => null),
   savePendingTopUp: jest.fn(),
 }));
@@ -59,8 +64,14 @@ describe("top-up and payment activation screens", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockOffline = false;
+    mockSearchParams = {};
     mockIsPaymentOnline.mockResolvedValue(true);
     jest.mocked(loadPendingTopUp).mockResolvedValue(null);
+    jest.mocked(getTopUp).mockResolvedValue({
+      topUpId: "topup-001",
+      reference: "PSK_ref_001",
+      status: "PENDING",
+    });
     jest.mocked(requestPaymentActivation).mockResolvedValue({ challengeId: "challenge-001" });
     jest.mocked(verifyPaymentActivation).mockResolvedValue({
       accessToken: "access-token",
@@ -150,6 +161,46 @@ describe("top-up and payment activation screens", () => {
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
       pathname: "/(wallet)/topup-result",
       params: { topUpId: "topup-001", returned: "1" },
+    }));
+  });
+
+  it("routes a Paystack deep-link return into the wallet result screen", async () => {
+    mockSearchParams = { topUpId: "topup-001" };
+
+    render(<TopUpReturnRoute />);
+
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
+      pathname: "/(wallet)/topup-result",
+      params: { topUpId: "topup-001", returned: "1" },
+    }));
+  });
+
+  it("clears a terminal stale pending top-up before starting a fresh checkout", async () => {
+    jest.mocked(loadPendingTopUp).mockResolvedValueOnce({
+      amountMinor: 1_000,
+      authorizationUrl: "https://checkout.paystack.test/pay/old",
+      createdAt: "2026-09-14T10:00:00.000Z",
+      currency: "ZAR",
+      idempotencyKey: "topup-request-old",
+      reference: "PSK_ref_old",
+      status: "PENDING",
+      topUpId: "topup-old",
+    });
+    jest.mocked(getTopUp).mockResolvedValueOnce({
+      topUpId: "topup-old",
+      reference: "PSK_ref_old",
+      status: "SUCCEEDED",
+    });
+    const screen = render(<TopUpAmountScreen />);
+
+    fireEvent.changeText(screen.getByLabelText("Amount (ZAR)"), "45.75");
+    fireEvent.press(screen.getByText("Top up"));
+
+    await waitFor(() => expect(clearPendingTopUp).toHaveBeenCalled());
+    await waitFor(() => expect(createTopUp).toHaveBeenCalledWith({
+      amountMinor: 4575,
+      currency: "ZAR",
+      idempotencyKey: "topup-request-001",
     }));
   });
 

@@ -6,7 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import { ArrowRight, CreditCard, QrCode, Wallet as WalletIcon } from "lucide-react-native";
+import { ArrowRight, QrCode, Wallet as WalletIcon } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
@@ -163,39 +163,28 @@ export default function HomeScreen() {
           )}
         </View>
 
+        <AnimatedEntry delay={motion.stagger * 2}>
+          <View style={[styles.balanceCard, { backgroundColor: colors.surface, borderColor: colors.rule }]}>
+            <View style={[styles.balanceIcon, { backgroundColor: colors.primarySoft }]}>
+              <WalletIcon color={colors.primary} size={18} strokeWidth={2} />
+            </View>
+            <View style={styles.balanceCopy}>
+              <Text style={typography.eyebrow}>Wallet balance</Text>
+              <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={styles.balanceValue}>{balanceText}</Text>
+              <Text numberOfLines={2} style={typography.caption}>
+                {paymentActivated ? "Confirmed top-ups and payments update here." : "Open Payments to activate top-ups and vendor payments."}
+              </Text>
+            </View>
+          </View>
+        </AnimatedEntry>
+
         {credentials.length > 0 && holderAgent.status === "ready" && !credentialsQuery.isLoading ? (
-          <AnimatedEntry delay={motion.stagger * 2}>
+          <AnimatedEntry delay={motion.stagger * 3}>
             <View style={{ gap: spacing.sm }}>
               <AppButton icon={QrCode} label="Scan to verify" onPress={openScanner} size="lg" />
             </View>
           </AnimatedEntry>
         ) : null}
-
-        <AnimatedEntry delay={motion.stagger * 2}>
-          <View style={[styles.balanceCard, { backgroundColor: colors.surface, borderColor: colors.rule }]}>
-            <View style={styles.balanceHeader}>
-              <View style={[styles.balanceIcon, { backgroundColor: colors.primarySoft }]}>
-                <WalletIcon color={colors.primary} size={19} strokeWidth={2} />
-              </View>
-              <View style={styles.balanceCopy}>
-                <Text style={typography.eyebrow}>Wallet balance</Text>
-                <Text adjustsFontSizeToFit minimumFontScale={0.74} numberOfLines={1} style={typography.display}>{balanceText}</Text>
-                <Text style={typography.caption}>
-                  {paymentActivated ? "Confirmed top-ups and payments update this balance." : "Activate payments before topping up or paying vendors."}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.balanceActions}>
-              <AppButton
-                icon={CreditCard}
-                label={paymentActivated ? "Top up" : "Activate payments"}
-                onPress={() => router.push(paymentActivated ? "/(wallet)/topup-amount" : "/(wallet)/payment-activate")}
-                variant={paymentActivated ? "primary" : "secondary"}
-              />
-              <AppButton icon={QrCode} label="Pay or verify" onPress={openScanner} variant="secondary" />
-            </View>
-          </View>
-        </AnimatedEntry>
 
         {pendingOfferIds.length > 0 ? (
           <AnimatedEntry delay={motion.stagger * 3}>
@@ -253,24 +242,19 @@ const styles = StyleSheet.create({
   credentialArea: {
     width: "100%",
   },
-  balanceActions: {
-    gap: spacing.sm,
-  },
   balanceCard: {
+    alignItems: "center",
     borderRadius: 18,
     borderWidth: 1,
-    gap: spacing.lg,
-    padding: spacing.lg,
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   balanceCopy: {
     flex: 1,
-    gap: spacing.xs,
+    gap: 2,
     minWidth: 0,
-  },
-  balanceHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.md,
   },
   balanceIcon: {
     alignItems: "center",
@@ -278,6 +262,9 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: "center",
     width: 38,
+  },
+  balanceValue: {
+    ...typography.heading,
   },
   offer: {
     alignItems: "center",

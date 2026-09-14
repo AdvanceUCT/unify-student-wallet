@@ -97,23 +97,23 @@ export function UnifiedActivityFeed({
         <View style={{ borderTopWidth: 1, borderColor: colors.rule }}>
           {groups.map(([label, groupItems]) => (
             <View key={label}>
-              <Text style={[typography.eyebrow, { paddingTop: compact ? spacing.sm : spacing.lg, paddingBottom: spacing.xs }, compact ? { fontSize: 9, lineHeight: 12 } : undefined]}>{label}</Text>
+              <Text style={[typography.eyebrow, { paddingTop: compact ? spacing.md : spacing.lg, paddingBottom: spacing.xs }, compact ? { fontSize: 10, lineHeight: 14 } : undefined]}>{label}</Text>
               {groupItems.map((item) => {
                 const Icon = iconFor(item);
                 const tone = toneColors(item, colors);
                 return (
-                  <View key={item.id} style={{ borderBottomWidth: 1, borderColor: compact ? colors.ruleSoft : colors.rule, paddingVertical: compact ? spacing.sm : spacing.lg }}>
-                    <View style={{ alignItems: "center", flexDirection: "row", gap: compact ? spacing.sm : spacing.md }}>
-                      <View style={{ alignItems: "center", backgroundColor: tone.background, borderRadius: radii.md, height: compact ? 30 : 42, justifyContent: "center", width: compact ? 30 : 42 }}>
-                        <Icon color={tone.foreground} size={compact ? 15 : 20} strokeWidth={1.9} />
+                  <View key={item.id} style={{ borderBottomWidth: 1, borderColor: compact ? colors.ruleSoft : colors.rule, paddingVertical: compact ? spacing.md : spacing.lg }}>
+                    <View style={{ alignItems: "center", flexDirection: "row", gap: compact ? spacing.md : spacing.md }}>
+                      <View style={{ alignItems: "center", backgroundColor: tone.background, borderRadius: radii.md, height: compact ? 36 : 42, justifyContent: "center", width: compact ? 36 : 42 }}>
+                        <Icon color={tone.foreground} size={compact ? 17 : 20} strokeWidth={1.9} />
                       </View>
                       <View style={{ flex: 1, gap: compact ? 0 : 2, minWidth: 0 }}>
-                        <Text numberOfLines={1} style={[typography.bodyStrong, compact ? { fontSize: 10, lineHeight: 13 } : undefined]}>{item.title}</Text>
-                        <Text numberOfLines={compact ? 1 : 2} style={[typography.body, compact ? { fontSize: 9, lineHeight: 12 } : undefined]}>{item.subtitle}</Text>
+                        <Text numberOfLines={1} style={[typography.bodyStrong, compact ? { fontSize: 13, lineHeight: 17 } : undefined]}>{item.title}</Text>
+                        <Text numberOfLines={compact ? 2 : 2} style={[typography.body, compact ? { fontSize: 12, lineHeight: 16 } : undefined]}>{item.subtitle}</Text>
                         {!compact ? <Text style={typography.caption}>{new Date(item.occurredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text> : null}
                       </View>
                       {item.amountText ? (
-                        <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[typography.monoLg, { color: tone.foreground, maxWidth: compact ? 74 : 112, textAlign: "right" }]}>
+                        <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[typography.monoLg, { color: tone.foreground, maxWidth: compact ? 96 : 112, textAlign: "right" }]}>
                           {item.amountText}
                         </Text>
                       ) : (
