@@ -11,6 +11,7 @@ import SettingsScreen from "@/app/(wallet)/settings";
 const mockRequestPermission = jest.fn();
 const mockSetThemePreference = jest.fn(async () => undefined);
 const mockIsPaymentOnline = jest.fn(async () => true);
+const mockLoadPaymentSession = jest.fn(async () => null);
 let mockCameraGranted = false;
 let mockRecentActivity: Array<{
   id: string;
@@ -43,6 +44,14 @@ const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]
 
   if (queryKey[0] === "payment-history") {
     return { data: [], isError: false, isLoading: false };
+  }
+
+  if (queryKey[0] === "wallet-balance") {
+    return { data: null, isError: false, isLoading: false, refetch: jest.fn() };
+  }
+
+  if (queryKey[0] === "wallet-activity") {
+    return { data: [], isError: false, isLoading: false, refetch: jest.fn() };
   }
 
   if (queryKey[0] === "pending-offers") {
@@ -103,6 +112,10 @@ jest.mock("@/src/features/payment/network", () => ({
   isPaymentOnline: () => mockIsPaymentOnline(),
 }));
 
+jest.mock("@/src/features/payment/paymentSession", () => ({
+  loadPaymentSession: () => mockLoadPaymentSession(),
+}));
+
 jest.mock("expo-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
@@ -135,6 +148,7 @@ describe("wallet screens", () => {
     mockWalletSession.pendingOfferIds = [];
     mockCameraGranted = false;
     mockIsPaymentOnline.mockResolvedValue(true);
+    mockLoadPaymentSession.mockResolvedValue(null);
     mockRecentActivity = [];
     mockStoredCredentials = [];
     mockPendingOffers = [];
@@ -165,7 +179,8 @@ describe("wallet screens", () => {
 
     const screen = render(<HomeScreen />);
 
-    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText("Open inbox, 2 items need attention")).toBeTruthy();
     expect(screen.getByText("Credential offers ready")).toBeTruthy();
   });
 
@@ -231,6 +246,9 @@ describe("wallet screens", () => {
     fireEvent(screen.getByTestId("credential-carousel"), "layout", { nativeEvent: { layout: { width: 312 } } });
 
     expect(screen.getByText("Scan to verify")).toBeTruthy();
+    expect(screen.getByText("Wallet balance")).toBeTruthy();
+    expect(screen.queryByText("Top up")).toBeNull();
+    expect(screen.queryByText("Pay or verify")).toBeNull();
     expect(screen.getByText("Alex Student")).toBeTruthy();
     expect(screen.queryByText("Computer Science")).toBeNull();
     expect(screen.queryByText("2026-01-01")).toBeNull();
@@ -330,8 +348,12 @@ describe("wallet screens", () => {
 
     await waitFor(() => expect(screen.getByText("Campus Store")).toBeTruthy());
     expect(screen.getByText("Audit trail")).toBeTruthy();
-    expect(screen.getByText("Online checkout")).toBeTruthy();
+    expect(screen.getByText("Online checkout · Verification declined")).toBeTruthy();
     expect(screen.getByText("Declined")).toBeTruthy();
+    expect(screen.getByText("All")).toBeTruthy();
+    expect(screen.getByText("Payments")).toBeTruthy();
+    expect(screen.getByText("Top-ups")).toBeTruthy();
+    expect(screen.getByText("Verifications")).toBeTruthy();
   });
 
   it("shows the empty activity state", async () => {
@@ -341,8 +363,8 @@ describe("wallet screens", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("No presentations yet")).toBeTruthy();
-    expect(screen.getByText("Your activity is private.")).toBeTruthy();
+    expect(screen.getByText("No activity yet")).toBeTruthy();
+    expect(screen.getByText("Your wallet activity is private.")).toBeTruthy();
   });
 
   it("prompts the user to enable camera permission on the scan screen", () => {

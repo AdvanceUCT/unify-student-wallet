@@ -78,6 +78,7 @@ export function isRouteAllowedForAccess(segments: string[], access: WalletRouteA
           "payments",
           "payment-activate",
           "topup-amount",
+          "topup-return",
           "topup-result",
           "settings",
           "offers",

@@ -13,34 +13,17 @@ import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { EmptyState } from "@/src/components/EmptyState";
+import { InboxHeaderButton } from "@/src/components/InboxHeaderButton";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { UnifiedActivityFeed } from "@/src/components/UnifiedActivityFeed";
 import { formatZarMinor } from "@/src/features/payment/money";
-import { getWalletActivity, getWalletBalance, type WalletActivity } from "@/src/features/payment/paymentApi";
+import { getTopUp, getWalletActivity, getWalletBalance, type WalletActivity } from "@/src/features/payment/paymentApi";
 import { loadPaymentSession } from "@/src/features/payment/paymentSession";
-import { loadPendingTopUp, type PendingTopUp } from "@/src/features/payment/topUpSession";
+import { clearPendingTopUp, loadPendingTopUp, type PendingTopUp } from "@/src/features/payment/topUpSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
+import { normalizeWalletActivity } from "@/src/features/wallet/unifiedActivity";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-
-function activityEyebrow(item: WalletActivity) {
-  if (item.type === "REFUND" && item.direction === "CREDIT") {
-    return "Refund returned";
-  }
-  return item.status;
-}
-
-function activityTitle(item: WalletActivity) {
-  if (item.type !== "REFUND") return item.title;
-  const normalizedTitle = item.title.toLowerCase();
-  if (normalizedTitle.includes("refund") || normalizedTitle.includes("returned")) return item.title;
-  return `Refund from ${item.title}`;
-}
-
-function activitySubtitle(item: WalletActivity) {
-  if (item.type !== "REFUND" || item.direction !== "CREDIT") return item.subtitle;
-  const returnedText = "Money was returned to your wallet.";
-  return item.subtitle ? `${item.subtitle} ${returnedText}` : returnedText;
-}
 
 export default function PaymentsScreen() {
   const colors = useThemePalette();
@@ -57,7 +40,7 @@ export default function PaymentsScreen() {
     enabled: paymentActivated,
   });
   const {
-    data: activity = [],
+    data: activity = [] as WalletActivity[],
     refetch: refetchActivity,
   } = useQuery({
     queryKey: ["wallet-activity"],
@@ -68,14 +51,29 @@ export default function PaymentsScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     void Promise.all([loadPaymentSession({ allowExpired: true }), loadPendingTopUp()])
-      .then(([session, pending]) => {
+      .then(async ([session, pending]) => {
         if (!active) return;
         const activated = Boolean(session);
         setPaymentActivated(activated);
-        setPendingTopUp(pending);
         if (activated) {
+          let nextPending = pending;
+          if (pending) {
+            try {
+              const topUp = await getTopUp(pending.topUpId);
+              if (!active) return;
+              if (topUp.status === "SUCCEEDED" || topUp.status === "FAILED") {
+                await clearPendingTopUp();
+                nextPending = null;
+              }
+            } catch {
+              if (!active) return;
+            }
+          }
+          setPendingTopUp(nextPending);
           void refetchBalance();
           void refetchActivity();
+        } else {
+          setPendingTopUp(pending);
         }
       })
       .catch(() => {
@@ -98,11 +96,12 @@ export default function PaymentsScreen() {
     : balanceError
       ? "Could not refresh your balance. Return to this screen or try again later."
       : "Confirmed top-ups and payments update this balance.";
+  const walletFeed = normalizeWalletActivity(activity);
 
   return (
     <AppScreen>
       <View style={{ gap: spacing.xl }}>
-        <ScreenHeader eyebrow="Payments" title="Balance & activity." />
+        <ScreenHeader eyebrow="Payments" title="Balance & activity" trailing={<InboxHeaderButton />} />
 
         <Card elevation="md">
           <View style={{ gap: spacing.sm }}>
@@ -146,22 +145,7 @@ export default function PaymentsScreen() {
               }
             />
           ) : (
-            <View style={{ gap: spacing.sm }}>
-              {activity.map((item) => (
-                <Card key={item.id}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-                    <View style={{ flex: 1, gap: spacing.xs }}>
-                      <Text style={typography.eyebrow}>{activityEyebrow(item)}</Text>
-                      <Text style={typography.bodyStrong}>{activityTitle(item)}</Text>
-                      {activitySubtitle(item) ? <Text style={typography.caption}>{activitySubtitle(item)}</Text> : null}
-                    </View>
-                    <Text style={typography.monoLg}>
-                      {item.direction === "CREDIT" ? "+" : "-"}{formatZarMinor(item.amountMinor)}
-                    </Text>
-                  </View>
-                </Card>
-              ))}
-            </View>
+            <UnifiedActivityFeed compact items={walletFeed.slice(0, 6)} />
           )}
         </View>
       </View>

@@ -18,11 +18,12 @@ import { formatZarMinor, parseZarAmount } from "@/src/features/payment/money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "@/src/features/payment/network";
 import {
   createTopUp,
+  getTopUp,
   MAX_TOP_UP_MINOR,
   MIN_TOP_UP_MINOR,
 } from "@/src/features/payment/paymentApi";
 import { paymentFailure } from "@/src/features/payment/paymentErrors";
-import { loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
+import { clearPendingTopUp, loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
@@ -41,11 +42,24 @@ export default function TopUpAmountScreen() {
   async function startTopUp() {
     const existing = await loadPendingTopUp();
     if (existing) {
-      router.replace({
-        pathname: "/(wallet)/topup-result",
-        params: { topUpId: existing.topUpId },
-      });
-      return;
+      try {
+        const existingStatus = await getTopUp(existing.topUpId);
+        if (existingStatus.status === "SUCCEEDED" || existingStatus.status === "FAILED") {
+          await clearPendingTopUp();
+        } else {
+          router.replace({
+            pathname: "/(wallet)/topup-result",
+            params: { topUpId: existing.topUpId },
+          });
+          return;
+        }
+      } catch {
+        router.replace({
+          pathname: "/(wallet)/topup-result",
+          params: { topUpId: existing.topUpId },
+        });
+        return;
+      }
     }
 
     const parsed = parseZarAmount(amount, {

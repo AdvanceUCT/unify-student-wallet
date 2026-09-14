@@ -19,9 +19,9 @@ jest.mock("expo-router", () => {
       children,
     );
   };
-  Tabs.Screen = ({ name, options }: { name: string; options?: { href?: null; title?: string } }) => React.createElement(
+  Tabs.Screen = ({ name, options }: { name: string; options?: { href?: null; tabBarStyle?: { display?: string }; title?: string } }) => React.createElement(
     Text,
-    { testID: `tab-${name}` },
+    { testID: `tab-${name}`, style: options?.tabBarStyle },
     options?.href === null ? "hidden" : options?.title ?? name,
   );
   return { Tabs };
@@ -59,7 +59,7 @@ describe("wallet navigation theme", () => {
     expect(screen.getByTestId("tab-active").props.children).toBe(darkColors.primary);
   });
 
-  it("keeps the existing wallet tabs and adds Settings at the end", async () => {
+  it("shows payments in the wallet tabs and keeps Inbox as a hidden route", async () => {
     const screen = render(
       <ThemePreferenceProvider>
         <WalletLayout />
@@ -69,17 +69,19 @@ describe("wallet navigation theme", () => {
     await waitFor(() => expect(screen.getByTestId("tab-background").props.children).toBe(lightColors.surface));
     expect([
       screen.getByTestId("tab-home").props.children,
-      screen.getByTestId("tab-inbox").props.children,
+      screen.getByTestId("tab-payments").props.children,
       screen.getByTestId("tab-scan").props.children,
       screen.getByTestId("tab-activity").props.children,
       screen.getByTestId("tab-settings").props.children,
-    ]).toEqual(["Home", "Inbox", "Scan", "Activity", "Settings"]);
+    ]).toEqual(["Home", "Payments", "Scan", "Activity", "Settings"]);
     expect(screen.getByTestId("tab-credential").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-inbox").props.children).toBe("hidden");
     expect(screen.getByTestId("tab-offers").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payments").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-amount").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-confirm").props.children).toBe("hidden");
-    expect(screen.getByTestId("tab-payment-result").props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-amount", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-confirm", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-result", { includeHiddenElements: true }).props.children).toBe("hidden");
+    expect(screen.getByTestId("tab-payment-amount", { includeHiddenElements: true }).props.style).toEqual({ display: "none" });
+    expect(screen.getByTestId("tab-payment-result", { includeHiddenElements: true }).props.style).toEqual({ display: "none" });
     expect(screen.getByTestId("tab-backup").props.children).toBe("hidden");
   });
 });

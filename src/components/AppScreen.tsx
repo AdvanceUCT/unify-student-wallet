@@ -29,7 +29,7 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   };
 
   const footerContent = footer ? (
-    <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.lg }}>
+    <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing["2xl"] }}>
       <View style={contentStyle}>{footer}</View>
     </View>
   ) : null;
@@ -38,7 +38,7 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
     <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={[
-          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: footer ? spacing.lg : spacing["2xl"] },
+          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: footer ? spacing.xl : spacing["2xl"] },
           contentContainerStyle,
         ]}
         showsVerticalScrollIndicator={false}

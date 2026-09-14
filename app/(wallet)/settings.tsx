@@ -9,6 +9,7 @@ import { useCallback, useState, type PropsWithChildren } from "react";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
+import { InboxHeaderButton } from "@/src/components/InboxHeaderButton";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { PinVerificationModal } from "@/src/features/auth/PinVerificationModal";
@@ -99,7 +100,7 @@ export default function SettingsScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader eyebrow="Profile" title="Wallet settings" meta="Security, recovery and connection status" />
+      <ScreenHeader eyebrow="Profile" title="Wallet settings" meta="Security, recovery and connection status" trailing={<InboxHeaderButton />} />
       <View style={{ gap: spacing["2xl"] }}>
         <SettingsSection title="Appearance">
           <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.md }}>

@@ -7,6 +7,8 @@ const mockRefetchBalance = jest.fn();
 const mockUseQuery = jest.fn();
 const mockLoadPaymentSession = jest.fn();
 const mockLoadPendingTopUp = jest.fn();
+const mockClearPendingTopUp = jest.fn();
+const mockGetTopUp = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), replace: jest.fn() },
@@ -25,11 +27,20 @@ jest.mock("@/src/features/payment/paymentSession", () => ({
 }));
 
 jest.mock("@/src/features/payment/topUpSession", () => ({
+  clearPendingTopUp: (...args: unknown[]) => mockClearPendingTopUp(...args),
   loadPendingTopUp: (...args: unknown[]) => mockLoadPendingTopUp(...args),
+}));
+
+jest.mock("@/src/features/payment/paymentApi", () => ({
+  getTopUp: (...args: unknown[]) => mockGetTopUp(...args),
 }));
 
 jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
   useThemePalette: () => require("@/src/theme/colors").lightColors,
+}));
+
+jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
+  useWalletSession: () => ({ pendingOfferIds: [] }),
 }));
 
 describe("payments refund activity", () => {
@@ -43,6 +54,12 @@ describe("payments refund activity", () => {
       sessionId: "session-001",
     });
     mockLoadPendingTopUp.mockResolvedValue(null);
+    mockClearPendingTopUp.mockResolvedValue(undefined);
+    mockGetTopUp.mockResolvedValue({
+      topUpId: "topup-001",
+      reference: "PSK_ref_001",
+      status: "PENDING",
+    });
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: string[] }) => {
       if (queryKey[0] === "wallet-balance") {
         return {
@@ -85,9 +102,33 @@ describe("payments refund activity", () => {
     await waitFor(() => expect(mockRefetchBalance).toHaveBeenCalledTimes(1));
     expect(mockRefetchActivity).toHaveBeenCalledTimes(1);
     expect(screen.getByText("R 125.00")).toBeTruthy();
-    expect(screen.getByText("Refund returned")).toBeTruthy();
     expect(screen.getByText("Refund from Campus Coffee")).toBeTruthy();
     expect(screen.getByText("Original payment to Campus Coffee Money was returned to your wallet.")).toBeTruthy();
     expect(screen.getByText("+R 12.50")).toBeTruthy();
+  });
+
+  it("clears a completed pending top-up instead of showing a stale resume action", async () => {
+    mockLoadPendingTopUp.mockResolvedValueOnce({
+      amountMinor: 1_000,
+      authorizationUrl: "https://checkout.paystack.test/pay/old",
+      createdAt: "2026-09-14T10:00:00.000Z",
+      currency: "ZAR",
+      idempotencyKey: "topup-request-old",
+      reference: "PSK_ref_old",
+      status: "PENDING",
+      topUpId: "topup-001",
+    });
+    mockGetTopUp.mockResolvedValueOnce({
+      topUpId: "topup-001",
+      reference: "PSK_ref_old",
+      status: "SUCCEEDED",
+    });
+
+    const screen = render(<PaymentsScreen />);
+
+    await waitFor(() => expect(mockGetTopUp).toHaveBeenCalledWith("topup-001"));
+    await waitFor(() => expect(mockClearPendingTopUp).toHaveBeenCalled());
+    expect(screen.queryByText("Resume R 10.00 top-up")).toBeNull();
+    expect(screen.getByText("Top up")).toBeTruthy();
   });
 });

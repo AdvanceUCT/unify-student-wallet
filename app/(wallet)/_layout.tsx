@@ -4,11 +4,14 @@
  */
 
 import { Tabs } from "expo-router";
-import { Activity, Home, Inbox, ScanLine, Settings, type LucideIcon } from "lucide-react-native";
+import { Activity, CreditCard, Home, ScanLine, Settings, type LucideIcon } from "lucide-react-native";
 import { Platform, useWindowDimensions } from "react-native";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { typography } from "@/src/theme/typography";
+
+const hiddenRouteOptions = { href: null };
+const hiddenFlowRouteOptions = { href: null, tabBarStyle: { display: "none" as const } };
 
 function tabIcon(Icon: LucideIcon) {
   return function TabIconRenderer({ color, focused, size }: { color: string; focused: boolean; size: number }) {
@@ -45,20 +48,20 @@ export default function WalletLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: tabIcon(Home) }} />
-      <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: tabIcon(Inbox) }} />
+      <Tabs.Screen name="payments" options={{ title: "Payments", tabBarIcon: tabIcon(CreditCard) }} />
       <Tabs.Screen name="scan" options={{ title: "Scan", tabBarIcon: tabIcon(ScanLine) }} />
       <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: tabIcon(Activity) }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon(Settings) }} />
-      <Tabs.Screen name="credential" options={{ href: null }} />
-      <Tabs.Screen name="offers" options={{ href: null }} />
-      <Tabs.Screen name="payments" options={{ href: null }} />
-      <Tabs.Screen name="payment-amount" options={{ href: null }} />
-      <Tabs.Screen name="payment-confirm" options={{ href: null }} />
-      <Tabs.Screen name="payment-result" options={{ href: null }} />
-      <Tabs.Screen name="payment-activate" options={{ href: null }} />
-      <Tabs.Screen name="topup-amount" options={{ href: null }} />
-      <Tabs.Screen name="topup-result" options={{ href: null }} />
-      <Tabs.Screen name="backup" options={{ href: null }} />
+      <Tabs.Screen name="credential" options={hiddenRouteOptions} />
+      <Tabs.Screen name="inbox" options={hiddenRouteOptions} />
+      <Tabs.Screen name="offers" options={hiddenRouteOptions} />
+      <Tabs.Screen name="payment-amount" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="payment-confirm" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="payment-result" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="payment-activate" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="topup-amount" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="topup-result" options={hiddenFlowRouteOptions} />
+      <Tabs.Screen name="backup" options={hiddenRouteOptions} />
     </Tabs>
   );
 }

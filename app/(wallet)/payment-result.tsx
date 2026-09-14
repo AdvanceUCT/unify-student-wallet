@@ -4,7 +4,6 @@
  */
 
 import { router, useLocalSearchParams } from "expo-router";
-import { CheckCircle } from "lucide-react-native";
 import { View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -12,8 +11,8 @@ import { AppScreen } from "@/src/components/AppScreen";
 import { Card } from "@/src/components/Card";
 import { InfoRow } from "@/src/components/InfoRow";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { TrustSeal } from "@/src/components/TrustSeal";
 import { formatZarMinor } from "@/src/features/payment/money";
-import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { formatDateTime } from "@/src/features/wallet/credentialDisplay";
 import { spacing } from "@/src/theme/spacing";
 
@@ -22,7 +21,6 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 export default function PaymentResultScreen() {
-  const colors = useThemePalette();
   const params = useLocalSearchParams<{
     amountMinor?: string | string[];
     resultingBalanceMinor?: string | string[];
@@ -41,7 +39,7 @@ export default function PaymentResultScreen() {
   return (
     <AppScreen footer={<AppButton label="Done" onPress={() => router.replace("/(wallet)/payments")} size="lg" />}>
       <View style={{ alignItems: "center", gap: spacing.xl }}>
-        <CheckCircle color={colors.success} size={56} strokeWidth={1.7} />
+        <TrustSeal haptic state="success" />
         <ScreenHeader eyebrow="Payment complete" title="Paid" meta={`${vendorName} · ${branchName}`} />
         <Card heading="Payment receipt" style={{ alignSelf: "stretch" }}>
           <InfoRow divider label="Amount" value={formatZarMinor(amountMinor)} />

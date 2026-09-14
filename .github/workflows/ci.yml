@@ -46,7 +46,14 @@ jobs:
         shell: bash
         run: |
           corepack enable
-          corepack yarn install --frozen-lockfile
+          for attempt in 1 2 3; do
+            if corepack yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying after transient dependency download failure."
+            sleep $((attempt * 20))
+          done
+          corepack yarn install --frozen-lockfile --network-timeout 600000
 
       - name: Lint
         if: steps.node.outputs.present == 'true'
