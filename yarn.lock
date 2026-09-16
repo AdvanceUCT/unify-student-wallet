@@ -1457,14 +1457,14 @@
   dependencies:
     tar "^7.4.3"
 
-"@hyperledger/indy-vdr-react-native@0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@hyperledger/indy-vdr-react-native/-/indy-vdr-react-native-0.3.0.tgz#dc000c4e9a5d2771d5cbd01470dee5f479d07585"
-  integrity sha512-zz5fdlNlgHfg8iKkiuhltk2z/Et5siaHDDZo5KY9WPri8nkCln3EUh4yvs3SqEDi/MyQq/cMqcx2pH2nbMkEhA==
+"@hyperledger/indy-vdr-react-native@0.2.3":
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/@hyperledger/indy-vdr-react-native/-/indy-vdr-react-native-0.2.3.tgz#0d579c43f7b3ed19140e0c467dba6fe6dc5d7728"
+  integrity sha512-DTFI6YqH9HWmNQKE0dz9wZ4a8yQFSgiczWMiRaXfFsHcxRXkZLuWFQ2/bW+y5mURuEucMlJvFJ0yRjEmKxVBsg==
   dependencies:
-    "@hyperledger/indy-vdr-shared" "0.3.0"
+    "@hyperledger/indy-vdr-shared" "0.2.3"
 
-"@hyperledger/indy-vdr-shared@0.2.3", "@hyperledger/indy-vdr-shared@0.3.0":
+"@hyperledger/indy-vdr-shared@0.2.3":
   version "0.2.3"
   resolved "https://registry.yarnpkg.com/@hyperledger/indy-vdr-shared/-/indy-vdr-shared-0.2.3.tgz#c12956ad4d9448e76c490588634b12c209f79916"
   integrity sha512-5sZ1WO+cL7v6bLBqN4YnVEZVq5yXVBD18e1B2eWW/jwvQh+3R4XTVpQttYI2tf2fe1CrN+UztU4uuxSAWDPAng==

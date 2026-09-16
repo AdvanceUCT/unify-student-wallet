@@ -23,8 +23,11 @@ const CREDENTIAL_STORED_STATES = new Set(["credential-received", "done"]);
 const CREDENTIAL_OFFER_WAIT_MS = 45_000;
 const CREDENTIAL_OFFER_GRACE_MS = 5_000;
 const CREDENTIAL_OFFER_POLL_MS = 1_000;
+const GENESIS_FETCH_TIMEOUT_MS = 10_000;
 const PROOF_INVITATION_RECEIVE_TIMEOUT_MS = 15_000;
 const PROOF_INVITATION_POLL_MS = 300;
+const LEDGER_UNAVAILABLE_MESSAGE =
+  "The credential ledger is temporarily unavailable. Check your connection and try again.";
 
 export type HolderAgentConfig = {
   walletId: string;
@@ -83,6 +86,10 @@ type HolderAnonCredsApi = {
     attributes: Record<string, string | number>;
     credentialId: string;
   }>;
+};
+
+type HolderIndyVdrApi = {
+  refreshPoolConnections?: () => Promise<PromiseSettledResult<void>[]>;
 };
 
 type SelectedProofFormats = {
@@ -180,7 +187,11 @@ export type HolderAgent = {
     off?: (eventType: string, handler: (event: unknown) => void) => void;
   };
   initialize: () => Promise<void>;
-  modules?: { anoncreds?: HolderAnonCredsApi; askar?: HolderAskarApi };
+  modules?: {
+    anoncreds?: HolderAnonCredsApi;
+    askar?: HolderAskarApi;
+    indyVdr?: HolderIndyVdrApi;
+  };
   shutdown?: () => Promise<void>;
 };
 
@@ -297,22 +308,94 @@ export async function validateEncryptedHolderWalletBackup(path: string, recovery
 
 async function loadBcovrinGenesisTransactions() {
   const cachedTransactions = await readCachedGenesisTransactions();
-  if (cachedTransactions) {
-    return { fromCache: true, transactions: cachedTransactions };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GENESIS_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(BCOVRIN_TEST_GENESIS_URL, { signal: controller.signal });
+
+    if (!response.ok) {
+      throw new Error("Unable to load BCovrin Test genesis transactions.");
+    }
+
+    const transactions = await response.text();
+    if (!isValidGenesisTransactions(transactions)) {
+      throw new Error("BCovrin Test returned malformed genesis transactions.");
+    }
+
+    return {
+      fromCache: false,
+      shouldCache: transactions.trim() !== cachedTransactions?.trim(),
+      transactions,
+    };
+  } catch (error) {
+    if (cachedTransactions) {
+      console.warn(
+        `[holder-agent] Unable to refresh BCovrin genesis transactions; using the cached copy: ${errorMessageFromUnknown(error)}`,
+      );
+      return { fromCache: true, shouldCache: false, transactions: cachedTransactions };
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function ledgerRefreshFailure(results: PromiseSettledResult<void>[]) {
+  if (results.length === 0) {
+    return new Error("No credential ledger pools are configured.");
   }
 
-  const response = await fetch(BCOVRIN_TEST_GENESIS_URL);
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (!rejected) return null;
+  return rejected.reason instanceof Error
+    ? rejected.reason
+    : new Error(String(rejected.reason));
+}
 
-  if (!response.ok) {
-    throw new Error("Unable to load BCovrin Test genesis transactions.");
+const credentialLedgerRefreshes = new WeakMap<HolderAgent, Promise<void>>();
+
+async function refreshCredentialLedger(agent: HolderAgent) {
+  const indyVdr = agent.modules?.indyVdr;
+  if (!indyVdr?.refreshPoolConnections) {
+    throw new Error("Credo holder agent is missing the Indy VDR pool API.");
   }
 
-  const transactions = await response.text();
-  if (!isValidGenesisTransactions(transactions)) {
-    throw new Error("BCovrin Test returned malformed genesis transactions.");
-  }
+  const existingRefresh = credentialLedgerRefreshes.get(agent);
+  if (existingRefresh) return existingRefresh;
 
-  return { fromCache: false, transactions };
+  const refresh = (async () => {
+    const results = await indyVdr.refreshPoolConnections!();
+    const failure = ledgerRefreshFailure(results);
+    if (failure) throw failure;
+  })();
+  credentialLedgerRefreshes.set(agent, refresh);
+
+  try {
+    await refresh;
+  } finally {
+    if (credentialLedgerRefreshes.get(agent) === refresh) {
+      credentialLedgerRefreshes.delete(agent);
+    }
+  }
+}
+
+async function ensureCredentialLedgerReady(agent: HolderAgent) {
+  try {
+    await refreshCredentialLedger(agent);
+  } catch (error) {
+    console.warn(
+      `[holder-agent] Credential ledger readiness check failed: ${errorMessageFromUnknown(error)}`,
+    );
+    throw new Error(LEDGER_UNAVAILABLE_MESSAGE, { cause: error });
+  }
+}
+
+function warmCredentialLedger(agent: HolderAgent) {
+  void ensureCredentialLedgerReady(agent).catch(() => undefined);
 }
 
 function getConstructor<T>(moduleExports: DynamicModule, exportName: string): Constructor<T> {
@@ -694,7 +777,7 @@ const modules: Record<string, unknown> = {
     indyVdr: indyVdrBinding,
     networks: [
       {
-        connectOnStartup: false,
+        connectOnStartup: true,
         genesisTransactions: genesis.transactions,
         indyNamespace: "bcovrin:test",
         isProduction: false,
@@ -731,8 +814,9 @@ const modules: Record<string, unknown> = {
     }
 
     await loggedStep("initialize Credo agent", () => agent.initialize());
+    warmCredentialLedger(agent);
     await initializeMediator(agent, mediatorInvitationUrl, mediatorPickupStrategy);
-    if (!genesis.fromCache) {
+    if (!genesis.fromCache && genesis.shouldCache) {
       await writeCachedGenesisTransactions(genesis.transactions).catch((error) => {
         console.warn(
           `[holder-agent] Unable to cache BCovrin genesis transactions: ${errorMessageFromUnknown(error)}`,
@@ -890,12 +974,13 @@ export async function acceptCredentialOffer(credentialRecordId: string): Promise
     throw new Error("Credo holder agent is missing the credentials API.");
   }
 
- await loggedStep(`accept credential offer ${credentialRecordId}`, () =>
-  credentials.acceptOffer!({
-    credentialExchangeRecordId: credentialRecordId,
-    credentialRecordId,
-  }),
-);
+  await loggedStep("refresh credential ledger", () => ensureCredentialLedgerReady(agentRef!));
+  await loggedStep(`accept credential offer ${credentialRecordId}`, () =>
+    credentials.acceptOffer!({
+      credentialExchangeRecordId: credentialRecordId,
+      credentialRecordId,
+    }),
+  );
 }
 
 /** Declines the named offer without changing other credential exchanges. */
@@ -1292,6 +1377,8 @@ export const __holderAgentTestInternals = {
   findCredentialRecord,
   findStoredCredential,
   firstRestorableBackupProfile,
+  ledgerRefreshFailure,
+  loadBcovrinGenesisTransactions,
   restoredWalletImportPlan,
   setActiveHolderAgentForTest(agent: HolderAgent | null, walletId = "test-wallet") {
     agentRef = agent;
