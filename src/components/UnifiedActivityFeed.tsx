@@ -21,6 +21,8 @@ function iconFor(item: UnifiedActivityItem) {
 }
 
 function toneColors(item: UnifiedActivityItem, colors: ReturnType<typeof useThemePalette>) {
+  if (item.amountDirection === "credit") return { background: colors.successSoft, foreground: colors.success };
+  if (item.amountDirection === "debit") return { background: colors.errorSoft, foreground: colors.error };
   if (item.tone === "success") return { background: colors.successSoft, foreground: colors.success };
   if (item.tone === "warning") return { background: colors.warningSoft, foreground: colors.warning };
   if (item.tone === "error") return { background: colors.errorSoft, foreground: colors.error };
@@ -113,7 +115,21 @@ export function UnifiedActivityFeed({
                         {!compact ? <Text style={typography.caption}>{new Date(item.occurredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text> : null}
                       </View>
                       {item.amountText ? (
-                        <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[typography.monoLg, { color: tone.foreground, maxWidth: compact ? 96 : 112, textAlign: "right" }]}>
+                        <Text
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.78}
+                          numberOfLines={1}
+                          style={[
+                            typography.bodyStrong,
+                            {
+                              color: tone.foreground,
+                              fontSize: compact ? 15 : 16,
+                              lineHeight: compact ? 20 : 22,
+                              maxWidth: compact ? 92 : 108,
+                              textAlign: "right",
+                            },
+                          ]}
+                        >
                           {item.amountText}
                         </Text>
                       ) : (

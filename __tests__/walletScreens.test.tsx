@@ -11,7 +11,7 @@ import SettingsScreen from "@/app/(wallet)/settings";
 const mockRequestPermission = jest.fn();
 const mockSetThemePreference = jest.fn(async () => undefined);
 const mockIsPaymentOnline = jest.fn(async () => true);
-const mockLoadPaymentSession = jest.fn(async () => null);
+const mockLoadPaymentSession = jest.fn(async (): Promise<unknown> => null);
 let mockCameraGranted = false;
 let mockRecentActivity: Array<{
   id: string;
@@ -32,6 +32,19 @@ let mockPendingOffers: Array<{
   id: string;
   credentialAttributes?: Array<{ name: string; value: string }>;
 }> = [];
+let mockWalletActivity: Array<{
+  amountMinor: number;
+  completedAt?: string;
+  createdAt: string;
+  currency: "ZAR";
+  direction: "CREDIT" | "DEBIT";
+  id: string;
+  reference?: string;
+  status: string;
+  subtitle?: string;
+  title: string;
+  type: "SPEND" | "TOPUP" | "REFUND";
+}> = [];
 const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]; enabled?: boolean }) => {
   if (queryKey[0] === "stored-credentials") {
     const data = !enabled && mockStoredCredentials.length === 0 ? undefined : mockStoredCredentials;
@@ -51,7 +64,7 @@ const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]
   }
 
   if (queryKey[0] === "wallet-activity") {
-    return { data: [], isError: false, isLoading: false, refetch: jest.fn() };
+    return { data: mockWalletActivity, isError: false, isLoading: false, refetch: jest.fn() };
   }
 
   if (queryKey[0] === "pending-offers") {
@@ -152,6 +165,7 @@ describe("wallet screens", () => {
     mockRecentActivity = [];
     mockStoredCredentials = [];
     mockPendingOffers = [];
+    mockWalletActivity = [];
     mockHolderAgent = {
       ensureWalletReady: jest.fn(async () => null),
       error: undefined,
@@ -253,6 +267,34 @@ describe("wallet screens", () => {
     expect(screen.queryByText("Computer Science")).toBeNull();
     expect(screen.queryByText("2026-01-01")).toBeNull();
     expect(screen.queryByText("VERIFIABLE STUDENT IDENTITY")).toBeNull();
+  });
+
+  it("removes the activated balance caption and hides top-up references in recent activity", async () => {
+    mockLoadPaymentSession.mockResolvedValue({
+      accessToken: "payment-token",
+      accessExpiresAt: "2099-01-01T00:00:00.000Z",
+      refreshToken: "payment-refresh",
+      refreshExpiresAt: "2099-01-02T00:00:00.000Z",
+      sessionId: "session-001",
+    });
+    mockWalletActivity = [{
+      amountMinor: 1_000,
+      completedAt: "2026-09-15T12:00:00.000Z",
+      createdAt: "2026-09-15T12:00:00.000Z",
+      currency: "ZAR",
+      direction: "CREDIT",
+      id: "topup-001",
+      reference: "unify-wlt-very-long-reference-number",
+      status: "COMPLETED",
+      title: "Wallet top-up",
+      type: "TOPUP",
+    }];
+
+    const screen = render(<HomeScreen />);
+
+    await waitFor(() => expect(screen.getByText("Wallet credited")).toBeTruthy());
+    expect(screen.queryByText("Confirmed top-ups and payments update here.")).toBeNull();
+    expect(screen.queryByText("unify-wlt-very-long-reference-number")).toBeNull();
   });
 
   it("uses Inbox for credential offers and validity warnings", () => {

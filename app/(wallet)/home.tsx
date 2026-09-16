@@ -171,9 +171,9 @@ export default function HomeScreen() {
             <View style={styles.balanceCopy}>
               <Text style={typography.eyebrow}>Wallet balance</Text>
               <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={styles.balanceValue}>{balanceText}</Text>
-              <Text numberOfLines={2} style={typography.caption}>
-                {paymentActivated ? "Confirmed top-ups and payments update here." : "Open Payments to activate top-ups and vendor payments."}
-              </Text>
+              {!paymentActivated ? (
+                <Text numberOfLines={2} style={typography.caption}>Open Payments to activate top-ups and vendor payments.</Text>
+              ) : null}
             </View>
           </View>
         </AnimatedEntry>

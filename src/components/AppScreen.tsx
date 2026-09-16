@@ -5,7 +5,7 @@
 
 import { type PropsWithChildren, type ReactNode } from "react";
 import { ScrollView, View, type ScrollViewProps } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { standardContentMaxWidth } from "@/src/theme/layout";
@@ -20,6 +20,7 @@ type AppScreenProps = PropsWithChildren<{
 
 export function AppScreen({ children, scrollable = true, contentContainerStyle, contentWidth = "standard", footer }: AppScreenProps) {
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const contentStyle = {
     flex: 1,
     minWidth: 0,
@@ -29,7 +30,7 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   };
 
   const footerContent = footer ? (
-    <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing["2xl"] }}>
+    <View testID="app-screen-footer" style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom + spacing.md, spacing["2xl"]) }}>
       <View style={contentStyle}>{footer}</View>
     </View>
   ) : null;
@@ -65,6 +66,6 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   );
 
   return (
-    <SafeAreaView edges={footer ? ["top", "left", "right", "bottom"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
   );
 }
