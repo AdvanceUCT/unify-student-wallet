@@ -61,6 +61,8 @@ export function AppButton({
         borderWidth: isOutline ? 1 : 0,
         borderColor: colors.rule,
         minWidth: 0,
+        minHeight: size === "lg" ? 56 : 48,
+        flexShrink: 0,
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
         paddingHorizontal: spacing.xl,
         paddingVertical,
@@ -71,9 +73,6 @@ export function AppButton({
       {isPrimary ? <BrandGradient style={StyleSheet.absoluteFillObject} /> : null}
       {Icon ? <Icon color={textColor} size={18} strokeWidth={2} /> : null}
       <Text
-        adjustsFontSizeToFit
-        minimumFontScale={0.76}
-        numberOfLines={1}
         style={{
           color: textColor,
           flexShrink: 1,

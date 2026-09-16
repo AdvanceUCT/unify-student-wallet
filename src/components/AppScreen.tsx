@@ -22,7 +22,6 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   const colors = useThemePalette();
   const insets = useSafeAreaInsets();
   const contentStyle = {
-    flex: 1,
     minWidth: 0,
     width: "100%" as const,
     maxWidth: contentWidth === "standard" ? standardContentMaxWidth : undefined,
@@ -30,8 +29,8 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   };
 
   const footerContent = footer ? (
-    <View testID="app-screen-footer" style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom + spacing.md, spacing["2xl"]) }}>
-      <View style={contentStyle}>{footer}</View>
+    <View testID="app-screen-footer" style={[contentStyle, { flexShrink: 0, paddingTop: spacing.xl }]}>
+      {footer}
     </View>
   ) : null;
 
@@ -39,14 +38,17 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
     <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={[
-          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: footer ? spacing.xl : spacing["2xl"] },
+          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: spacing["2xl"] },
           contentContainerStyle,
+          footer ? { paddingBottom: Math.max(insets.bottom + spacing.lg, spacing["2xl"]) } : null,
         ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        <View style={contentStyle}>{children}</View>
+        <View style={[contentStyle, footer ? { flexShrink: 0 } : { flex: 1 }]}>{children}</View>
+        {footerContent}
       </ScrollView>
-      {footerContent}
     </View>
   ) : (
     <View
@@ -58,9 +60,10 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
           paddingBottom: spacing["2xl"],
         },
         contentContainerStyle,
+        footer ? { paddingBottom: Math.max(insets.bottom + spacing.lg, spacing["2xl"]) } : null,
       ]}
     >
-      <View style={contentStyle}>{children}</View>
+      <View style={[contentStyle, { flex: 1 }]}>{children}</View>
       {footerContent}
     </View>
   );

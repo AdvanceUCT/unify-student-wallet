@@ -197,7 +197,9 @@ export default function TopUpResultScreen() {
             onPress={handlePrimary}
             size="lg"
           />
-          <AppButton label="Back to payments" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />
+          {status?.status !== "SUCCEEDED" ? (
+            <AppButton label="Back to payments" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />
+          ) : null}
         </View>
       }
     >

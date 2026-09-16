@@ -243,6 +243,7 @@ describe("top-up and payment activation screens", () => {
 
     await waitFor(() => expect(screen.getByText("Top-up confirmed")).toBeTruthy());
     const doneButton = screen.getByRole("button", { name: "Done" });
+    expect(screen.queryByRole("button", { name: "Back to payments" })).toBeNull();
     expect(doneButton.props.accessibilityState).toEqual({ disabled: false });
 
     fireEvent.press(doneButton);
