@@ -28,7 +28,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@hyperledger/anoncreds-react-native": "0.3.4",
     "@hyperledger/anoncreds-shared": "0.3.4",
-    "@hyperledger/indy-vdr-react-native": "0.2.3",
+    "@hyperledger/indy-vdr-react-native": "0.3.0",
     "@hyperledger/indy-vdr-shared": "0.2.3",
     "@openwallet-foundation/askar-react-native": "0.4.3",
     "@openwallet-foundation/askar-shared": "0.4.3",

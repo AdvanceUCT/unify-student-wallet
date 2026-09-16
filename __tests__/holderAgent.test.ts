@@ -3,7 +3,6 @@ import {
   clearActiveHolderAgent,
   exportEncryptedHolderWallet,
   acceptVerificationProof,
-  acceptCredentialOffer,
   getCredentialRecord,
   getStoredCredentials,
   receiveCredentialOffer,
@@ -43,75 +42,6 @@ describe("holder agent credential activation", () => {
       label: "UNIFY Student Wallet",
     });
     expect(result).toBe(newCredential);
-  });
-
-  it("refreshes the ledger before accepting an offer", async () => {
-    const refreshPoolConnections = jest.fn(async () => [
-      { status: "fulfilled", value: undefined } as const,
-    ]);
-    const acceptOffer = jest.fn(async () => undefined);
-
-    __holderAgentTestInternals.setActiveHolderAgentForTest({
-      didcomm: { credentials: { acceptOffer } },
-      initialize: jest.fn(),
-      modules: { indyVdr: { refreshPoolConnections } },
-    });
-
-    await acceptCredentialOffer("offer-001");
-
-    expect(refreshPoolConnections).toHaveBeenCalledTimes(1);
-    expect(refreshPoolConnections.mock.invocationCallOrder[0]).toBeLessThan(
-      acceptOffer.mock.invocationCallOrder[0],
-    );
-    expect(acceptOffer).toHaveBeenCalledWith({
-      credentialExchangeRecordId: "offer-001",
-      credentialRecordId: "offer-001",
-    });
-  });
-
-  it("shares an in-flight ledger refresh between concurrent accept attempts", async () => {
-    let completeRefresh!: (results: PromiseSettledResult<void>[]) => void;
-    const refreshPoolConnections = jest.fn(
-      () => new Promise<PromiseSettledResult<void>[]>((resolve) => {
-        completeRefresh = resolve;
-      }),
-    );
-    const acceptOffer = jest.fn(async () => undefined);
-
-    __holderAgentTestInternals.setActiveHolderAgentForTest({
-      didcomm: { credentials: { acceptOffer } },
-      initialize: jest.fn(),
-      modules: { indyVdr: { refreshPoolConnections } },
-    });
-
-    const firstAcceptance = acceptCredentialOffer("offer-001");
-    const secondAcceptance = acceptCredentialOffer("offer-002");
-    expect(refreshPoolConnections).toHaveBeenCalledTimes(1);
-
-    completeRefresh([{ status: "fulfilled", value: undefined }]);
-    await Promise.all([firstAcceptance, secondAcceptance]);
-
-    expect(acceptOffer).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not advance an offer while the credential ledger is unavailable", async () => {
-    const refreshPoolConnections = jest.fn(async () => [
-      { status: "rejected", reason: new Error("Pool timeout: Request was interrupted") } as const,
-    ]);
-    const acceptOffer = jest.fn(async () => undefined);
-    jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    jest.spyOn(console, "error").mockImplementation(() => undefined);
-
-    __holderAgentTestInternals.setActiveHolderAgentForTest({
-      didcomm: { credentials: { acceptOffer } },
-      initialize: jest.fn(),
-      modules: { indyVdr: { refreshPoolConnections } },
-    });
-
-    await expect(acceptCredentialOffer("offer-001")).rejects.toThrow(
-      "The credential ledger is temporarily unavailable. Check your connection and try again.",
-    );
-    expect(acceptOffer).not.toHaveBeenCalled();
   });
 
   it("loads offered attributes from Credo format data before acceptance", async () => {

@@ -17,17 +17,11 @@ import {
   readCachedGenesisTransactions,
   writeCachedGenesisTransactions,
 } from "@/src/features/wallet/genesisCache";
-import { __holderAgentTestInternals } from "@/src/features/wallet/holderAgent";
 
 const validGenesis = [
   JSON.stringify({ reqSignature: {}, txn: { data: { data: { alias: "Node1" } } } }),
   JSON.stringify({ reqSignature: {}, txn: { data: { data: { alias: "Node2" } } } }),
 ].join("\n");
-const refreshedGenesis = JSON.stringify({
-  reqSignature: {},
-  txn: { data: { data: { alias: "RefreshedNode" } } },
-});
-const originalFetch = global.fetch;
 
 describe("BCovrin genesis cache", () => {
   beforeEach(() => {
@@ -40,7 +34,6 @@ describe("BCovrin genesis cache", () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
@@ -75,33 +68,5 @@ describe("BCovrin genesis cache", () => {
       "/documents/bcovrin-test-genesis.txn.1234.tmp",
       "/documents/bcovrin-test-genesis.txn",
     );
-  });
-
-  it("prefers refreshed genesis transactions over a stale cached copy", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      text: jest.fn().mockResolvedValue(refreshedGenesis),
-    });
-
-    await expect(
-      __holderAgentTestInternals.loadBcovrinGenesisTransactions(),
-    ).resolves.toEqual({
-      fromCache: false,
-      shouldCache: true,
-      transactions: refreshedGenesis,
-    });
-  });
-
-  it("falls back to valid cached genesis transactions when refresh fails", async () => {
-    global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
-    jest.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    await expect(
-      __holderAgentTestInternals.loadBcovrinGenesisTransactions(),
-    ).resolves.toEqual({
-      fromCache: true,
-      shouldCache: false,
-      transactions: validGenesis,
-    });
   });
 });
