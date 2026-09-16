@@ -21,6 +21,7 @@ export type UnifiedActivityItem = {
   occurredAt: string;
   tone: UnifiedActivityTone;
   amountText?: string;
+  amountDirection?: "credit" | "debit";
   reference?: string;
 };
 
@@ -54,6 +55,12 @@ function paymentTitle(item: WalletActivity) {
 }
 
 function paymentSubtitle(item: WalletActivity) {
+  if (item.type === "TOPUP") {
+    const normalized = item.status.toLowerCase();
+    if (normalized.includes("fail") || normalized.includes("cancel")) return "Top-up failed";
+    if (normalized.includes("pending") || normalized.includes("unknown") || normalized.includes("processing")) return "Top-up pending";
+    return "Wallet credited";
+  }
   if (item.type === "REFUND" && item.direction === "CREDIT") {
     const returned = "Money was returned to your wallet.";
     return item.subtitle ? `${item.subtitle} ${returned}` : returned;
@@ -71,6 +78,7 @@ export function normalizeWalletActivity(items: WalletActivity[]): UnifiedActivit
     occurredAt: item.completedAt ?? item.createdAt,
     tone: paymentTone(item.status),
     amountText: `${item.direction === "CREDIT" ? "+" : "-"}${formatZarMinor(item.amountMinor)}`,
+    amountDirection: item.direction === "CREDIT" ? "credit" : "debit",
     reference: item.reference,
   }));
 }

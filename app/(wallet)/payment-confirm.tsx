@@ -11,6 +11,7 @@ import { Text, View } from "react-native";
 import { AppButton } from "@/src/components/AppButton";
 import { AppScreen } from "@/src/components/AppScreen";
 import { InfoRow } from "@/src/components/InfoRow";
+import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { formatZarMinor } from "@/src/features/payment/money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "@/src/features/payment/network";
@@ -90,6 +91,22 @@ export default function PaymentConfirmScreen() {
 
   const destinationFailure = destinationQuery.error ? paymentFailure(destinationQuery.error) : undefined;
   const activeFailure = failure ?? destinationFailure;
+
+  if (isSubmitting) {
+    const destinationLabel = destinationQuery.data
+      ? `${destinationQuery.data.vendorName} · ${destinationQuery.data.branchName}`
+      : "the vendor";
+    return (
+      <OperationStateScreen
+        busy
+        detail={`${formatZarMinor(amountMinor)} to ${destinationLabel}`}
+        eyebrow="Payment"
+        message="Moving funds securely. Keep the app open while UNIFY confirms the result."
+        title="Processing payment"
+        tone="loading"
+      />
+    );
+  }
 
   return (
     <AppScreen

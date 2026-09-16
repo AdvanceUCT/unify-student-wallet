@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import PaymentAmountScreen from "@/app/(wallet)/payment-amount";
 import PaymentConfirmScreen from "@/app/(wallet)/payment-confirm";
@@ -131,6 +131,36 @@ describe("payment screens", () => {
       amountMinor: 4575,
       idempotencyKey: "payment-request-001",
       qrIdentifier: "branch_qr-001",
+    });
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
+      pathname: "/(wallet)/payment-result",
+      params: expect.objectContaining({ transactionId: "transaction-001" }),
+    }));
+  });
+
+  it("shows a processing state between payment submission and the success receipt", async () => {
+    mockParams = {
+      qrIdentifier: "branch_qr-001",
+      amountMinor: "4575",
+      idempotencyKey: "payment-request-001",
+    };
+    let resolvePayment!: (value: typeof receipt) => void;
+    jest.mocked(submitPayment).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolvePayment = resolve;
+      }),
+    );
+    const screen = render(<PaymentConfirmScreen />);
+
+    fireEvent.press(screen.getByText("Pay R 45.75"));
+
+    await waitFor(() => expect(screen.getByText("Processing payment")).toBeTruthy());
+    expect(screen.getByText("R 45.75 to Campus Coffee · Main Library")).toBeTruthy();
+    expect(screen.queryByText("Go back")).toBeNull();
+    expect(submitPayment).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePayment(receipt);
     });
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
       pathname: "/(wallet)/payment-result",

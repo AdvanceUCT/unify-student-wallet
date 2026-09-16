@@ -1,7 +1,8 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import PaymentActivateScreen from "@/app/(wallet)/payment-activate";
 import TopUpAmountScreen from "@/app/(wallet)/topup-amount";
+import TopUpResultScreen from "@/app/(wallet)/topup-result";
 import TopUpReturnRoute from "@/app/topup-return";
 import {
   createTopUp,
@@ -13,6 +14,7 @@ import { getOrCreatePaymentDeviceId, savePaymentSession } from "@/src/features/p
 import { clearPendingTopUp, loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
 
 const mockIsPaymentOnline = jest.fn(async () => true);
+const mockInvalidateQueries = jest.fn(async () => undefined);
 let mockOffline = false;
 let mockSearchParams: Record<string, string | string[] | undefined> = {};
 
@@ -26,6 +28,10 @@ jest.mock("expo-router", () => ({
 
 jest.mock("expo-web-browser", () => ({
   openAuthSessionAsync: jest.fn(async () => ({ type: "success", url: "unifywallet://topup-return?topUpId=topup-001" })),
+}));
+
+jest.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 jest.mock("@/src/features/payment/network", () => ({
@@ -66,6 +72,7 @@ describe("top-up and payment activation screens", () => {
     mockOffline = false;
     mockSearchParams = {};
     mockIsPaymentOnline.mockResolvedValue(true);
+    mockInvalidateQueries.mockResolvedValue(undefined);
     jest.mocked(loadPendingTopUp).mockResolvedValue(null);
     jest.mocked(getTopUp).mockResolvedValue({
       topUpId: "topup-001",
@@ -214,5 +221,35 @@ describe("top-up and payment activation screens", () => {
     await waitFor(() => expect(screen.getByText("Reconnect before starting a top-up. No top-up was created.")).toBeTruthy());
     expect(createTopUp).not.toHaveBeenCalled();
     expect(savePendingTopUp).not.toHaveBeenCalled();
+  });
+
+  it("keeps the confirmed top-up Done action visible and enabled during final cleanup", async () => {
+    mockSearchParams = { topUpId: "topup-001" };
+    let finishCleanup!: () => void;
+    jest.mocked(getTopUp).mockResolvedValueOnce({
+      amountMinor: 1_000,
+      reference: "PSK_ref_001",
+      resultingBalanceMinor: 11_000,
+      status: "SUCCEEDED",
+      topUpId: "topup-001",
+      transactionId: "transaction-001",
+    });
+    jest.mocked(clearPendingTopUp).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        finishCleanup = resolve;
+      }),
+    );
+    const screen = render(<TopUpResultScreen />);
+
+    await waitFor(() => expect(screen.getByText("Top-up confirmed")).toBeTruthy());
+    const doneButton = screen.getByRole("button", { name: "Done" });
+    expect(screen.queryByRole("button", { name: "Back to payments" })).toBeNull();
+    expect(doneButton.props.accessibilityState).toEqual({ disabled: false });
+
+    fireEvent.press(doneButton);
+    expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments");
+    await act(async () => {
+      finishCleanup();
+    });
   });
 });

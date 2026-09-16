@@ -191,13 +191,15 @@ export default function TopUpResultScreen() {
       footer={
         <View style={{ gap: spacing.sm }}>
           <AppButton
-            disabled={checking || !activeTopUpId || isOffline}
+            disabled={!terminal && (checking || !activeTopUpId || isOffline)}
             icon={status?.status === "PENDING" || status?.status === "UNKNOWN" ? RefreshCcw : undefined}
             label={primaryLabel}
             onPress={handlePrimary}
             size="lg"
           />
-          <AppButton label="Back to payments" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />
+          {status?.status !== "SUCCEEDED" ? (
+            <AppButton label="Back to payments" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />
+          ) : null}
         </View>
       }
     >

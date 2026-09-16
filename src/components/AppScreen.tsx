@@ -5,7 +5,7 @@
 
 import { type PropsWithChildren, type ReactNode } from "react";
 import { ScrollView, View, type ScrollViewProps } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { standardContentMaxWidth } from "@/src/theme/layout";
@@ -20,8 +20,8 @@ type AppScreenProps = PropsWithChildren<{
 
 export function AppScreen({ children, scrollable = true, contentContainerStyle, contentWidth = "standard", footer }: AppScreenProps) {
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const contentStyle = {
-    flex: 1,
     minWidth: 0,
     width: "100%" as const,
     maxWidth: contentWidth === "standard" ? standardContentMaxWidth : undefined,
@@ -29,8 +29,8 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
   };
 
   const footerContent = footer ? (
-    <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing["2xl"] }}>
-      <View style={contentStyle}>{footer}</View>
+    <View testID="app-screen-footer" style={[contentStyle, { flexShrink: 0, paddingTop: spacing.xl }]}>
+      {footer}
     </View>
   ) : null;
 
@@ -38,14 +38,17 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
     <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={[
-          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: footer ? spacing.xl : spacing["2xl"] },
+          { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: spacing["2xl"] },
           contentContainerStyle,
+          footer ? { paddingBottom: Math.max(insets.bottom + spacing.lg, spacing["2xl"]) } : null,
         ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        <View style={contentStyle}>{children}</View>
+        <View style={[contentStyle, footer ? { flexShrink: 0 } : { flex: 1 }]}>{children}</View>
+        {footerContent}
       </ScrollView>
-      {footerContent}
     </View>
   ) : (
     <View
@@ -57,14 +60,15 @@ export function AppScreen({ children, scrollable = true, contentContainerStyle, 
           paddingBottom: spacing["2xl"],
         },
         contentContainerStyle,
+        footer ? { paddingBottom: Math.max(insets.bottom + spacing.lg, spacing["2xl"]) } : null,
       ]}
     >
-      <View style={contentStyle}>{children}</View>
+      <View style={[contentStyle, { flex: 1 }]}>{children}</View>
       {footerContent}
     </View>
   );
 
   return (
-    <SafeAreaView edges={footer ? ["top", "left", "right", "bottom"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: colors.background, flex: 1 }}>{inner}</SafeAreaView>
   );
 }
