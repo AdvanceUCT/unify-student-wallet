@@ -439,7 +439,7 @@ describe("wallet screens", () => {
     await waitFor(() => expect(routerMock.push).toHaveBeenCalledTimes(1));
   });
 
-  it("starts an opaque vendor payment flow only once", async () => {
+  it("rejects a retired static payment QR without navigating", async () => {
     mockCameraGranted = true;
     const routerMock = jest.requireMock("expo-router").router as { push: jest.Mock };
     const screen = render(<ScanScreen />);
@@ -448,11 +448,8 @@ describe("wallet screens", () => {
     fireEvent(camera, "barcodeScanned", { data: "unifywallet://pay/branch_qr-001" });
     fireEvent(camera, "barcodeScanned", { data: "unifywallet://pay/branch_qr-001" });
 
-    await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith({
-      pathname: "/(wallet)/payment-amount",
-      params: { qrIdentifier: "branch_qr-001" },
-    }));
-    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByText("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.")).toBeTruthy());
+    expect(routerMock.push).not.toHaveBeenCalled();
   });
 
   it("blocks a payment QR while offline without navigating", async () => {
@@ -465,7 +462,7 @@ describe("wallet screens", () => {
       data: "unifywallet://pay/branch_qr-001",
     });
 
-    await waitFor(() => expect(screen.getByText("Payments need an internet connection. Reconnect, then scan again.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.")).toBeTruthy());
     expect(routerMock.push).not.toHaveBeenCalled();
   });
 
