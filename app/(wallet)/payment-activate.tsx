@@ -5,7 +5,7 @@
 
 import { router } from "expo-router";
 import { loadCheckout } from "@/src/features/payment/checkoutSession";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { AppButton } from "@/src/components/AppButton";
@@ -49,14 +49,24 @@ export default function PaymentActivateScreen() {
   const [challenge, setChallenge] = useState<PaymentActivationChallenge | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const operationInFlight = useRef(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const resendSeconds = challenge ? Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000)) : 0;
+  const expired = Boolean(challenge && Date.parse(challenge.expiresAt) <= now);
 
   async function requestOtp() {
+    if (operationInFlight.current || (stage === "otp" && resendSeconds > 0)) return;
     const normalizedStudentNumber = studentNumber.trim();
     if (!normalizedStudentNumber) {
       setError("Enter your student number.");
       return;
     }
 
+    operationInFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -71,22 +81,26 @@ export default function PaymentActivateScreen() {
         return;
       }
       setChallenge(nextChallenge);
+      setOtp("");
+      setNow(Date.now());
       setStage("otp");
     } catch (caught) {
       const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
+      operationInFlight.current = false;
       setBusy(false);
     }
   }
 
   async function verifyOtp() {
-    if (!challenge) return;
+    if (!challenge || operationInFlight.current) return;
     if (!/^\d{6}$/.test(otp.trim())) {
       setError("Enter the 6-digit code.");
       return;
     }
 
+    operationInFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -102,6 +116,7 @@ export default function PaymentActivateScreen() {
       const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
+      operationInFlight.current = false;
       setBusy(false);
     }
   }
@@ -117,6 +132,12 @@ export default function PaymentActivateScreen() {
             size="lg"
           />
           <AppButton disabled={busy} label="Cancel" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />
+          {stage === "otp" ? (
+            <>
+              <AppButton disabled={busy || resendSeconds > 0} label={resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : "Resend code"} onPress={() => void requestOtp()} variant="secondary" />
+              <AppButton disabled={busy} label="Change student number" onPress={() => { setStage("studentNumber"); setChallenge(null); setOtp(""); setError(null); }} variant="secondary" />
+            </>
+          ) : null}
         </View>
       }
     >
@@ -158,7 +179,12 @@ export default function PaymentActivateScreen() {
             )}
             {stage === "otp" ? (
               <Text style={typography.body}>
-                We sent a one-time code to the email linked to student number {studentNumber.trim()}.
+                If this student number is registered, a code has been sent to the university email on record.
+              </Text>
+            ) : null}
+            {stage === "otp" && challenge ? (
+              <Text accessibilityLiveRegion="polite" style={typography.body}>
+                {expired ? "This code may have expired. Request another code. The server checks its validity when you submit." : `Code expires in ${Math.max(0, Math.ceil((Date.parse(challenge.expiresAt) - now) / 60000))} minutes.`}
               </Text>
             ) : null}
           </View>
