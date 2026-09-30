@@ -55,6 +55,7 @@ export default function WalletLayout() {
       <Tabs.Screen name="credential" options={hiddenRouteOptions} />
       <Tabs.Screen name="inbox" options={hiddenRouteOptions} />
       <Tabs.Screen name="offers" options={hiddenRouteOptions} />
+      <Tabs.Screen name="payment-request" options={hiddenFlowRouteOptions} />
       <Tabs.Screen name="payment-amount" options={hiddenFlowRouteOptions} />
       <Tabs.Screen name="payment-confirm" options={hiddenFlowRouteOptions} />
       <Tabs.Screen name="payment-result" options={hiddenFlowRouteOptions} />
