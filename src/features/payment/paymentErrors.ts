@@ -13,6 +13,10 @@ export type PaymentFailure = {
 };
 
 const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcomeUnknown">> = {
+  STATIC_PAYMENT_REMOVED: {
+    title: "Ask for a POS sale QR",
+    message: "Static payment QR codes are no longer supported. Ask the cashier to create a sale in the POS.",
+  },
   ACCOUNT_SUSPENDED: {
     title: "Wallet suspended",
     message: "Your payment wallet is suspended. Contact your institution for help. No payment was made.",
@@ -27,7 +31,7 @@ const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcome
   },
   INSUFFICIENT_FUNDS: {
     title: "Not enough balance",
-    message: "Top up your wallet or go back and enter a smaller amount. No payment was made.",
+    message: "Top up your wallet or ask the cashier to change the sale. No payment was made.",
   },
   INVALID_AMOUNT: {
     title: "Check the amount",

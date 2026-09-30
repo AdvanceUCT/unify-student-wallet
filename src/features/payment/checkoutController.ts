@@ -1,10 +1,10 @@
 import { ApiClientError } from "@/src/lib/api/apiClient";
-import { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment, type PaymentReceipt } from "./paymentApi";
+import { getWalletBalance, getPaymentByReference, type PaymentReceipt } from "./paymentApi";
 import { resolvePaymentRequest, getPaymentRequestReceipt, payRequest } from "./paymentRequestApi";
 import { loadCheckout, saveCheckout, clearCheckout, abandonReviewCheckout, type Checkout, type CheckoutTerms } from "./checkoutSession";
 
 export type CheckoutState = { phase: "REVIEW" | "CHECKING" | "SUBMITTING" | "UNKNOWN" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "ALREADY_PAID" | "BLOCKED"; checkout?: Checkout; terms?: CheckoutTerms; receipt?: PaymentReceipt; canRetry?: boolean; message?: string };
-const api = { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment, resolvePaymentRequest, getPaymentRequestReceipt, payRequest };
+const api = { getWalletBalance, getPaymentByReference, resolvePaymentRequest, getPaymentRequestReceipt, payRequest };
 const store = { load: loadCheckout, save: saveCheckout, clear: clearCheckout, abandon: abandonReviewCheckout };
 export class CheckoutController {
   private busy = false;
@@ -19,6 +19,10 @@ export class CheckoutController {
   private async recoverCurrent(): Promise<CheckoutState> {
     let checkout = await this.storage.load();
     if (!checkout) return this.state.phase === "CONFIRMED" ? this.state : this.show({ phase: "BLOCKED", message: "No saved checkout. Scan a payment QR to begin." });
+    if (checkout.kind === "STATIC" && checkout.phase === "REVIEW") {
+      await this.storage.clear(checkout.idempotencyKey);
+      return this.show({ phase: "BLOCKED", message: "Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR." });
+    }
     const balance = await this.service.getWalletBalance();
     if (!balance.walletAccountId) throw new Error("The payment service must support account-bound recovery before you can pay.");
     if (checkout.accountId && checkout.accountId !== balance.walletAccountId) return this.show({ phase: "BLOCKED", checkout, terms: checkout.terms, message: "This checkout belongs to another payment account. Sign in to the original account to recover it." });
@@ -47,14 +51,7 @@ export class CheckoutController {
         if (checkout.terms && (recorded.vendorBranchId !== checkout.terms.vendorBranchId || recorded.amountMinor !== checkout.terms.amountMinor || checkout.kind === "POS" && recorded.orderReference !== checkout.terms.orderReference)) throw new Error("The submission reference belongs to different payment terms.");
         return this.confirmed(checkout, recorded);
       }
-      return this.show({ phase: "UNKNOWN", checkout, terms: checkout.terms, canRetry: Boolean(checkout.accountId && !checkout.legacyUnbound), message: checkout.legacyUnbound ? "This saved payment predates account binding. Its original reference is preserved. You can recover its receipt; an unrecorded legacy submission cannot safely be reassigned to an account." : "UNIFY has not recorded a completed payment for this reference yet. This does not prove failure. You may explicitly retry the same payment with its original reference." });
-    }
-    if (checkout.kind === "STATIC") {
-      if (!checkout.amountMinor) return this.show({ phase: "BLOCKED", checkout, message: "Enter an amount before reviewing this payment." });
-      const destination = await this.service.resolvePaymentDestination(checkout.qrIdentifier);
-      if (!destination.vendorBranchId) throw new Error("The payment service must provide the branch reference before you can pay.");
-      if (checkout.terms && checkout.terms.vendorBranchId !== destination.vendorBranchId) throw new Error("The QR destination changed. Scan it again.");
-      checkout = await this.storage.save({ ...checkout, accountId: balance.walletAccountId, terms: { ...destination, vendorBranchId: destination.vendorBranchId, amountMinor: checkout.amountMinor, currency: "ZAR" } });
+      return this.show({ phase: "UNKNOWN", checkout, terms: checkout.terms, canRetry: Boolean(checkout.kind === "POS" && checkout.accountId && !checkout.legacyUnbound), message: checkout.kind === "STATIC" ? "Static payments are retired. The original submission reference is preserved for receipt recovery; it cannot be resubmitted." : checkout.legacyUnbound ? "This saved payment predates account binding. Its original reference is preserved. You can recover its receipt; an unrecorded legacy submission cannot safely be reassigned to an account." : "UNIFY has not recorded a completed payment for this reference yet. This does not prove failure. You may explicitly retry the same payment with its original reference." });
     }
     return this.show({ phase: "REVIEW", checkout, terms: checkout.terms });
   }
@@ -72,11 +69,12 @@ export class CheckoutController {
     try {
       this.show({ ...this.state, phase: "CHECKING", canRetry: false });
       const recovered = await this.recoverCurrent();
-      if (!(recovered.phase === "REVIEW" || recovered.phase === "UNKNOWN" && recovered.canRetry) || !recovered.checkout || !recovered.checkout.accountId || !recovered.terms) return;
+      if (!(recovered.phase === "REVIEW" || recovered.phase === "UNKNOWN" && recovered.canRetry) || !recovered.checkout || recovered.checkout.kind !== "POS" || !recovered.checkout.accountId || !recovered.terms) return;
       // Secure storage must succeed before the financial request leaves the phone.
       const checkout = await this.storage.save({ ...recovered.checkout, phase: "SUBMITTED" });
+      if (checkout.kind !== "POS") throw new Error("Only POS sales can be submitted.");
       this.show({ phase: "SUBMITTING", checkout, terms: checkout.terms });
-      const receipt = checkout.kind === "POS" ? await this.service.payRequest(checkout.id, checkout.idempotencyKey) : await this.service.submitPayment({ qrIdentifier: checkout.qrIdentifier, amountMinor: checkout.terms!.amountMinor, idempotencyKey: checkout.idempotencyKey });
+      const receipt = await this.service.payRequest(checkout.id, checkout.idempotencyKey);
       await this.confirmed(checkout, receipt);
     } catch (error) {
       const checkout = await this.storage.load();

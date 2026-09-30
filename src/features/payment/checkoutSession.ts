@@ -45,19 +45,8 @@ export async function selectPosCheckout(id: string) {
     await persist(next); return next;
   });
 }
-export async function selectStaticCheckout(input: { qrIdentifier: string; amountMinor: number; idempotencyKey: string }) {
-  return serial(async () => {
-    const old = await loadCheckout();
-    if (old?.kind === "STATIC" && old.idempotencyKey === input.idempotencyKey) {
-      if (old.qrIdentifier === input.qrIdentifier && old.phase === "REVIEW") { const prepared = checkoutSchema.parse({ ...old, amountMinor: input.amountMinor, terms: undefined }); await persist(prepared); return prepared; }
-      if (old.qrIdentifier !== input.qrIdentifier || old.amountMinor !== undefined && old.amountMinor !== input.amountMinor) throw new Error("Payment terms cannot change.");
-      if (old.amountMinor === undefined && old.phase === "REVIEW") { const prepared = checkoutSchema.parse({ ...old, amountMinor: input.amountMinor }); await persist(prepared); return prepared; }
-      return old;
-    }
-    if (old && old.phase !== "REVIEW") throw new Error("Recover the interrupted payment before starting another checkout.");
-    const next = checkoutSchema.parse({ version: 2, kind: "STATIC", phase: "REVIEW", ...input });
-    await persist(next); return next;
-  });
+export async function selectStaticCheckout(_input: { qrIdentifier: string; amountMinor: number; idempotencyKey: string }): Promise<Checkout> {
+  throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
 export async function clearCheckout(expectedKey?: string) {
   return serial(async () => {
@@ -65,14 +54,8 @@ export async function clearCheckout(expectedKey?: string) {
     await remove(CHECKOUT_STORAGE_KEY); await remove(LEGACY_POS_STORAGE_KEY);
   });
 }
-export async function selectStaticQr(qrIdentifier: string) {
-  return serial(async () => {
-    const old = await loadCheckout();
-    if (old?.kind === "STATIC" && old.qrIdentifier === qrIdentifier) return old;
-    if (old && old.phase !== "REVIEW") throw new Error("Recover the interrupted payment before scanning another sale.");
-    const scanned = checkoutSchema.parse({ version: 2, kind: "STATIC", qrIdentifier, idempotencyKey: Crypto.randomUUID(), phase: "REVIEW" });
-    await persist(scanned); return scanned;
-  });
+export async function selectStaticQr(_qrIdentifier: string): Promise<Checkout> {
+  throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
 export async function abandonReviewCheckout() {
   return serial(async () => {
