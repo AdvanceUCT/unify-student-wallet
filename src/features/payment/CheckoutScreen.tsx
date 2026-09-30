@@ -22,6 +22,7 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(Date.now());
   const mounted = useRef(true);
+  const expiryChecked = useRef(false);
   const controllerRef = useRef<CheckoutController | null>(null);
   if (!controllerRef.current) controllerRef.current = new CheckoutController((next) => { if (mounted.current) setState(next); });
   const controller = controllerRef.current;
@@ -66,11 +67,14 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   const receipt = state.receipt;
   const terminal = ["CONFIRMED", "CANCELLED", "EXPIRED", "ALREADY_PAID"].includes(state.phase);
   const seconds = terms?.expiresAt ? Math.max(0, Math.ceil((Date.parse(terms.expiresAt) - now) / 1000)) : undefined;
+  useEffect(() => {
+    if (seconds === 0 && ready && !isOffline && !expiryChecked.current) { expiryChecked.current = true; recover(); }
+  }, [isOffline, ready, recover, seconds]);
   const title = state.phase === "CONFIRMED" ? "Payment confirmed" : state.phase === "UNKNOWN" ? "Payment not confirmed" : state.phase === "ALREADY_PAID" ? "Already paid" : state.phase === "CANCELLED" ? "Sale cancelled" : state.phase === "EXPIRED" ? "Sale expired" : state.phase === "BLOCKED" ? "Checkout unavailable" : state.phase === "CHECKING" ? "Checking payment" : "Review payment";
   if (state.phase === "SUBMITTING") return <OperationStateScreen busy tone="loading" eyebrow="Payment" title="Processing payment" detail={terms ? `${formatZarMinor(terms.amountMinor)} to ${terms.vendorName} · ${terms.branchName}` : undefined} message="Your payment reference is saved. If the connection is interrupted, UNIFY will recover the recorded result." />;
   return <AppScreen footer={<View style={{ gap: spacing.sm }}>
     {terminal ? <AppButton label="Done" onPress={() => router.replace("/(wallet)/payments")} /> : <>
-      <AppButton label={state.phase === "UNKNOWN" ? "Retry same payment" : `Pay ${terms ? formatZarMinor(terms.amountMinor) : ""}`} disabled={isOffline || !terms || seconds === 0 || !(state.phase === "REVIEW" || state.phase === "UNKNOWN" && state.canRetry)} onPress={() => void approve()} />
+      <AppButton label={state.phase === "UNKNOWN" ? "Retry same payment" : `Pay ${terms ? formatZarMinor(terms.amountMinor) : ""}`} disabled={isOffline || !terms || !(state.phase === "REVIEW" || state.phase === "UNKNOWN" && state.canRetry)} onPress={() => void approve()} />
       <AppButton label="Check payment result" disabled={!ready || isOffline || state.phase === "CHECKING"} onPress={recover} variant="secondary" />
       <AppButton label="Top up wallet" disabled={state.phase === "CHECKING"} onPress={() => router.push("/(wallet)/topup-amount")} variant="secondary" />
       <AppButton label="Leave checkout" disabled={state.phase !== "REVIEW"} onPress={() => void controller.abandon().then(async (left) => { if (left) { await refreshPendingCheckout(); router.replace("/(wallet)/payments"); } })} variant="secondary" />
