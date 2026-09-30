@@ -32,7 +32,8 @@ type Stage = "studentNumber" | "otp";
 async function resumeCheckout() {
   const pending = await loadCheckout();
   if (pending?.kind === "POS") router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } });
-  else if (pending?.kind === "STATIC") router.replace({ pathname: "/(wallet)/payment-confirm", params: { qrIdentifier: pending.qrIdentifier, amountMinor: String(pending.amountMinor), idempotencyKey: pending.idempotencyKey } });
+  else if (pending?.kind === "STATIC" && pending.amountMinor) router.replace({ pathname: "/(wallet)/payment-confirm", params: { qrIdentifier: pending.qrIdentifier, amountMinor: String(pending.amountMinor), idempotencyKey: pending.idempotencyKey } });
+  else if (pending?.kind === "STATIC") router.replace({ pathname: "/(wallet)/payment-amount", params: { qrIdentifier: pending.qrIdentifier } });
   else router.replace("/(wallet)/payments");
 }
 

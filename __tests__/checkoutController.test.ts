@@ -1,5 +1,5 @@
 import { CheckoutController } from "@/src/features/payment/checkoutController";
-import { clearCheckout, loadCheckout, saveCheckout, selectPosCheckout, selectStaticCheckout, LEGACY_POS_STORAGE_KEY } from "@/src/features/payment/checkoutSession";
+import { abandonReviewCheckout, clearCheckout, loadCheckout, saveCheckout, selectPosCheckout, selectStaticCheckout, selectStaticQr, LEGACY_POS_STORAGE_KEY } from "@/src/features/payment/checkoutSession";
 import { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment } from "@/src/features/payment/paymentApi";
 import { resolvePaymentRequest, payRequest, getPaymentRequestReceipt } from "@/src/features/payment/paymentRequestApi";
 import { saveSecureValue } from "@/src/lib/storage/secureStore";
@@ -71,4 +71,20 @@ test("legacy references migrate with their exact key and cannot acquire an inven
   const controller = new CheckoutController(() => {}); expect(await controller.recover()).toMatchObject({ phase: "UNKNOWN", canRetry: false });
   expect(await loadCheckout()).toMatchObject({ id, idempotencyKey: "legacy-key", legacyUnbound: true });
   await controller.approve(); expect(payRequest).not.toHaveBeenCalled();
+});
+test("static scans survive unlock before amount entry and keep the original reference through review", async () => {
+  const scanned = await selectStaticQr("static_qr");
+  expect(await loadCheckout()).toMatchObject({ kind: "STATIC", phase: "REVIEW", qrIdentifier: "static_qr", idempotencyKey: scanned.idempotencyKey });
+  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: scanned.idempotencyKey });
+  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3600, idempotencyKey: scanned.idempotencyKey });
+  expect(await loadCheckout()).toMatchObject({ amountMinor: 3600, idempotencyKey: scanned.idempotencyKey });
+  expect(await abandonReviewCheckout()).toBe(true); expect(await loadCheckout()).toBeNull();
+});
+test("leaving review cannot race a durable submission and erase its state", async () => {
+  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "key" });
+  const controller = new CheckoutController(() => {}); await controller.recover();
+  const checkout = (await loadCheckout())!;
+  const submission = saveCheckout({ ...checkout, phase: "SUBMITTED" });
+  const abandoned = abandonReviewCheckout();
+  await submission; expect(await abandoned).toBe(false); expect((await loadCheckout())?.phase).toBe("SUBMITTED");
 });

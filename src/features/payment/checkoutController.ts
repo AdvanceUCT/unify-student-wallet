@@ -1,11 +1,11 @@
 import { ApiClientError } from "@/src/lib/api/apiClient";
 import { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment, type PaymentReceipt } from "./paymentApi";
 import { resolvePaymentRequest, getPaymentRequestReceipt, payRequest } from "./paymentRequestApi";
-import { loadCheckout, saveCheckout, clearCheckout, type Checkout, type CheckoutTerms } from "./checkoutSession";
+import { loadCheckout, saveCheckout, clearCheckout, abandonReviewCheckout, type Checkout, type CheckoutTerms } from "./checkoutSession";
 
 export type CheckoutState = { phase: "REVIEW" | "CHECKING" | "SUBMITTING" | "UNKNOWN" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "ALREADY_PAID" | "BLOCKED"; checkout?: Checkout; terms?: CheckoutTerms; receipt?: PaymentReceipt; canRetry?: boolean; message?: string };
 const api = { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment, resolvePaymentRequest, getPaymentRequestReceipt, payRequest };
-const store = { load: loadCheckout, save: saveCheckout, clear: clearCheckout };
+const store = { load: loadCheckout, save: saveCheckout, clear: clearCheckout, abandon: abandonReviewCheckout };
 export class CheckoutController {
   private busy = false;
   state: CheckoutState = { phase: "CHECKING" };
@@ -50,6 +50,7 @@ export class CheckoutController {
       return this.show({ phase: "UNKNOWN", checkout, terms: checkout.terms, canRetry: Boolean(checkout.accountId && !checkout.legacyUnbound), message: checkout.legacyUnbound ? "This saved payment predates account binding. Its original reference is preserved. You can recover its receipt; an unrecorded legacy submission cannot safely be reassigned to an account." : "UNIFY has not recorded a completed payment for this reference yet. This does not prove failure. You may explicitly retry the same payment with its original reference." });
     }
     if (checkout.kind === "STATIC") {
+      if (!checkout.amountMinor) return this.show({ phase: "BLOCKED", checkout, message: "Enter an amount before reviewing this payment." });
       const destination = await this.service.resolvePaymentDestination(checkout.qrIdentifier);
       if (!destination.vendorBranchId) throw new Error("The payment service must provide the branch reference before you can pay.");
       if (checkout.terms && checkout.terms.vendorBranchId !== destination.vendorBranchId) throw new Error("The QR destination changed. Scan it again.");
@@ -75,7 +76,7 @@ export class CheckoutController {
       // Secure storage must succeed before the financial request leaves the phone.
       const checkout = await this.storage.save({ ...recovered.checkout, phase: "SUBMITTED" });
       this.show({ phase: "SUBMITTING", checkout, terms: checkout.terms });
-      const receipt = checkout.kind === "POS" ? await this.service.payRequest(checkout.id, checkout.idempotencyKey) : await this.service.submitPayment({ qrIdentifier: checkout.qrIdentifier, amountMinor: checkout.amountMinor, idempotencyKey: checkout.idempotencyKey });
+      const receipt = checkout.kind === "POS" ? await this.service.payRequest(checkout.id, checkout.idempotencyKey) : await this.service.submitPayment({ qrIdentifier: checkout.qrIdentifier, amountMinor: checkout.terms!.amountMinor, idempotencyKey: checkout.idempotencyKey });
       await this.confirmed(checkout, receipt);
     } catch (error) {
       const checkout = await this.storage.load();
@@ -86,9 +87,6 @@ export class CheckoutController {
   }
   async abandon() {
     if (this.busy) return false;
-    const checkout = await this.storage.load();
-    if (checkout && checkout.phase !== "REVIEW") return false;
-    if (checkout) await this.storage.clear(checkout.idempotencyKey);
-    return true;
+    return this.storage.abandon();
   }
 }

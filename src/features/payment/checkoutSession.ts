@@ -7,7 +7,7 @@ export const CHECKOUT_STORAGE_KEY = "unify.payment.checkout.v2";
 export const LEGACY_POS_STORAGE_KEY = "unify.payment.pending-request.v1";
 const terms = z.object({ amountMinor: z.number().int().positive().safe(), currency: z.literal("ZAR"), vendorName: z.string().min(1), branchName: z.string().min(1), vendorBranchId: z.string().min(1), orderReference: z.string().optional(), expiresAt: z.string().datetime().optional() });
 const common = { version: z.literal(2), idempotencyKey: z.string().min(1).max(128), phase: z.enum(["REVIEW", "SUBMITTED", "UNKNOWN"]), accountId: z.string().min(1).optional(), terms: terms.optional(), legacyUnbound: z.boolean().optional() };
-const checkoutSchema = z.discriminatedUnion("kind", [z.object({ ...common, kind: z.literal("POS"), id: z.string().regex(/^[A-Za-z0-9_-]{32}$/) }), z.object({ ...common, kind: z.literal("STATIC"), qrIdentifier: z.string().min(8).max(128), amountMinor: z.number().int().positive().safe() })]);
+const checkoutSchema = z.discriminatedUnion("kind", [z.object({ ...common, kind: z.literal("POS"), id: z.string().regex(/^[A-Za-z0-9_-]{32}$/) }), z.object({ ...common, kind: z.literal("STATIC"), qrIdentifier: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/), amountMinor: z.number().int().positive().safe().optional() })]).refine((checkout) => checkout.phase === "REVIEW" || checkout.kind !== "STATIC" || Boolean(checkout.amountMinor && checkout.terms && checkout.accountId));
 export type Checkout = z.infer<typeof checkoutSchema>;
 export type CheckoutTerms = z.infer<typeof terms>;
 const web = new Map<string, string>();
@@ -49,7 +49,9 @@ export async function selectStaticCheckout(input: { qrIdentifier: string; amount
   return serial(async () => {
     const old = await loadCheckout();
     if (old?.kind === "STATIC" && old.idempotencyKey === input.idempotencyKey) {
-      if (old.qrIdentifier !== input.qrIdentifier || old.amountMinor !== input.amountMinor) throw new Error("Payment terms cannot change.");
+      if (old.qrIdentifier === input.qrIdentifier && old.phase === "REVIEW") { const prepared = checkoutSchema.parse({ ...old, amountMinor: input.amountMinor, terms: undefined }); await persist(prepared); return prepared; }
+      if (old.qrIdentifier !== input.qrIdentifier || old.amountMinor !== undefined && old.amountMinor !== input.amountMinor) throw new Error("Payment terms cannot change.");
+      if (old.amountMinor === undefined && old.phase === "REVIEW") { const prepared = checkoutSchema.parse({ ...old, amountMinor: input.amountMinor }); await persist(prepared); return prepared; }
       return old;
     }
     if (old && old.phase !== "REVIEW") throw new Error("Recover the interrupted payment before starting another checkout.");
@@ -61,5 +63,21 @@ export async function clearCheckout(expectedKey?: string) {
   return serial(async () => {
     if (expectedKey && (await loadCheckout())?.idempotencyKey !== expectedKey) return;
     await remove(CHECKOUT_STORAGE_KEY); await remove(LEGACY_POS_STORAGE_KEY);
+  });
+}
+export async function selectStaticQr(qrIdentifier: string) {
+  return serial(async () => {
+    const old = await loadCheckout();
+    if (old?.kind === "STATIC" && old.qrIdentifier === qrIdentifier) return old;
+    if (old && old.phase !== "REVIEW") throw new Error("Recover the interrupted payment before scanning another sale.");
+    const scanned = checkoutSchema.parse({ version: 2, kind: "STATIC", qrIdentifier, idempotencyKey: Crypto.randomUUID(), phase: "REVIEW" });
+    await persist(scanned); return scanned;
+  });
+}
+export async function abandonReviewCheckout() {
+  return serial(async () => {
+    const old = await loadCheckout();
+    if (old && old.phase !== "REVIEW") return false;
+    await remove(CHECKOUT_STORAGE_KEY); await remove(LEGACY_POS_STORAGE_KEY); return true;
   });
 }
