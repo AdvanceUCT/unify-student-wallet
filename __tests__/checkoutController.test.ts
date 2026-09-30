@@ -24,15 +24,14 @@ beforeEach(async () => {
   jest.mocked(submitPayment).mockResolvedValue(receipt);
   jest.mocked(payRequest).mockResolvedValue({ ...receipt, id, branchId: "branch", expiresAt: pos.expiresAt, orderReference: "sale-1" });
 });
-describe.each(["POS", "STATIC"] as const)("%s recovery", (kind) => {
+describe("POS recovery", () => {
   async function begin() {
-    if (kind === "POS") await selectPosCheckout(id); else await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "original-key" });
+    await selectPosCheckout(id);
     const controller = new CheckoutController(() => {}); await controller.recover(); return controller;
   }
   it("preserves an unknown outcome and rejects replacement and account switching", async () => {
     const controller = await begin();
-    if (kind === "STATIC") jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("offline", "network"));
-    else jest.mocked(payRequest).mockRejectedValueOnce(new ApiClientError("offline", "network"));
+    jest.mocked(payRequest).mockRejectedValueOnce(new ApiClientError("offline", "network"));
     await expect(controller.approve()).rejects.toThrow("offline");
     await expect(selectPosCheckout("b".repeat(32))).rejects.toThrow("Recover");
     jest.mocked(getWalletBalance).mockResolvedValue({ walletAccountId: "other-account", accountStatus: "ACTIVE", postedBalanceMinor: 10000, currency: "ZAR", updatedAt: receipt.completedAt });
@@ -45,8 +44,7 @@ describe.each(["POS", "STATIC"] as const)("%s recovery", (kind) => {
     const reopened = new CheckoutController(() => {}); expect(await reopened.recover()).toMatchObject({ phase: "UNKNOWN", canRetry: true });
     expect(submitPayment).not.toHaveBeenCalled(); expect(payRequest).not.toHaveBeenCalled();
     await reopened.approve(); expect(reopened.state.phase).toBe("CONFIRMED"); expect(await loadCheckout()).toBeNull();
-    if (kind === "POS") expect(payRequest).toHaveBeenCalledWith(id, "original-key");
-    else expect(submitPayment).toHaveBeenCalledWith({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "original-key" });
+    expect(payRequest).toHaveBeenCalledWith(id, "original-key");
     expect(controller.state.phase).toBe("REVIEW");
   });
   it("does not transmit if secure storage fails before submission", async () => {
@@ -72,16 +70,24 @@ test("legacy references migrate with their exact key and cannot acquire an inven
   expect(await loadCheckout()).toMatchObject({ id, idempotencyKey: "legacy-key", legacyUnbound: true });
   await controller.approve(); expect(payRequest).not.toHaveBeenCalled();
 });
-test("static scans survive unlock before amount entry and keep the original reference through review", async () => {
-  const scanned = await selectStaticQr("static_qr");
-  expect(await loadCheckout()).toMatchObject({ kind: "STATIC", phase: "REVIEW", qrIdentifier: "static_qr", idempotencyKey: scanned.idempotencyKey });
-  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: scanned.idempotencyKey });
-  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3600, idempotencyKey: scanned.idempotencyKey });
-  expect(await loadCheckout()).toMatchObject({ amountMinor: 3600, idempotencyKey: scanned.idempotencyKey });
-  expect(await abandonReviewCheckout()).toBe(true); expect(await loadCheckout()).toBeNull();
+test("static scans and amount selection cannot create a checkout", async () => {
+  await expect(selectStaticQr("static_qr")).rejects.toThrow("no longer supported");
+  await expect(selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "original-key" })).rejects.toThrow("no longer supported");
+  expect(await loadCheckout()).toBeNull();
+});
+
+test.each(["NOT_RECORDED", "COMPLETED"] as const)("legacy static %s recovery never resubmits", async (status) => {
+  await saveCheckout({ version: 2, kind: "STATIC", qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "legacy-static-key", phase: "UNKNOWN", accountId: "account", terms: { ...destination, amountMinor: 3500 } });
+  jest.mocked(getPaymentByReference).mockResolvedValue(status === "COMPLETED" ? receipt : { status });
+  const controller = new CheckoutController(() => {});
+  expect(await controller.recover()).toMatchObject(status === "COMPLETED" ? { phase: "CONFIRMED", receipt } : { phase: "UNKNOWN", canRetry: false });
+  await controller.approve();
+  expect(submitPayment).not.toHaveBeenCalled(); expect(payRequest).not.toHaveBeenCalled();
+  expect(resolvePaymentDestination).not.toHaveBeenCalled();
+  expect(getPaymentByReference).toHaveBeenCalledWith("legacy-static-key");
 });
 test("leaving review cannot race a durable submission and erase its state", async () => {
-  await selectStaticCheckout({ qrIdentifier: "static_qr", amountMinor: 3500, idempotencyKey: "key" });
+  await selectPosCheckout(id);
   const controller = new CheckoutController(() => {}); await controller.recover();
   const checkout = (await loadCheckout())!;
   const submission = saveCheckout({ ...checkout, phase: "SUBMITTED" });

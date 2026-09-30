@@ -12,12 +12,12 @@ import { ApiClientError } from "@/src/lib/api/apiClient";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { CheckoutController, type CheckoutState } from "./checkoutController";
-import { selectPosCheckout, selectStaticCheckout } from "./checkoutSession";
+import { selectPosCheckout } from "./checkoutSession";
 import { loadPaymentSession } from "./paymentSession";
 import { formatZarMinor } from "./money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "./network";
 
-export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } | { kind: "STATIC"; qrIdentifier: string; amountMinor: number; idempotencyKey: string } }) {
+export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } | { kind: "LEGACY" } }) {
   const [state, setState] = useState<CheckoutState>({ phase: "CHECKING" });
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -29,7 +29,7 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   const { refreshPendingCheckout } = useWalletSession();
   const queryClient = useQueryClient();
   const { isOffline } = usePaymentNetworkStatus();
-  const inputKey = input.kind === "POS" ? input.id : `${input.idempotencyKey}:${input.qrIdentifier}:${input.amountMinor}`;
+  const inputKey = input.kind === "POS" ? input.id : "legacy-receipt";
   const handleError = useCallback((error: unknown) => {
     if (error instanceof ApiClientError && (error.status === 401 || error.code === "PAYMENT_SESSION_REQUIRED")) router.replace("/(wallet)/payment-activate");
   }, []);
@@ -37,7 +37,7 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
     mounted.current = true;
     void (async () => {
       try {
-        if (input.kind === "POS") await selectPosCheckout(input.id); else await selectStaticCheckout(input);
+        if (input.kind === "POS") await selectPosCheckout(input.id);
         await refreshPendingCheckout();
         if (!await loadPaymentSession()) { router.replace("/(wallet)/payment-activate"); return; }
         setReady(true);
@@ -74,13 +74,13 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   if (state.phase === "SUBMITTING") return <OperationStateScreen busy tone="loading" eyebrow="Payment" title="Processing payment" detail={terms ? `${formatZarMinor(terms.amountMinor)} to ${terms.vendorName} · ${terms.branchName}` : undefined} message="Your payment reference is saved. If the connection is interrupted, UNIFY will recover the recorded result." />;
   return <AppScreen footer={<View style={{ gap: spacing.sm }}>
     {terminal ? <AppButton label="Done" onPress={() => router.replace("/(wallet)/payments")} /> : <>
-      <AppButton label={state.phase === "UNKNOWN" ? "Retry same payment" : `Pay ${terms ? formatZarMinor(terms.amountMinor) : ""}`} disabled={isOffline || !terms || !(state.phase === "REVIEW" || state.phase === "UNKNOWN" && state.canRetry)} onPress={() => void approve()} />
+      {input.kind === "POS" && <AppButton label={state.phase === "UNKNOWN" ? "Retry same payment" : `Pay ${terms ? formatZarMinor(terms.amountMinor) : ""}`} disabled={isOffline || !terms || !(state.phase === "REVIEW" || state.phase === "UNKNOWN" && state.canRetry)} onPress={() => void approve()} />}
       <AppButton label="Check payment result" disabled={!ready || isOffline || state.phase === "CHECKING"} onPress={recover} variant="secondary" />
       <AppButton label="Top up wallet" disabled={state.phase === "CHECKING"} onPress={() => router.push("/(wallet)/topup-amount")} variant="secondary" />
-      <AppButton label="Leave checkout" disabled={state.phase !== "REVIEW"} onPress={() => void controller.abandon().then(async (left) => { if (left) { await refreshPendingCheckout(); router.replace("/(wallet)/payments"); } })} variant="secondary" />
+      <AppButton label="Leave checkout" disabled={state.phase !== "REVIEW" && state.phase !== "BLOCKED"} onPress={() => void controller.abandon().then(async (left) => { if (left) { await refreshPendingCheckout(); router.replace("/(wallet)/payments"); } })} variant="secondary" />
     </>}
   </View>}>
-    <ScreenHeader eyebrow="UNIFY checkout" title={title} meta={input.kind === "POS" ? "The amount is fixed by the vendor. Review before approving." : "Review the vendor and amount before approving."} />
+    <ScreenHeader eyebrow="UNIFY checkout" title={title} meta={input.kind === "POS" ? "The amount is fixed by the vendor. Review before approving." : "Recover the receipt for a previous payment."} />
     {terms && <View><InfoRow divider label="Vendor" value={terms.vendorName} /><InfoRow divider label="Branch" value={terms.branchName} />{terms.orderReference && <InfoRow divider label="Order" value={terms.orderReference} />}<InfoRow divider label="Amount" value={formatZarMinor(terms.amountMinor)} />{seconds !== undefined && !terminal && <InfoRow label="Expiry" value={`${seconds}s remaining`} />}</View>}
     {!terms && receipt && <View><InfoRow divider label="Vendor" value={receipt.vendorName} /><InfoRow divider label="Branch" value={receipt.branchName} /><InfoRow divider label="Amount" value={formatZarMinor(receipt.amountMinor)} /></View>}
     {receipt && <View><InfoRow divider label="Transaction" value={receipt.transactionId} /><InfoRow divider label="Completed" value={new Date(receipt.completedAt).toLocaleString()} /><InfoRow label="Wallet balance" value={formatZarMinor(receipt.resultingBalanceMinor)} /></View>}

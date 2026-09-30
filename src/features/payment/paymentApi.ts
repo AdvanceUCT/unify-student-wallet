@@ -6,7 +6,6 @@
 import { z } from "zod";
 
 import { paymentApiClient, paymentPublicApiClient, ApiClientError } from "@/src/lib/api/apiClient";
-import { isPaymentQrIdentifier } from "@/src/lib/validation/qrPayload";
 
 const paymentDestinationSchema = z.object({
   vendorBranchId: z.string().min(1).optional(),
@@ -249,29 +248,12 @@ export async function getPaymentReceipt(transactionId: string, signal?: AbortSig
   return parseResponse(recoveredReceiptSchema, await paymentApiClient.get<unknown>(`/api/wallet/v1/payments/${encodeURIComponent(transactionId)}/receipt`, { signal }));
 }
 
-export async function resolvePaymentDestination(qrIdentifier: string, signal?: AbortSignal) {
-  if (!isPaymentQrIdentifier(qrIdentifier)) {
-    throw invalidContract("This payment QR code is invalid.", "INVALID_PAYMENT_QR");
-  }
-
-  const response = await paymentApiClient.get<unknown>(
-    `/api/wallet/v1/vendors/${encodeURIComponent(qrIdentifier)}`,
-    { signal },
-  );
-  return parseResponse(paymentDestinationSchema, response);
+export async function resolvePaymentDestination(_qrIdentifier: string, _signal?: AbortSignal): Promise<z.infer<typeof paymentDestinationSchema>> {
+  throw new ApiClientError("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.", "http", 410, "STATIC_PAYMENT_REMOVED");
 }
 
-export async function submitPayment(input: SubmitPaymentInput, signal?: AbortSignal) {
-  if (!isPaymentQrIdentifier(input.qrIdentifier)) {
-    throw invalidContract("This payment QR code is invalid.", "INVALID_PAYMENT_QR");
-  }
-  if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
-    throw invalidContract("The payment amount is invalid.", "INVALID_AMOUNT");
-  }
-  validateIdempotencyKey(input.idempotencyKey);
-
-  const response = await paymentApiClient.post<unknown>("/api/wallet/v1/payments", input, { signal });
-  return parseResponse(paymentReceiptSchema, response);
+export async function submitPayment(_input: SubmitPaymentInput, _signal?: AbortSignal): Promise<PaymentReceipt> {
+  throw new ApiClientError("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.", "http", 410, "STATIC_PAYMENT_REMOVED");
 }
 
 export async function createTopUp(input: CreateTopUpInput, signal?: AbortSignal) {

@@ -17,7 +17,6 @@ import { parseActivationLink } from "@/src/features/wallet/activationLinks";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
-import { isPaymentOnline } from "@/src/features/payment/network";
 import { parsePaymentRequestLink, parseCheckoutVerificationLink, parsePaymentLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
@@ -25,7 +24,7 @@ import { typography } from "@/src/theme/typography";
 
 export default function ScanScreen() {
   const colors = useThemePalette();
-  const { processIncomingLink, setPendingCheckoutVerification, setPendingPaymentRequest, setPendingStaticQr } = useWalletSession();
+  const { processIncomingLink, setPendingCheckoutVerification, setPendingPaymentRequest } = useWalletSession();
   const { preloadRuntime } = useHolderAgent();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
@@ -105,17 +104,7 @@ export default function ScanScreen() {
     }
     const payment = parsePaymentLink(rawPayload);
     if (payment.ok) {
-      try { await setPendingStaticQr(payment.qrIdentifier); }
-      catch (error) { setScanError(error instanceof Error ? error.message : "Cannot open this checkout."); return; }
-      if (!(await isPaymentOnline())) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setScanError("Payments need an internet connection. Reconnect, then scan again.");
-        return;
-      }
-      router.push({
-        pathname: "/(wallet)/payment-amount",
-        params: { qrIdentifier: payment.qrIdentifier },
-      });
+      setScanError("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
       return;
     }
 
