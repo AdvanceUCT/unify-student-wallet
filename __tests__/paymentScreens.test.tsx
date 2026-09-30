@@ -9,6 +9,7 @@ import { clearCheckout, loadCheckout } from "@/src/features/payment/checkoutSess
 
 let mockParams: Record<string, string> = {};
 let mockOffline = false;
+let mockForeground: ((state: AppStateStatus) => void) | undefined;
 let mockQuery: { data?: object; error?: Error; isLoading: boolean; refetch: jest.Mock };
 const mockInvalidate = jest.fn();
 const mockRefresh = jest.fn(async () => {});
@@ -31,6 +32,7 @@ describe("Durable checkout screens", () => {
   const router = jest.requireMock("expo-router").router;
   beforeEach(async () => {
     await clearCheckout(); jest.clearAllMocks(); mockOffline = false;
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_event, callback) => { mockForeground = callback; return { remove: jest.fn() }; });
     mockParams = { qrIdentifier: "branch_qr-001", amountMinor: "4575", idempotencyKey: "payment-request-001" };
     mockQuery = { data: destination, isLoading: false, refetch: jest.fn() };
     mockOnline.mockResolvedValue(true);
@@ -93,18 +95,15 @@ describe("Durable checkout screens", () => {
     fireEvent.press(screen.getByText("Done")); expect(router.replace).toHaveBeenCalledWith("/(wallet)/payments");
   });
   it("checks on foreground and reconnect without submitting from lifecycle events", async () => {
-    let onForeground: ((state: AppStateStatus) => void) | undefined;
-    const listener = jest.spyOn(AppState, "addEventListener").mockImplementation((_event, callback) => { onForeground = callback; return { remove: jest.fn() }; });
     jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("lost response", "network"));
     const screen = render(<PaymentConfirmScreen />);
     await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
     await waitFor(() => expect(screen.getByText("Payment not confirmed")).toBeTruthy());
-    await act(async () => onForeground?.("active"));
+    await act(async () => mockForeground?.("active"));
     await waitFor(() => expect(getPaymentByReference).toHaveBeenCalled()); expect(submitPayment).toHaveBeenCalledTimes(1);
     mockOffline = true; screen.rerender(<PaymentConfirmScreen />);
     jest.mocked(getPaymentByReference).mockResolvedValue(receipt); mockOffline = false; screen.rerender(<PaymentConfirmScreen />);
     await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy()); expect(submitPayment).toHaveBeenCalledTimes(1);
-    listener.mockRestore();
   });
   it("keeps the saved submission when payment authentication expires", async () => {
     jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("session expired", "http", 401, "INVALID_WALLET_SESSION"));
