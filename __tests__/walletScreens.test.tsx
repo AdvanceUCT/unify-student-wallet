@@ -84,6 +84,7 @@ let mockHolderAgent = {
 };
 
 const mockWalletSession = {
+  setPendingStaticQr: jest.fn().mockResolvedValue(undefined),
   acceptOffer: jest.fn().mockResolvedValue({ ok: true }),
   biometricAvailable: true,
   biometricEnabled: false,

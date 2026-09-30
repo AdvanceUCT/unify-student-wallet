@@ -2,6 +2,7 @@ import { z } from "zod";
 import { paymentApiClient } from "@/src/lib/api/apiClient";
 const base = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]{32}$/), orderReference: z.string().min(1),
+  branchId: z.string().min(1),
   vendorName: z.string().min(1), branchName: z.string().min(1), amountMinor: z.number().int().positive().safe(), currency: z.literal("ZAR"),
   expiresAt: z.string().datetime(),
 });

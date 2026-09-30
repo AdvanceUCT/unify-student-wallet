@@ -3,7 +3,6 @@
  * @module app/(wallet)/payment-amount
  */
 
-import * as Crypto from "expo-crypto";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -18,6 +17,8 @@ import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseZarAmount } from "@/src/features/payment/money";
 import { resolvePaymentDestination } from "@/src/features/payment/paymentApi";
 import { paymentFailure } from "@/src/features/payment/paymentErrors";
+import { abandonReviewCheckout, selectStaticCheckout, selectStaticQr } from "@/src/features/payment/checkoutSession";
+import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -27,6 +28,7 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 export default function PaymentAmountScreen() {
+  const { refreshPendingCheckout } = useWalletSession();
   const colors = useThemePalette();
   const params = useLocalSearchParams<{ qrIdentifier?: string | string[] }>();
   const qrIdentifier = firstParam(params.qrIdentifier);
@@ -41,7 +43,7 @@ export default function PaymentAmountScreen() {
 
   const loadFailure = destinationQuery.error ? paymentFailure(destinationQuery.error) : undefined;
 
-  function continueToConfirmation() {
+  async function continueToConfirmation() {
     if (navigatingRef.current || !destinationQuery.data) return;
     const parsed = parseZarAmount(amount);
     if (!parsed.ok) {
@@ -50,14 +52,22 @@ export default function PaymentAmountScreen() {
     }
 
     navigatingRef.current = true;
+    try {
+      const scanned = await selectStaticQr(qrIdentifier);
+      const idempotencyKey = scanned.idempotencyKey;
+      await selectStaticCheckout({ qrIdentifier, amountMinor: parsed.amountMinor, idempotencyKey });
     router.push({
       pathname: "/(wallet)/payment-confirm",
       params: {
         amountMinor: String(parsed.amountMinor),
-        idempotencyKey: Crypto.randomUUID(),
+        idempotencyKey,
         qrIdentifier,
       },
     });
+    } catch (error) {
+      setAmountError(error instanceof Error ? error.message : "Unable to save checkout.");
+      navigatingRef.current = false;
+    }
   }
 
   return (
@@ -70,7 +80,7 @@ export default function PaymentAmountScreen() {
             onPress={continueToConfirmation}
             size="lg"
           />
-          <AppButton label="Cancel" onPress={() => router.replace("/(wallet)/home")} variant="secondary" />
+          <AppButton label="Cancel" onPress={() => void abandonReviewCheckout().then(async (left) => { if (left) { await refreshPendingCheckout(); router.replace("/(wallet)/home"); } else setAmountError("Recover the interrupted payment before leaving checkout."); })} variant="secondary" />
         </View>
       }
     >

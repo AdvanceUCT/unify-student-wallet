@@ -13,10 +13,12 @@ import { OperationStateScreen } from "@/src/components/OperationStateScreen";
 import { revokePaymentActivation } from "@/src/features/payment/paymentApi";
 import { clearPaymentDeviceId, clearPaymentSession } from "@/src/features/payment/paymentSession";
 import { clearPendingPaymentRequest, loadPendingPaymentRequest, selectPaymentRequest } from "@/src/features/payment/paymentRequestSession";
+import { loadCheckout, selectStaticQr, type Checkout } from "@/src/features/payment/checkoutSession";
 import { clearPendingTopUp } from "@/src/features/payment/topUpSession";
 import { clearVerificationActivity } from "@/src/features/verification/activityHistory";
 import {
   parsePaymentRequestLink,
+  parsePaymentLink,
   parseCheckoutVerificationLink,
   parseTopUpReturnLink,
   parseVerificationLink,
@@ -62,6 +64,9 @@ type FirstRunSetupDraft = {
 };
 
 type WalletSessionContextValue = {
+  setPendingStaticQr: (qrIdentifier: string) => Promise<void>;
+  pendingStaticCheckout?: Extract<Checkout, { kind: "STATIC" }>;
+  refreshPendingCheckout: () => Promise<void>;
   pendingPaymentRequestId?: string;
   setPendingPaymentRequest: (id?: string) => Promise<void>;
   acceptOffer: (credentialRecordId: string) => Promise<ActionResult>;
@@ -165,10 +170,18 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     restoreWallet: restoreHolderWallet,
   } = useHolderAgent();
   const [pendingPaymentRequestId, setPendingPaymentRequestId] = useState<string>();
+  const [pendingStaticCheckout, setPendingStaticCheckout] = useState<Extract<Checkout, { kind: "STATIC" }>>();
+  const refreshPendingCheckout = useCallback(async () => {
+    const checkout = await loadCheckout();
+    setPendingPaymentRequestId(checkout?.kind === "POS" ? checkout.id : undefined);
+    setPendingStaticCheckout(checkout?.kind === "STATIC" ? checkout : undefined);
+  }, []);
   const setPendingPaymentRequest = useCallback(async (id?: string) => {
     if (id) await selectPaymentRequest(id); else await clearPendingPaymentRequest();
     setPendingPaymentRequestId(id);
-  }, []);
+    await refreshPendingCheckout();
+  }, [refreshPendingCheckout]);
+  const setPendingStaticQr = useCallback(async (qrIdentifier: string) => { await selectStaticQr(qrIdentifier); await refreshPendingCheckout(); }, [refreshPendingCheckout]);
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
   const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
@@ -188,6 +201,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       const [storedState, biometricAvailable] = await Promise.all([loadWalletSessionState(), canUseBiometricUnlock()]);
       const pendingPayment = await loadPendingPaymentRequest();
       if (isMounted) setPendingPaymentRequestId(pendingPayment?.id);
+      const pendingCheckout = await loadCheckout();
+      if (isMounted) setPendingStaticCheckout(pendingCheckout?.kind === "STATIC" ? pendingCheckout : undefined);
       const lockedState = lockHydratedSession(storedState);
 
       const biometricStillValid = biometricAvailable && lockedState.biometricEnabled;
@@ -431,6 +446,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return;
       }
       const checkout = parseCheckoutVerificationLink(url);
+      const staticPayment = parsePaymentLink(url);
+      if (staticPayment.ok) {
+        void setPendingStaticQr(staticPayment.qrIdentifier).catch(() => undefined);
+        return;
+      }
       if (checkout.ok) {
         // Expo Router already owns navigation for an App Link while the wallet is
         // unlocked. Persist only when routing must wait for unlock/setup; otherwise
@@ -459,7 +479,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     void Linking.getInitialURL().then(stashVerificationLink);
     const subscription = Linking.addEventListener("url", ({ url }) => stashVerificationLink(url));
     return () => subscription.remove();
-  }, [setPendingPaymentRequest, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, state.isHydrated]);
+  }, [setPendingStaticQr, setPendingPaymentRequest, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId, state.isHydrated]);
 
   const addPendingOfferId = useCallback(async (credentialRecordId: string) => {
     const current = stateRef.current;
@@ -1083,6 +1103,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<WalletSessionContextValue>(
     () => ({
+      setPendingStaticQr,
+      pendingStaticCheckout,
+      refreshPendingCheckout,
       pendingPaymentRequestId,
       setPendingPaymentRequest,
       acceptOffer,
@@ -1121,6 +1144,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       unlockWithPin,
     }),
     [
+      setPendingStaticQr,
+      pendingStaticCheckout,
+      refreshPendingCheckout,
       pendingPaymentRequestId,
       setPendingPaymentRequest,
       acceptOffer,
@@ -1156,6 +1182,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 /** Redirects routes that do not match the current setup, lock, or pending-flow state. */
 export function WalletRouteGate({ children }: PropsWithChildren) {
   const {
+    pendingStaticCheckout,
     pendingPaymentRequestId,
     hasPin,
     firstRunSetupStatus,
@@ -1175,6 +1202,11 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     }
 
     const routeAccess = getWalletRouteAccess(session, hasPin, onboardingCompleted, firstRunSetupStatus);
+    if (routeAccess === "wallet" && pendingStaticCheckout && !segments.some((segment) => ["payment-amount", "payment-confirm", "payment-activate", "topup-amount", "topup-result", "payment-result"].includes(segment))) {
+      if (pendingStaticCheckout.amountMinor) router.replace({ pathname: "/(wallet)/payment-confirm", params: { qrIdentifier: pendingStaticCheckout.qrIdentifier, amountMinor: String(pendingStaticCheckout.amountMinor), idempotencyKey: pendingStaticCheckout.idempotencyKey } });
+      else router.replace({ pathname: "/(wallet)/payment-amount", params: { qrIdentifier: pendingStaticCheckout.qrIdentifier } });
+      return;
+    }
     if (routeAccess === "wallet" && pendingPaymentRequestId && !segments.some((segment) => ["payment-request", "payment-activate", "topup-amount", "topup-result", "payment-result"].includes(segment))) {
       router.replace({ pathname: "/(wallet)/payment-request", params: { id: pendingPaymentRequestId } });
       return;
@@ -1217,7 +1249,7 @@ export function WalletRouteGate({ children }: PropsWithChildren) {
     if (!isRouteAllowedForAccess(segments, routeAccess)) {
       router.replace(getWalletRouteHref(routeAccess));
     }
-  }, [pendingPaymentRequestId, firstRunSetupStatus, hasPin, isHydrated, onboardingCompleted, pendingActivationUrl, pendingCheckoutVerification, pendingOfferIds.length, pendingVerificationPublicServicePointId, segments, session]);
+  }, [pendingStaticCheckout, pendingPaymentRequestId, firstRunSetupStatus, hasPin, isHydrated, onboardingCompleted, pendingActivationUrl, pendingCheckoutVerification, pendingOfferIds.length, pendingVerificationPublicServicePointId, segments, session]);
 
   if (!isHydrated) {
     return <OperationStateScreen busy tone="secure" eyebrow="UNIFY wallet" title="Checking secure storage" message="Reading the encrypted wallet state on this device." />;

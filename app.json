@@ -2,7 +2,7 @@
   "expo": {
     "name": "UNIFY Student Wallet",
     "slug": "unify-student-wallet",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "unifywallet",
@@ -13,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 2,
       "package": "com.advanceuct.unifystudentwallet",
       "adaptiveIcon": {
         "backgroundColor": "#0E3B31",

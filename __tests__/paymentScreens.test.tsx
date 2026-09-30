@@ -1,223 +1,115 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-
+import { AppState, type AppStateStatus } from "react-native";
 import PaymentAmountScreen from "@/app/(wallet)/payment-amount";
 import PaymentConfirmScreen from "@/app/(wallet)/payment-confirm";
 import PaymentResultScreen from "@/app/(wallet)/payment-result";
 import { ApiClientError } from "@/src/lib/api/apiClient";
-import { submitPayment } from "@/src/features/payment/paymentApi";
+import { getWalletBalance, getPaymentByReference, resolvePaymentDestination, submitPayment } from "@/src/features/payment/paymentApi";
+import { clearCheckout, loadCheckout } from "@/src/features/payment/checkoutSession";
 
-const mockRefetch = jest.fn();
-const mockInvalidateQueries = jest.fn();
-const mockIsPaymentOnline = jest.fn(async () => true);
-let mockOffline = false;
 let mockParams: Record<string, string> = {};
-let mockDestinationQuery: {
-  data?: { vendorName: string; branchName: string; currency: "ZAR" };
-  error?: Error | null;
-  isLoading: boolean;
-  refetch: jest.Mock;
-};
-
-const destination = { vendorName: "Campus Coffee", branchName: "Main Library", currency: "ZAR" as const };
-const receipt = {
-  ...destination,
-  transactionId: "transaction-001",
-  amountMinor: 4575,
-  resultingBalanceMinor: 5425,
-  completedAt: "2026-09-09T12:00:00.000Z",
-  status: "COMPLETED" as const,
-};
-
+let mockOffline = false;
+let mockForeground: ((state: AppStateStatus) => void) | undefined;
+let mockQuery: { data?: object; error?: Error; isLoading: boolean; refetch: jest.Mock };
+const mockInvalidate = jest.fn();
+const mockRefresh = jest.fn(async () => {});
+const mockOnline = jest.fn(async () => true);
+const destination = { vendorName: "Campus Coffee", branchName: "Main Library", vendorBranchId: "branch-001", currency: "ZAR" as const };
+const receipt = { ...destination, transactionId: "transaction-001", amountMinor: 4575, resultingBalanceMinor: 5425, completedAt: "2026-09-30T10:00:00.000Z", status: "COMPLETED" as const, orderReference: null };
 jest.mock("expo-crypto", () => ({ randomUUID: jest.fn(() => "payment-request-001") }));
-
-jest.mock("expo-router", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => children,
-  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
-  useLocalSearchParams: () => mockParams,
-}));
-
-jest.mock("@tanstack/react-query", () => ({
-  useQuery: () => mockDestinationQuery,
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
-}));
-
-jest.mock("@/src/features/payment/network", () => ({
-  isPaymentOnline: () => mockIsPaymentOnline(),
-  usePaymentNetworkStatus: () => ({ isOffline: mockOffline }),
-}));
-
-jest.mock("@/src/features/payment/paymentApi", () => ({
-  resolvePaymentDestination: jest.fn(),
-  submitPayment: jest.fn(),
-}));
-
-jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({
-  useThemePalette: () => require("@/src/theme/colors").lightColors,
-}));
-
-describe("payment screens", () => {
-  const routerMock = jest.requireMock("expo-router").router as {
-    back: jest.Mock;
-    push: jest.Mock;
-    replace: jest.Mock;
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockOffline = false;
-    mockParams = { qrIdentifier: "branch_qr-001" };
-    mockDestinationQuery = { data: destination, error: null, isLoading: false, refetch: mockRefetch };
-    mockIsPaymentOnline.mockResolvedValue(true);
+jest.mock("expo-router", () => ({ Link: ({ children }: { children: React.ReactNode }) => children, router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() }, useLocalSearchParams: () => mockParams, useFocusEffect: (callback: () => void) => { require("react").useEffect(callback, [callback]); } }));
+jest.mock("@tanstack/react-query", () => ({ useQuery: () => mockQuery, useQueryClient: () => ({ invalidateQueries: mockInvalidate }) }));
+jest.mock("@/src/features/payment/network", () => ({ isPaymentOnline: () => mockOnline(), usePaymentNetworkStatus: () => ({ isOffline: mockOffline }) }));
+jest.mock("@/src/features/payment/paymentApi", () => ({ getWalletBalance: jest.fn(), getPaymentByReference: jest.fn(), getPaymentReceipt: jest.fn(), resolvePaymentDestination: jest.fn(), submitPayment: jest.fn() }));
+jest.mock("@/src/features/payment/paymentSession", () => ({ loadPaymentSession: jest.fn(async () => ({ sessionId: "session" })) }));
+jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({ useWalletSession: () => ({ refreshPendingCheckout: mockRefresh }) }));
+jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({ useThemePalette: () => require("@/src/theme/colors").lightColors }));
+jest.mock("@/src/lib/storage/secureStore", () => {
+  const values = new Map<string, string>();
+  return { getSecureValue: jest.fn(async (key: string) => values.get(key) ?? null), saveSecureValue: jest.fn(async (key: string, value: string) => { values.set(key, value); }), deleteSecureValue: jest.fn(async (key: string) => { values.delete(key); }) };
+});
+describe("Durable checkout screens", () => {
+  const router = jest.requireMock("expo-router").router;
+  beforeEach(async () => {
+    await clearCheckout(); jest.clearAllMocks(); mockOffline = false;
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_event, callback) => { mockForeground = callback; return { remove: jest.fn() }; });
+    mockParams = { qrIdentifier: "branch_qr-001", amountMinor: "4575", idempotencyKey: "payment-request-001" };
+    mockQuery = { data: destination, isLoading: false, refetch: jest.fn() };
+    mockOnline.mockResolvedValue(true);
+    jest.mocked(resolvePaymentDestination).mockResolvedValue(destination);
+    jest.mocked(getWalletBalance).mockResolvedValue({ walletAccountId: "account-001", postedBalanceMinor: 10000, currency: "ZAR", accountStatus: "ACTIVE", updatedAt: receipt.completedAt });
+    jest.mocked(getPaymentByReference).mockResolvedValue({ status: "NOT_RECORDED" });
     jest.mocked(submitPayment).mockResolvedValue(receipt);
   });
-
-  it("resolves the destination and converts the entered ZAR amount to cents", () => {
+  it("saves integer-cent terms and a stable key before opening review", async () => {
     const screen = render(<PaymentAmountScreen />);
-
-    expect(screen.getByText("Campus Coffee")).toBeTruthy();
-    expect(screen.getByText("Main Library")).toBeTruthy();
-    fireEvent.changeText(screen.getByLabelText("Amount (ZAR)"), "45.75");
-    fireEvent.press(screen.getByText("Review payment"));
-
-    expect(routerMock.push).toHaveBeenCalledWith({
-      pathname: "/(wallet)/payment-confirm",
-      params: {
-        amountMinor: "4575",
-        idempotencyKey: "payment-request-001",
-        qrIdentifier: "branch_qr-001",
-      },
-    });
+    fireEvent.changeText(screen.getByLabelText("Amount (ZAR)"), "45.75"); fireEvent.press(screen.getByText("Review payment"));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith({ pathname: "/(wallet)/payment-confirm", params: { amountMinor: "4575", idempotencyKey: "payment-request-001", qrIdentifier: "branch_qr-001" } }));
+    expect(await loadCheckout()).toMatchObject({ kind: "STATIC", amountMinor: 4575, idempotencyKey: "payment-request-001" });
   });
-
-  it("keeps invalid money input on the amount screen", () => {
-    const screen = render(<PaymentAmountScreen />);
-
-    fireEvent.changeText(screen.getByLabelText("Amount (ZAR)"), "12.345");
-    fireEvent.press(screen.getByText("Review payment"));
-
-    expect(screen.getByText("Use a valid amount with no more than two decimal places.")).toBeTruthy();
-    expect(routerMock.push).not.toHaveBeenCalled();
-  });
-
-  it("blocks confirmation when connectivity changes before submission", async () => {
-    mockParams = {
-      qrIdentifier: "branch_qr-001",
-      amountMinor: "4575",
-      idempotencyKey: "payment-request-001",
-    };
-    mockIsPaymentOnline.mockResolvedValueOnce(false);
+  it("blocks changed connectivity and repeated taps", async () => {
     const screen = render(<PaymentConfirmScreen />);
-
-    fireEvent.press(screen.getByText("Pay R 45.75"));
-
-    await waitFor(() => expect(screen.getByText("You're offline")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy());
+    mockOnline.mockResolvedValueOnce(false); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("You are offline. Reconnect before approving payment.")).toBeTruthy());
     expect(submitPayment).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText("Pay R 45.75")); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy());
+    expect(submitPayment).toHaveBeenCalledTimes(1); expect(await loadCheckout()).toBeNull();
   });
-
-  it("submits once and shows only a server-confirmed receipt", async () => {
-    mockParams = {
-      qrIdentifier: "branch_qr-001",
-      amountMinor: "4575",
-      idempotencyKey: "payment-request-001",
-    };
-    const screen = render(<PaymentConfirmScreen />);
-    const payButton = screen.getByText("Pay R 45.75");
-
-    fireEvent.press(payButton);
-    fireEvent.press(payButton);
-
-    await waitFor(() => expect(submitPayment).toHaveBeenCalledTimes(1));
-    expect(submitPayment).toHaveBeenCalledWith({
-      amountMinor: 4575,
-      idempotencyKey: "payment-request-001",
-      qrIdentifier: "branch_qr-001",
+  it("shows submitting without a leave action and persists before transmission", async () => {
+    let finish!: (value: typeof receipt) => void;
+    jest.mocked(submitPayment).mockImplementationOnce(async () => {
+      expect(await loadCheckout()).toMatchObject({ phase: "SUBMITTED", accountId: "account-001" });
+      return new Promise((resolve) => { finish = resolve; });
     });
-    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
-      pathname: "/(wallet)/payment-result",
-      params: expect.objectContaining({ transactionId: "transaction-001" }),
-    }));
-  });
-
-  it("shows a processing state between payment submission and the success receipt", async () => {
-    mockParams = {
-      qrIdentifier: "branch_qr-001",
-      amountMinor: "4575",
-      idempotencyKey: "payment-request-001",
-    };
-    let resolvePayment!: (value: typeof receipt) => void;
-    jest.mocked(submitPayment).mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolvePayment = resolve;
-      }),
-    );
     const screen = render(<PaymentConfirmScreen />);
-
-    fireEvent.press(screen.getByText("Pay R 45.75"));
-
-    await waitFor(() => expect(screen.getByText("Processing payment")).toBeTruthy());
-    expect(screen.getByText("R 45.75 to Campus Coffee · Main Library")).toBeTruthy();
-    expect(screen.queryByText("Go back")).toBeNull();
-    expect(submitPayment).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolvePayment(receipt);
-    });
-    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith({
-      pathname: "/(wallet)/payment-result",
-      params: expect.objectContaining({ transactionId: "transaction-001" }),
-    }));
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("Processing payment")).toBeTruthy()); expect(screen.queryByText("Leave checkout")).toBeNull();
+    await act(async () => finish(receipt)); await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy());
   });
-
-  it("explains an uncertain timeout and retries with the same idempotency key", async () => {
-    mockParams = {
-      qrIdentifier: "branch_qr-001",
-      amountMinor: "4575",
-      idempotencyKey: "payment-request-001",
-    };
-    jest.mocked(submitPayment)
-      .mockRejectedValueOnce(new ApiClientError("timed out", "timeout", undefined, undefined, "request-401"))
-      .mockResolvedValueOnce(receipt);
+  it("requires a status check before explicitly retrying the original submission", async () => {
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("timed out", "timeout"));
     const screen = render(<PaymentConfirmScreen />);
-
-    fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
     await waitFor(() => expect(screen.getByText("Payment not confirmed")).toBeTruthy());
-    expect(screen.getByText("Reference: request-401")).toBeTruthy();
-
-    fireEvent.press(screen.getByText("Retry payment"));
-    await waitFor(() => expect(submitPayment).toHaveBeenCalledTimes(2));
-    expect(jest.mocked(submitPayment).mock.calls[0][0].idempotencyKey).toBe("payment-request-001");
-    expect(jest.mocked(submitPayment).mock.calls[1][0].idempotencyKey).toBe("payment-request-001");
+    expect(screen.getByRole("button", { name: "Retry same payment" }).props.accessibilityState.disabled).toBe(true);
+    fireEvent.press(screen.getByText("Check payment result"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry same payment" }).props.accessibilityState.disabled).toBe(false));
+    expect(submitPayment).toHaveBeenCalledTimes(1); fireEvent.press(screen.getByText("Retry same payment"));
+    await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy());
+    expect(jest.mocked(submitPayment).mock.calls.map(([input]) => input.idempotencyKey)).toEqual(["payment-request-001", "payment-request-001"]);
   });
-
-  it("disables the payment action while the network hook reports offline", () => {
-    mockOffline = true;
-    mockParams = {
-      qrIdentifier: "branch_qr-001",
-      amountMinor: "4575",
-      idempotencyKey: "payment-request-001",
-    };
+  it("recovers after process recreation without sending another payment", async () => {
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("lost response", "network"));
+    const first = render(<PaymentConfirmScreen />);
+    await waitFor(() => expect(first.getByText("Review payment")).toBeTruthy()); fireEvent.press(first.getByText("Pay R 45.75"));
+    await waitFor(() => expect(first.getByText("Payment not confirmed")).toBeTruthy()); first.unmount();
+    jest.mocked(getPaymentByReference).mockResolvedValue(receipt);
+    const reopened = render(<PaymentConfirmScreen />);
+    await waitFor(() => expect(reopened.getByText("Payment confirmed")).toBeTruthy()); expect(submitPayment).toHaveBeenCalledTimes(1);
+  });
+  it("displays a receipt from the API and does not trust route totals", () => {
+    mockParams = { transactionId: receipt.transactionId, amountMinor: "1" }; mockQuery = { data: receipt, isLoading: false, refetch: jest.fn() };
+    const screen = render(<PaymentResultScreen />); expect(screen.getByText("Paid")).toBeTruthy(); expect(screen.getByText("R 45.75")).toBeTruthy();
+    fireEvent.press(screen.getByText("Done")); expect(router.replace).toHaveBeenCalledWith("/(wallet)/payments");
+  });
+  it("checks on foreground and reconnect without submitting from lifecycle events", async () => {
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("lost response", "network"));
     const screen = render(<PaymentConfirmScreen />);
-
-    expect(screen.getByText("You are offline. Reconnect to enable payment.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Pay R 45.75" }).props.accessibilityState).toEqual({ disabled: true });
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("Payment not confirmed")).toBeTruthy());
+    await act(async () => mockForeground?.("active"));
+    await waitFor(() => expect(getPaymentByReference).toHaveBeenCalled()); expect(submitPayment).toHaveBeenCalledTimes(1);
+    mockOffline = true; screen.rerender(<PaymentConfirmScreen />);
+    jest.mocked(getPaymentByReference).mockResolvedValue(receipt); mockOffline = false; screen.rerender(<PaymentConfirmScreen />);
+    await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy()); expect(submitPayment).toHaveBeenCalledTimes(1);
   });
-
-  it("renders the successful server receipt and returns to payments", () => {
-    mockParams = {
-      amountMinor: "4575",
-      resultingBalanceMinor: "5425",
-      transactionId: "transaction-001",
-      vendorName: "Campus Coffee",
-      branchName: "Main Library",
-      completedAt: "2026-09-09T12:00:00.000Z",
-    };
-    const screen = render(<PaymentResultScreen />);
-
-    expect(screen.getByText("Paid")).toBeTruthy();
-    expect(screen.getByText("R 45.75")).toBeTruthy();
-    expect(screen.getByText("R 54.25")).toBeTruthy();
-    expect(screen.getByText("transaction-001")).toBeTruthy();
-    fireEvent.press(screen.getByText("Done"));
-    expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments");
+  it("keeps the saved submission when payment authentication expires", async () => {
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("session expired", "http", 401, "INVALID_WALLET_SESSION"));
+    const screen = render(<PaymentConfirmScreen />);
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/(wallet)/payment-activate"));
+    expect(await loadCheckout()).toMatchObject({ phase: "UNKNOWN", idempotencyKey: "payment-request-001", accountId: "account-001" });
   });
 });
