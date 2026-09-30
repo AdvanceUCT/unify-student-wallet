@@ -31,8 +31,8 @@ describe.each(["POS", "STATIC"] as const)("%s recovery", (kind) => {
   }
   it("preserves an unknown outcome and rejects replacement and account switching", async () => {
     const controller = await begin();
-    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("offline", "network"));
-    jest.mocked(payRequest).mockRejectedValueOnce(new ApiClientError("offline", "network"));
+    if (kind === "STATIC") jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("offline", "network"));
+    else jest.mocked(payRequest).mockRejectedValueOnce(new ApiClientError("offline", "network"));
     await expect(controller.approve()).rejects.toThrow("offline");
     await expect(selectPosCheckout("b".repeat(32))).rejects.toThrow("Recover");
     jest.mocked(getWalletBalance).mockResolvedValue({ walletAccountId: "other-account", accountStatus: "ACTIVE", postedBalanceMinor: 10000, currency: "ZAR", updatedAt: receipt.completedAt });

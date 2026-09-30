@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { AppState, type AppStateStatus } from "react-native";
 import PaymentAmountScreen from "@/app/(wallet)/payment-amount";
 import PaymentConfirmScreen from "@/app/(wallet)/payment-confirm";
 import PaymentResultScreen from "@/app/(wallet)/payment-result";
@@ -90,5 +91,26 @@ describe("Durable checkout screens", () => {
     mockParams = { transactionId: receipt.transactionId, amountMinor: "1" }; mockQuery = { data: receipt, isLoading: false, refetch: jest.fn() };
     const screen = render(<PaymentResultScreen />); expect(screen.getByText("Paid")).toBeTruthy(); expect(screen.getByText("R 45.75")).toBeTruthy();
     fireEvent.press(screen.getByText("Done")); expect(router.replace).toHaveBeenCalledWith("/(wallet)/payments");
+  });
+  it("checks on foreground and reconnect without submitting from lifecycle events", async () => {
+    let onForeground: ((state: AppStateStatus) => void) | undefined;
+    const listener = jest.spyOn(AppState, "addEventListener").mockImplementation((_event, callback) => { onForeground = callback; return { remove: jest.fn() }; });
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("lost response", "network"));
+    const screen = render(<PaymentConfirmScreen />);
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(screen.getByText("Payment not confirmed")).toBeTruthy());
+    await act(async () => onForeground?.("active"));
+    await waitFor(() => expect(getPaymentByReference).toHaveBeenCalled()); expect(submitPayment).toHaveBeenCalledTimes(1);
+    mockOffline = true; screen.rerender(<PaymentConfirmScreen />);
+    jest.mocked(getPaymentByReference).mockResolvedValue(receipt); mockOffline = false; screen.rerender(<PaymentConfirmScreen />);
+    await waitFor(() => expect(screen.getByText("Payment confirmed")).toBeTruthy()); expect(submitPayment).toHaveBeenCalledTimes(1);
+    listener.mockRestore();
+  });
+  it("keeps the saved submission when payment authentication expires", async () => {
+    jest.mocked(submitPayment).mockRejectedValueOnce(new ApiClientError("session expired", "http", 401, "INVALID_WALLET_SESSION"));
+    const screen = render(<PaymentConfirmScreen />);
+    await waitFor(() => expect(screen.getByText("Review payment")).toBeTruthy()); fireEvent.press(screen.getByText("Pay R 45.75"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/(wallet)/payment-activate"));
+    expect(await loadCheckout()).toMatchObject({ phase: "UNKNOWN", idempotencyKey: "payment-request-001", accountId: "account-001" });
   });
 });

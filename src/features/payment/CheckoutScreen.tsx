@@ -78,6 +78,7 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   </View>}>
     <ScreenHeader eyebrow="UNIFY checkout" title={title} meta={input.kind === "POS" ? "The amount is fixed by the vendor. Review before approving." : "Review the vendor and amount before approving."} />
     {terms && <View><InfoRow divider label="Vendor" value={terms.vendorName} /><InfoRow divider label="Branch" value={terms.branchName} />{terms.orderReference && <InfoRow divider label="Order" value={terms.orderReference} />}<InfoRow divider label="Amount" value={formatZarMinor(terms.amountMinor)} />{seconds !== undefined && !terminal && <InfoRow label="Expiry" value={`${seconds}s remaining`} />}</View>}
+    {!terms && receipt && <View><InfoRow divider label="Vendor" value={receipt.vendorName} /><InfoRow divider label="Branch" value={receipt.branchName} /><InfoRow divider label="Amount" value={formatZarMinor(receipt.amountMinor)} /></View>}
     {receipt && <View><InfoRow divider label="Transaction" value={receipt.transactionId} /><InfoRow divider label="Completed" value={new Date(receipt.completedAt).toLocaleString()} /><InfoRow label="Wallet balance" value={formatZarMinor(receipt.resultingBalanceMinor)} /></View>}
     <Text accessibilityLiveRegion="polite" style={typography.body}>{isOffline ? "You are offline. Reconnect to enable payment." : state.message}</Text>
   </AppScreen>;
