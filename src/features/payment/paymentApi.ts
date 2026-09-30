@@ -63,8 +63,12 @@ const paymentSessionResponseSchema = z.object({
 const activationChallengeSchema = z.object({
   challengeId: z.string().trim().min(1),
   expiresAt: z.string().trim().min(1).optional(),
+  resendAvailableAt: z.string().trim().min(1).optional(),
+  destinationHint: z.string().nullable().optional(),
 }).refine((value) => !value.expiresAt || Number.isFinite(Date.parse(value.expiresAt)), {
   message: "Payment activation expiry is invalid.",
+}).refine((value) => !value.resendAvailableAt || Number.isFinite(Date.parse(value.resendAvailableAt)), {
+  message: "Payment activation resend time is invalid.",
 });
 const activationStartResponseSchema = z.union([activationChallengeSchema, paymentSessionResponseSchema]);
 

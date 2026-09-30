@@ -17,7 +17,7 @@ describe("Payment OTP activation", () => {
   beforeEach(() => {
     jest.clearAllMocks(); jest.useFakeTimers(); jest.setSystemTime(start);
     jest.mocked(requestPaymentActivation).mockResolvedValue(challenge);
-    jest.mocked(loadCheckout).mockResolvedValue({ kind: "POS", id: "sale", phase: "REVIEW", idempotencyKey: "original", createdAt: start.toISOString() } as Awaited<ReturnType<typeof loadCheckout>>);
+    jest.mocked(loadCheckout).mockResolvedValue({ version: 2, kind: "POS", id: "sale", phase: "REVIEW", idempotencyKey: "original" });
   });
   afterEach(() => jest.useRealTimers());
   async function enterCodeScreen() {

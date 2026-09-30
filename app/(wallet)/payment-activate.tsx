@@ -55,8 +55,8 @@ export default function PaymentActivateScreen() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const resendSeconds = challenge ? Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000)) : 0;
-  const expired = Boolean(challenge && Date.parse(challenge.expiresAt) <= now);
+  const resendSeconds = challenge?.resendAvailableAt ? Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000)) : 0;
+  const expired = Boolean(challenge?.expiresAt && Date.parse(challenge.expiresAt) <= now);
 
   async function requestOtp() {
     if (operationInFlight.current || (stage === "otp" && resendSeconds > 0)) return;
@@ -80,7 +80,7 @@ export default function PaymentActivateScreen() {
         await resumeCheckout();
         return;
       }
-      setChallenge(nextChallenge);
+      setChallenge({ ...nextChallenge, resendAvailableAt: nextChallenge.resendAvailableAt ?? new Date(Date.now() + 60000).toISOString() });
       setOtp("");
       setNow(Date.now());
       setStage("otp");
@@ -182,7 +182,7 @@ export default function PaymentActivateScreen() {
                 If this student number is registered, a code has been sent to the university email on record.
               </Text>
             ) : null}
-            {stage === "otp" && challenge ? (
+            {stage === "otp" && challenge?.expiresAt ? (
               <Text accessibilityLiveRegion="polite" style={typography.body}>
                 {expired ? "This code may have expired. Request another code. The server checks its validity when you submit." : `Code expires in ${Math.max(0, Math.ceil((Date.parse(challenge.expiresAt) - now) / 60000))} minutes.`}
               </Text>
