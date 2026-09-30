@@ -13,6 +13,7 @@ const expoCli = join(root, "node_modules", "expo", "bin", "cli");
 const gradle = join(root, "android", isWindows ? "gradlew.bat" : "gradlew");
 const androidStudioJbr = "C:\\Program Files\\Android\\Android Studio\\jbr";
 const env = { ...process.env };
+const phoneArchitectures = "-PreactNativeArchitectures=arm64-v8a,armeabi-v7a";
 const defaultAndroidSdk = env.LOCALAPPDATA ? join(env.LOCALAPPDATA, "Android", "Sdk") : undefined;
 
 env.NODE_ENV ??= "production";
@@ -61,9 +62,10 @@ if (isWindows) {
     join(root, "android"),
     "--no-daemon",
     "assembleRelease",
+    phoneArchitectures,
   ]);
 } else {
-  run(gradle, ["-p", join(root, "android"), "--no-daemon", "assembleRelease"]);
+  run(gradle, ["-p", join(root, "android"), "--no-daemon", "assembleRelease", phoneArchitectures]);
 }
 
 const apk = join(root, "android", "app", "build", "outputs", "apk", "release", "app-release.apk");

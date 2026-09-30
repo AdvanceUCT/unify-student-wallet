@@ -18,14 +18,14 @@ import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { isPaymentOnline } from "@/src/features/payment/network";
-import { parseCheckoutVerificationLink, parsePaymentLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
+import { parsePaymentRequestLink, parseCheckoutVerificationLink, parsePaymentLink, parseVerificationLink } from "@/src/lib/validation/qrPayload";
 import { radii } from "@/src/theme/radii";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function ScanScreen() {
   const colors = useThemePalette();
-  const { processIncomingLink, setPendingCheckoutVerification } = useWalletSession();
+  const { processIncomingLink, setPendingCheckoutVerification, setPendingPaymentRequest } = useWalletSession();
   const { preloadRuntime } = useHolderAgent();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string | null>(null);
@@ -95,6 +95,14 @@ export default function ScanScreen() {
       return;
     }
 
+    const sale = parsePaymentRequestLink(rawPayload);
+    if (sale.ok) {
+      try {
+        await setPendingPaymentRequest(sale.id);
+        router.push({ pathname: "/(wallet)/payment-request", params: { id: sale.id } });
+      } catch (error) { setScanError(error instanceof Error ? error.message : "Cannot open this sale."); }
+      return;
+    }
     const payment = parsePaymentLink(rawPayload);
     if (payment.ok) {
       if (!(await isPaymentOnline())) {

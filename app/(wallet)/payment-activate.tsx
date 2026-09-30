@@ -4,6 +4,7 @@
  */
 
 import { router } from "expo-router";
+import { loadPendingPaymentRequest } from "@/src/features/payment/paymentRequestSession";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
@@ -59,7 +60,8 @@ export default function PaymentActivateScreen() {
       });
       if (isPaymentSessionResponse(nextChallenge)) {
         await savePaymentSession(nextChallenge);
-        router.replace("/(wallet)/payments");
+        const pending = await loadPendingPaymentRequest();
+        if (pending) router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } }); else router.replace("/(wallet)/payments");
         return;
       }
       setChallenge(nextChallenge);
@@ -89,7 +91,8 @@ export default function PaymentActivateScreen() {
         deviceId,
       });
       await savePaymentSession(session);
-      router.replace("/(wallet)/payments");
+      const pending = await loadPendingPaymentRequest();
+        if (pending) router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } }); else router.replace("/(wallet)/payments");
     } catch (caught) {
       const failure = paymentActivationFailure(caught);
       setError(failure.message);

@@ -169,3 +169,13 @@ export function parseVerificationLink(rawValue: string) {
     return { ok: false as const };
   }
 }
+
+/** Opaque sale request QR: no query, embedded amount or alternate host. */
+export function parsePaymentRequestLink(rawValue: string) {
+  try {
+    const url = new URL(rawValue.trim());
+    const match = url.pathname.match(/^\/([A-Za-z0-9_-]{32})$/);
+    if (url.protocol !== "unifywallet:" || url.hostname !== "pay-request" || !match || url.search || url.hash || url.username || url.password || url.port) return { ok: false as const };
+    return { ok: true as const, id: match[1] };
+  } catch { return { ok: false as const }; }
+}
