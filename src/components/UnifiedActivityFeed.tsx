@@ -4,6 +4,7 @@
  */
 
 import { CreditCard, History, RefreshCcw, ShieldCheck } from "lucide-react-native";
+import { router } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { activityDateLabel } from "@/src/components/ActivityLedger";
@@ -104,7 +105,7 @@ export function UnifiedActivityFeed({
                 const Icon = iconFor(item);
                 const tone = toneColors(item, colors);
                 return (
-                  <View key={item.id} style={{ borderBottomWidth: 1, borderColor: compact ? colors.ruleSoft : colors.rule, paddingVertical: compact ? spacing.md : spacing.lg }}>
+                  <Pressable key={item.id} accessibilityRole={item.receiptTransactionId ? "button" : undefined} accessibilityLabel={item.receiptTransactionId ? `Open payment receipt for ${item.title}` : undefined} disabled={!item.receiptTransactionId} onPress={() => router.push({ pathname: "/(wallet)/payment-result", params: { transactionId: item.receiptTransactionId } })} style={{ borderBottomWidth: 1, borderColor: compact ? colors.ruleSoft : colors.rule, paddingVertical: compact ? spacing.md : spacing.lg }}>
                     <View style={{ alignItems: "center", flexDirection: "row", gap: compact ? spacing.md : spacing.md }}>
                       <View style={{ alignItems: "center", backgroundColor: tone.background, borderRadius: radii.md, height: compact ? 36 : 42, justifyContent: "center", width: compact ? 36 : 42 }}>
                         <Icon color={tone.foreground} size={compact ? 17 : 20} strokeWidth={1.9} />
@@ -136,7 +137,7 @@ export function UnifiedActivityFeed({
                         <StatusPill label={item.status} tone={pillTone(item)} />
                       )}
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>

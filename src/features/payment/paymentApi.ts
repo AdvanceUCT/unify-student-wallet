@@ -9,6 +9,7 @@ import { paymentApiClient, paymentPublicApiClient, ApiClientError } from "@/src/
 import { isPaymentQrIdentifier } from "@/src/lib/validation/qrPayload";
 
 const paymentDestinationSchema = z.object({
+  vendorBranchId: z.string().min(1).optional(),
   vendorName: z.string().trim().min(1),
   branchName: z.string().trim().min(1),
   currency: z.literal("ZAR"),
@@ -23,6 +24,7 @@ const paymentReceiptSchema = paymentDestinationSchema.extend({
 });
 
 const walletBalanceSchema = z.object({
+  walletAccountId: z.string().min(1).optional(),
   postedBalanceMinor: z.number().int().nonnegative().safe(),
   currency: z.literal("ZAR"),
   accountStatus: z.string().trim().min(1),
@@ -234,6 +236,17 @@ export async function getWalletBalance(signal?: AbortSignal) {
 export async function getWalletActivity(signal?: AbortSignal) {
   const response = await paymentApiClient.get<unknown>("/api/wallet/v1/activity", { signal });
   return parseResponse(z.array(walletActivitySchema), response);
+}
+
+const recoveredReceiptSchema = paymentReceiptSchema.extend({ vendorBranchId: z.string().min(1), orderReference: z.string().nullable() });
+export type RecoveredPaymentReceipt = z.infer<typeof recoveredReceiptSchema>;
+export async function getPaymentByReference(idempotencyKey: string) {
+  validateIdempotencyKey(idempotencyKey);
+  return parseResponse(z.union([recoveredReceiptSchema, z.object({ status: z.literal("NOT_RECORDED") })]), await paymentApiClient.get<unknown>(`/api/wallet/v1/payments/by-reference/${encodeURIComponent(idempotencyKey)}`));
+}
+export async function getPaymentReceipt(transactionId: string, signal?: AbortSignal) {
+  if (!transactionId.trim()) throw invalidContract("The receipt reference is missing.", "INVALID_RECEIPT");
+  return parseResponse(recoveredReceiptSchema, await paymentApiClient.get<unknown>(`/api/wallet/v1/payments/${encodeURIComponent(transactionId)}/receipt`, { signal }));
 }
 
 export async function resolvePaymentDestination(qrIdentifier: string, signal?: AbortSignal) {

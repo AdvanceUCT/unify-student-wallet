@@ -4,7 +4,7 @@
  */
 
 import { router } from "expo-router";
-import { loadPendingPaymentRequest } from "@/src/features/payment/paymentRequestSession";
+import { loadCheckout } from "@/src/features/payment/checkoutSession";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
@@ -29,6 +29,12 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 type Stage = "studentNumber" | "otp";
+async function resumeCheckout() {
+  const pending = await loadCheckout();
+  if (pending?.kind === "POS") router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } });
+  else if (pending?.kind === "STATIC") router.replace({ pathname: "/(wallet)/payment-confirm", params: { qrIdentifier: pending.qrIdentifier, amountMinor: String(pending.amountMinor), idempotencyKey: pending.idempotencyKey } });
+  else router.replace("/(wallet)/payments");
+}
 
 function isPaymentSessionResponse(value: PaymentActivationChallenge | PaymentSessionResponse): value is PaymentSessionResponse {
   return "accessToken" in value;
@@ -60,8 +66,7 @@ export default function PaymentActivateScreen() {
       });
       if (isPaymentSessionResponse(nextChallenge)) {
         await savePaymentSession(nextChallenge);
-        const pending = await loadPendingPaymentRequest();
-        if (pending) router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } }); else router.replace("/(wallet)/payments");
+        await resumeCheckout();
         return;
       }
       setChallenge(nextChallenge);
@@ -91,8 +96,7 @@ export default function PaymentActivateScreen() {
         deviceId,
       });
       await savePaymentSession(session);
-      const pending = await loadPendingPaymentRequest();
-        if (pending) router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } }); else router.replace("/(wallet)/payments");
+      await resumeCheckout();
     } catch (caught) {
       const failure = paymentActivationFailure(caught);
       setError(failure.message);

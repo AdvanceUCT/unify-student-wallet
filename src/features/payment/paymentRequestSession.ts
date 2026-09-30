@@ -1,31 +1,18 @@
-import * as Crypto from "expo-crypto";
-import { Platform } from "react-native";
-import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
-const KEY = "unify.payment.pending-request.v1";
-let webValue: string | null = null;
+// Compatibility adapter for existing deep-link and sign-out paths.
+import { clearCheckout, loadCheckout, saveCheckout, selectPosCheckout } from "./checkoutSession";
 export type PendingPaymentRequest = { id: string; idempotencyKey: string; submitted: boolean };
 export async function loadPendingPaymentRequest(): Promise<PendingPaymentRequest | null> {
-  const raw = Platform.OS === "web" ? webValue : await getSecureValue(KEY);
-  try {
-    const parsed = JSON.parse(raw ?? "null");
-    if (parsed && /^[A-Za-z0-9_-]{32}$/.test(parsed.id) && typeof parsed.idempotencyKey === "string" && parsed.idempotencyKey.length > 0 && typeof parsed.submitted === "boolean") return parsed;
-  } catch { /* Malformed state cannot authorise a payment. */ }
-  return null;
+  const checkout = await loadCheckout();
+  return checkout?.kind === "POS" ? { id: checkout.id, idempotencyKey: checkout.idempotencyKey, submitted: checkout.phase !== "REVIEW" } : null;
 }
 export async function savePendingPaymentRequest(value: PendingPaymentRequest) {
-  const raw = JSON.stringify(value);
-  if (Platform.OS === "web") webValue = raw;
-  else await saveSecureValue(KEY, raw);
+  const old = await loadCheckout();
+  if (!old || old.kind !== "POS" || old.id !== value.id || old.idempotencyKey !== value.idempotencyKey) throw new Error("Payment reference changed.");
+  await saveCheckout({ ...old, phase: value.submitted ? "UNKNOWN" : "REVIEW" });
 }
 export async function selectPaymentRequest(id: string) {
-  if (!/^[A-Za-z0-9_-]{32}$/.test(id)) throw new Error("Invalid payment request.");
-  const old = await loadPendingPaymentRequest();
-  if (old?.id === id) return old;
-  if (old?.submitted) throw new Error("Recover the interrupted payment before scanning another sale.");
-  const next = { id, idempotencyKey: Crypto.randomUUID(), submitted: false };
-  await savePendingPaymentRequest(next); return next;
+  await selectPosCheckout(id); return (await loadPendingPaymentRequest())!;
 }
 export async function clearPendingPaymentRequest() {
-  webValue = null;
-  if (Platform.OS !== "web") await deleteSecureValue(KEY);
+  await clearCheckout();
 }

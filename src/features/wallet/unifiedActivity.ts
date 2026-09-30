@@ -13,6 +13,7 @@ export type UnifiedActivityKind = "payment" | "topup" | "verification";
 export type UnifiedActivityTone = "success" | "warning" | "error" | "neutral";
 
 export type UnifiedActivityItem = {
+  receiptTransactionId?: string;
   id: string;
   kind: UnifiedActivityKind;
   title: string;
@@ -70,6 +71,7 @@ function paymentSubtitle(item: WalletActivity) {
 
 export function normalizeWalletActivity(items: WalletActivity[]): UnifiedActivityItem[] {
   return items.map((item) => ({
+    ...(item.type === "SPEND" && item.status === "COMPLETED" ? { receiptTransactionId: item.id } : {}),
     id: `payment-${item.id}`,
     kind: item.type === "TOPUP" ? "topup" : "payment",
     title: paymentTitle(item),

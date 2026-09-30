@@ -18,6 +18,7 @@ import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { parseZarAmount } from "@/src/features/payment/money";
 import { resolvePaymentDestination } from "@/src/features/payment/paymentApi";
 import { paymentFailure } from "@/src/features/payment/paymentErrors";
+import { selectStaticCheckout } from "@/src/features/payment/checkoutSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -41,7 +42,7 @@ export default function PaymentAmountScreen() {
 
   const loadFailure = destinationQuery.error ? paymentFailure(destinationQuery.error) : undefined;
 
-  function continueToConfirmation() {
+  async function continueToConfirmation() {
     if (navigatingRef.current || !destinationQuery.data) return;
     const parsed = parseZarAmount(amount);
     if (!parsed.ok) {
@@ -50,14 +51,21 @@ export default function PaymentAmountScreen() {
     }
 
     navigatingRef.current = true;
+    const idempotencyKey = Crypto.randomUUID();
+    try {
+      await selectStaticCheckout({ qrIdentifier, amountMinor: parsed.amountMinor, idempotencyKey });
     router.push({
       pathname: "/(wallet)/payment-confirm",
       params: {
         amountMinor: String(parsed.amountMinor),
-        idempotencyKey: Crypto.randomUUID(),
+        idempotencyKey,
         qrIdentifier,
       },
     });
+    } catch (error) {
+      setAmountError(error instanceof Error ? error.message : "Unable to save checkout.");
+      navigatingRef.current = false;
+    }
   }
 
   return (
