@@ -10,7 +10,7 @@ jest.mock("@/src/lib/storage/secureStore", () => {
 });
 const expiry = "2099-01-01T00:00:00Z";
 const session = (id: string) => ({ sessionId: id, accessToken: id, refreshToken: `${id}-refresh`, accessExpiresAt: expiry, refreshExpiresAt: expiry });
-const response = (data: object, status = 200) => ({ ok: status < 400, status, headers: { get: () => null }, json: async () => data }) as Response;
+const response = (data: object, status = 200) => ({ ok: status < 400, status, headers: { get: () => null }, json: async () => data }) as unknown as Response;
 const originalFetch = global.fetch;
 const originalPlatform = Platform.OS;
 beforeEach(async () => {
