@@ -23,6 +23,14 @@ jest.mock("@/src/lib/api/apiClient", () => {
 describe("payment API contract", () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it("preserves server OTP expiry and resend timing", async () => {
+    const challenge = { challengeId: "challenge-001", expiresAt: "2099-01-01T00:10:00.000Z", resendAvailableAt: "2099-01-01T00:01:00.000Z", destinationHint: "university email on record" };
+    jest.mocked(paymentPublicApiClient.post).mockResolvedValueOnce(challenge);
+    await expect(requestPaymentActivation({ studentNumber: "ABC123", deviceId: "device-001" })).resolves.toEqual(challenge);
+    jest.mocked(paymentPublicApiClient.post).mockResolvedValueOnce({ ...challenge, resendAvailableAt: "invalid" });
+    await expect(requestPaymentActivation({ studentNumber: "ABC123", deviceId: "device-001" })).rejects.toThrow();
+  });
+
   it("rejects static resolution and payment without sending a request", async () => {
     await expect(resolvePaymentDestination("branch_qr-001")).rejects.toMatchObject({ status: 410, code: "STATIC_PAYMENT_REMOVED" });
     await expect(submitPayment({ qrIdentifier: "branch_qr-001", amountMinor: 4575, idempotencyKey: "payment-request-001" })).rejects.toMatchObject({ status: 410, code: "STATIC_PAYMENT_REMOVED" });

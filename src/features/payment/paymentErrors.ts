@@ -79,7 +79,7 @@ const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcome
   },
   PAYMENT_OTP_DELIVERY_FAILED: {
     title: "Activation code not sent",
-    message: "The activation code could not be sent. Ask the team to check the preview email setup, then try again.",
+    message: "The activation code could not be sent. Try again shortly or contact support.",
   },
   PAYMENT_WALLET_DISABLED: {
     title: "Payments unavailable",
@@ -122,6 +122,9 @@ export function paymentFailure(error: unknown): PaymentFailure {
 
 export function paymentActivationFailure(error: unknown): PaymentFailure {
   const failure = paymentFailure(error);
+  if (error instanceof ApiClientError && error.code === "INVALID_WALLET_SESSION") {
+    return { ...failure, title: "Check the activation code", message: "The code is incorrect, expired or already used. Enter the latest code or request another one." };
+  }
   if (
     error instanceof ApiClientError &&
     !error.code &&
