@@ -8,6 +8,9 @@ import type { VerificationFailureCode } from "@/src/lib/api/verification";
 
 const FAILURE_LABELS: Record<VerificationFailureCode, string> = {
   CREDO_PROTOCOL_ERROR: "Proof processing failed",
+  CREDENTIAL_EXPIRED: "Credential expired",
+  CREDENTIAL_NOT_YET_VALID: "Credential not yet valid",
+  CREDENTIAL_VALIDITY_INVALID: "Credential dates unavailable",
   CREDENTIAL_NOT_CURRENT: "Credential revoked",
   PROOF_EXCHANGE_ABANDONED: "Presentation incomplete",
   PROOF_NOT_VERIFIED: "Proof not verified",

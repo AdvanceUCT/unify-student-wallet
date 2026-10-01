@@ -1,3 +1,4 @@
+jest.mock("@/src/features/payment/usePaymentScope", () => ({ usePaymentScope: () => ({ walletId: "wallet-test", sessionId: "session", generation: 0, hydrated: true }) }));
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 
@@ -127,6 +128,7 @@ jest.mock("@/src/features/payment/network", () => ({
 }));
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"),
   loadPaymentSession: () => mockLoadPaymentSession(),
 }));
 

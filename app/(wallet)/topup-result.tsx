@@ -1,3 +1,4 @@
+import { paymentQueryKey } from "@/src/features/payment/paymentScope";
 /**
  * @fileoverview Reconciles a hosted top-up after browser return or app resume.
  * @module app/(wallet)/topup-result
@@ -109,8 +110,8 @@ export default function TopUpResultScreen() {
       if (nextStatus.status === "SUCCEEDED" || nextStatus.status === "FAILED") {
         await clearPendingTopUp();
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["wallet-balance"] }),
-          queryClient.invalidateQueries({ queryKey: ["wallet-activity"] }),
+          queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance") }),
+          queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity") }),
         ]);
         setPending(null);
         return;

@@ -25,7 +25,8 @@ jest.mock("@tanstack/react-query", () => ({ useQuery: () => mockQuery, useQueryC
 jest.mock("@/src/features/payment/network", () => ({ isPaymentOnline: () => mockOnline(), usePaymentNetworkStatus: () => ({ isOffline: mockOffline }) }));
 jest.mock("@/src/features/payment/paymentApi", () => ({ getWalletBalance: jest.fn(), getPaymentByReference: jest.fn(), getPaymentReceipt: jest.fn(), resolvePaymentDestination: jest.fn(), submitPayment: jest.fn() }));
 jest.mock("@/src/features/payment/paymentRequestApi", () => ({ resolvePaymentRequest: jest.fn(), payRequest: jest.fn(), getPaymentRequestReceipt: jest.fn() }));
-jest.mock("@/src/features/payment/paymentSession", () => ({ loadPaymentSession: jest.fn(async () => ({ sessionId: "session" })) }));
+jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"), loadPaymentSession: jest.fn(async () => ({ sessionId: "session" })) }));
 jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({ useWalletSession: () => ({ refreshPendingCheckout: mockRefresh }) }));
 jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({ useThemePalette: () => require("@/src/theme/colors").lightColors }));
 jest.mock("@/src/lib/storage/secureStore", () => {

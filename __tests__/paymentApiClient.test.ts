@@ -11,6 +11,7 @@ jest.mock("expo-crypto", () => ({
 }));
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"),
   clearPaymentSession: jest.fn(),
   loadPaymentDeviceId: jest.fn(),
   loadPaymentSession: jest.fn(),
@@ -177,7 +178,7 @@ describe("payment API client", () => {
         method: "POST",
       }),
     );
-    expect(savePaymentSession).toHaveBeenCalledWith(refreshedSession);
+    expect(savePaymentSession).toHaveBeenCalledWith(refreshedSession, expect.any(Object));
     expect(global.fetch).toHaveBeenNthCalledWith(
       3,
       "https://portal.example/api/wallet/balance",

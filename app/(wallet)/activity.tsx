@@ -1,3 +1,5 @@
+import { usePaymentScope } from "@/src/features/payment/usePaymentScope";
+import { paymentQueryKey } from "@/src/features/payment/paymentScope";
 /**
  * @fileoverview Shows the student's unified wallet activity history.
  * @module app/(wallet)/activity
@@ -24,6 +26,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function ActivityScreen() {
+  const paymentScope = usePaymentScope();
   const colors = useThemePalette();
   const { session } = useWalletSession();
   const [records, setRecords] = useState<VerificationActivityRecord[]>([]);
@@ -34,9 +37,9 @@ export default function ActivityScreen() {
     isError: walletActivityError,
     refetch: refetchWalletActivity,
   } = useQuery({
-    queryKey: ["wallet-activity"],
+    queryKey: paymentQueryKey("activity", paymentScope),
     queryFn: ({ signal }) => getWalletActivity(signal),
-    enabled: paymentActivated,
+    enabled: paymentActivated && paymentScope.hydrated && Boolean(paymentScope.sessionId),
   });
 
   useFocusEffect(useCallback(() => {

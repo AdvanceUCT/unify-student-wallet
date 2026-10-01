@@ -8,6 +8,8 @@ import { Platform } from "react-native";
 
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
+import { assertPaymentScope, getPaymentScope, hydratePaymentScope, invalidatePaymentScope, type PaymentScope } from "./paymentScope";
+
 export const PAYMENT_SESSION_STORAGE_KEY = "unify.payment.session.v1";
 export const PAYMENT_DEVICE_ID_STORAGE_KEY = "unify.payment.device-id.v1";
 
@@ -19,6 +21,14 @@ export type PaymentSession = {
   sessionId: string;
 };
 
+let cachedSession: PaymentSession | null = null;
+let storageQueue: Promise<unknown> = Promise.resolve();
+function serializedStorage<T>(operation: () => Promise<T>): Promise<T> {
+  const result = storageQueue.then(operation, operation);
+  storageQueue = result.catch(() => undefined);
+  return result;
+}
+export function capturedPaymentSession() { return cachedSession; }
 let webPaymentSession: string | null = null;
 let webPaymentDeviceId: string | null = null;
 
@@ -71,35 +81,52 @@ function serializedPaymentSession(session: PaymentSession) {
 }
 
 /** Saves a valid payment session without mixing it into credential-wallet state. */
-export async function savePaymentSession(session: PaymentSession) {
+export async function savePaymentSession(session: PaymentSession, expected = getPaymentScope()) {
+  assertPaymentScope(expected);
   const serialized = serializedPaymentSession(session);
-  if (Platform.OS === "web") {
-    webPaymentSession = serialized;
-    return;
-  }
-  await saveSecureValue(PAYMENT_SESSION_STORAGE_KEY, serialized);
+  // Fence old requests immediately, before storage work yields.
+  if (getPaymentScope().sessionId && getPaymentScope().sessionId !== session.sessionId) invalidatePaymentScope();
+  const saving = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(saving);
+    if (Platform.OS === "web") webPaymentSession = serialized;
+    else await saveSecureValue(PAYMENT_SESSION_STORAGE_KEY, serialized);
+    assertPaymentScope(saving);
+    cachedSession = session;
+    hydratePaymentScope(session.sessionId);
+  });
 }
 
-/** Loads the current session. Expired access tokens are kept so the API client can refresh them. */
 export async function loadPaymentSession(options: { allowExpired?: boolean } = {}): Promise<PaymentSession | null> {
-  const rawValue =
-    Platform.OS === "web" ? webPaymentSession : await getSecureValue(PAYMENT_SESSION_STORAGE_KEY);
-  if (!rawValue) return null;
-
-  const session = parsePaymentSession(rawValue, options.allowExpired ? 0 : Date.now());
-  if (session) return session;
-
-  await clearPaymentSession();
-  return null;
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    const raw = Platform.OS === "web" ? webPaymentSession : await getSecureValue(PAYMENT_SESSION_STORAGE_KEY);
+    assertPaymentScope(owner);
+    const session = parsePaymentSession(raw, options.allowExpired ? 0 : Date.now());
+    if (!session && raw) {
+      if (Platform.OS === "web") webPaymentSession = null;
+      else await deleteSecureValue(PAYMENT_SESSION_STORAGE_KEY);
+      assertPaymentScope(owner);
+    }
+    cachedSession = session;
+    hydratePaymentScope(session?.sessionId ?? null);
+    return session;
+  });
 }
 
-/** Removes the payment bearer credential from this app session or device. */
-export async function clearPaymentSession() {
-  if (Platform.OS === "web") {
-    webPaymentSession = null;
-    return;
-  }
-  await deleteSecureValue(PAYMENT_SESSION_STORAGE_KEY);
+export async function clearPaymentSession(expected?: PaymentScope) {
+  if (expected) assertPaymentScope(expected);
+  invalidatePaymentScope();
+  cachedSession = null;
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    if (Platform.OS === "web") webPaymentSession = null;
+    else await deleteSecureValue(PAYMENT_SESSION_STORAGE_KEY);
+    assertPaymentScope(owner);
+    hydratePaymentScope(null);
+  });
 }
 
 export async function loadPaymentDeviceId() {

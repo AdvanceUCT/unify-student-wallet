@@ -13,6 +13,8 @@ import {
   type PaymentSession,
 } from "@/src/features/payment/paymentSession";
 
+import { assertPaymentScope, getPaymentScope, type PaymentScope } from "@/src/features/payment/paymentScope";
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const SAFE_READ_RETRY_DELAYS_MS = [250, 750] as const;
 
@@ -217,20 +219,7 @@ const paymentRefreshTransport: TransportConfig = {
   timeoutErrorMessage: "The payment service timed out.",
 };
 
-let paymentRefreshPromise: Promise<PaymentSession> | null = null;
-
-async function paymentAccessToken() {
-  const session = await loadPaymentSession({ allowExpired: true });
-  if (!session) {
-    throw new ApiClientError(
-      "Payment wallet activation is required.",
-      "auth",
-      undefined,
-      "PAYMENT_SESSION_REQUIRED",
-    );
-  }
-  return session.accessToken;
-}
+let paymentRefresh: { generation: number; sessionId: string; promise: Promise<PaymentSession> } | null = null;
 
 function sessionFromRefreshResponse(value: unknown): PaymentSession {
   const response = value as {
@@ -266,67 +255,57 @@ function sessionFromRefreshResponse(value: unknown): PaymentSession {
   return session;
 }
 
-async function refreshPaymentSession() {
-  if (paymentRefreshPromise) return paymentRefreshPromise;
-
-  paymentRefreshPromise = (async () => {
-    const current = await loadPaymentSession({ allowExpired: true });
-    const deviceId = await loadPaymentDeviceId();
-    if (!current || !deviceId) {
-      await clearPaymentSession();
-      throw new ApiClientError(
-        "Payment wallet activation is required.",
-        "auth",
-        undefined,
-        "PAYMENT_SESSION_REQUIRED",
-      );
-    }
-
+async function refreshPaymentSession(current: PaymentSession, owner: PaymentScope) {
+  assertPaymentScope(owner);
+  if (paymentRefresh?.generation === owner.generation && paymentRefresh.sessionId === current.sessionId) return paymentRefresh.promise;
+  const pending = (async () => {
     try {
-      const response = await request<unknown>(
-        paymentRefreshTransport,
-        "/api/wallet/v1/sessions/refresh",
-        {
-          body: { refreshToken: current.refreshToken, sessionId: current.sessionId, deviceId },
-          method: "POST",
-        },
-      );
+      const deviceId = await loadPaymentDeviceId();
+      assertPaymentScope(owner);
+      if (!deviceId) throw new ApiClientError("Payment activation required.", "auth", undefined, "PAYMENT_SESSION_REQUIRED");
+      const response = await request<unknown>(paymentRefreshTransport, "/api/wallet/v1/sessions/refresh", {
+        body: { refreshToken: current.refreshToken, sessionId: current.sessionId, deviceId }, method: "POST",
+      });
+      assertPaymentScope(owner);
       const next = sessionFromRefreshResponse(response);
-      await savePaymentSession(next);
+      if (next.sessionId !== current.sessionId) throw new ApiClientError("Invalid refresh session.", "auth", 502, "INVALID_PAYMENT_SESSION");
+      await savePaymentSession(next, owner);
       return next;
     } catch (error) {
-      await clearPaymentSession();
+      // A departing account can neither clear nor overwrite its successor.
+      assertPaymentScope(owner);
+      await clearPaymentSession(owner);
       throw error;
-    } finally {
-      paymentRefreshPromise = null;
     }
   })();
-
-  return paymentRefreshPromise;
+  const entry = { generation: owner.generation, sessionId: current.sessionId, promise: pending };
+  paymentRefresh = entry;
+  try { return await pending; }
+  finally { if (paymentRefresh === entry) paymentRefresh = null; }
 }
 
-async function paymentAuthenticatedRequest<T>(
-  method: "GET" | "POST",
-  path: string,
-  options: { body?: object; signal?: AbortSignal; timeoutMs?: number } = {},
-) {
-  const run = async (accessToken: string) => request<T>(paymentTransport, path, {
-    accessToken,
-    body: options.body,
-    method,
-    signal: options.signal,
-    timeoutMs: options.timeoutMs,
-  });
+export async function revokeCapturedPaymentSession(session: PaymentSession) {
+  await request(paymentTransport, "/api/wallet/v1/sessions/revoke", { method: "POST", body: {}, accessToken: session.accessToken });
+}
 
-  try {
-    return await run(await paymentAccessToken());
-  } catch (error) {
-    if (
-      error instanceof ApiClientError &&
-      error.status === 401 &&
-      !options.signal?.aborted
-    ) {
-      const refreshed = await refreshPaymentSession();
+async function paymentAuthenticatedRequest<T>(method: "GET" | "POST", path: string, options: { body?: object; signal?: AbortSignal; timeoutMs?: number } = {}) {
+  const starting = getPaymentScope();
+  const session = await loadPaymentSession({ allowExpired: true });
+  assertPaymentScope(starting);
+  if (!session) throw new ApiClientError("Payment activation required.", "auth", undefined, "PAYMENT_SESSION_REQUIRED");
+  const owner = getPaymentScope();
+  const run = async (accessToken: string) => {
+    assertPaymentScope(owner);
+    const response = await request<T>(paymentTransport, path, { ...options, accessToken, method });
+    assertPaymentScope(owner);
+    return response;
+  };
+  try { return await run(session.accessToken); }
+  catch (error) {
+    assertPaymentScope(owner);
+    if (error instanceof ApiClientError && error.status === 401 && !options.signal?.aborted) {
+      const refreshed = await refreshPaymentSession(session, owner);
+      assertPaymentScope(owner);
       return run(refreshed.accessToken);
     }
     throw error;

@@ -47,6 +47,7 @@ jest.mock("@/src/features/payment/paymentApi", () => ({
 }));
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"),
   getOrCreatePaymentDeviceId: jest.fn(async () => "device-001"),
   savePaymentSession: jest.fn(),
 }));

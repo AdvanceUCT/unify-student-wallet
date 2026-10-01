@@ -1,3 +1,4 @@
+import { paymentQueryKey } from "@/src/features/payment/paymentScope";
 import { router, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -57,7 +58,7 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     if (["CONFIRMED", "CANCELLED", "EXPIRED", "ALREADY_PAID"].includes(state.phase)) void refreshPendingCheckout();
-    if (state.phase === "CONFIRMED") void Promise.all([queryClient.invalidateQueries({ queryKey: ["wallet-balance"] }), queryClient.invalidateQueries({ queryKey: ["wallet-activity"] })]);
+    if (state.phase === "CONFIRMED") void Promise.all([queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance") }), queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity") })]);
   }, [queryClient, refreshPendingCheckout, state.phase]);
   async function approve() {
     if (!await isPaymentOnline()) { setState((old) => ({ ...old, message: "You are offline. Reconnect before approving payment." })); return; }

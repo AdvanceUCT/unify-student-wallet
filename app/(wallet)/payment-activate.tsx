@@ -1,3 +1,5 @@
+import { assertPaymentScope, getPaymentScope } from "@/src/features/payment/paymentScope";
+import { ApiClientError } from "@/src/lib/api/apiClient";
 /**
  * @fileoverview Activates a payment-only student session with student number and optional OTP.
  * @module app/(wallet)/payment-activate
@@ -50,33 +52,37 @@ export default function PaymentActivateScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const operationInFlight = useRef(false);
+  const [retryAt, setRetryAt] = useState(0);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const resendSeconds = challenge?.resendAvailableAt ? Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000)) : 0;
+  const resendSeconds = Math.max(0, Math.ceil((Math.max(retryAt, challenge?.resendAvailableAt ? Date.parse(challenge.resendAvailableAt) : 0) - now) / 1000));
   const expired = Boolean(challenge?.expiresAt && Date.parse(challenge.expiresAt) <= now);
 
   async function requestOtp() {
-    if (operationInFlight.current || (stage === "otp" && resendSeconds > 0)) return;
+    if (operationInFlight.current || resendSeconds > 0) return;
     const normalizedStudentNumber = studentNumber.trim();
     if (!normalizedStudentNumber) {
       setError("Enter your student number.");
       return;
     }
 
+    const owner = getPaymentScope();
     operationInFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const deviceId = await getOrCreatePaymentDeviceId();
+      assertPaymentScope(owner);
       const nextChallenge = await requestPaymentActivation({
         studentNumber: normalizedStudentNumber,
         deviceId,
       });
+      assertPaymentScope(owner);
       if (isPaymentSessionResponse(nextChallenge)) {
-        await savePaymentSession(nextChallenge);
+        await savePaymentSession(nextChallenge, owner);
         await resumeCheckout();
         return;
       }
@@ -85,6 +91,10 @@ export default function PaymentActivateScreen() {
       setNow(Date.now());
       setStage("otp");
     } catch (caught) {
+      if (owner.generation !== getPaymentScope().generation) return;
+      if (caught instanceof ApiClientError && caught.code === "PAYMENT_OTP_DELIVERY_FAILED") {
+        setChallenge(null); setOtp(""); setStage("studentNumber"); setRetryAt(Date.now() + 60000);
+      }
       const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
@@ -100,19 +110,25 @@ export default function PaymentActivateScreen() {
       return;
     }
 
+    const owner = getPaymentScope();
     operationInFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const deviceId = await getOrCreatePaymentDeviceId();
+      assertPaymentScope(owner);
       const session = await verifyPaymentActivation({
         challengeId: challenge.challengeId,
         otp,
         deviceId,
       });
-      await savePaymentSession(session);
+      await savePaymentSession(session, owner);
       await resumeCheckout();
     } catch (caught) {
+      if (owner.generation !== getPaymentScope().generation) return;
+      if (caught instanceof ApiClientError && caught.code === "PAYMENT_OTP_DELIVERY_FAILED") {
+        setChallenge(null); setOtp(""); setStage("studentNumber"); setRetryAt(Date.now() + 60000);
+      }
       const failure = paymentActivationFailure(caught);
       setError(failure.message);
     } finally {
@@ -126,8 +142,8 @@ export default function PaymentActivateScreen() {
       footer={
         <View style={{ gap: spacing.sm }}>
           <AppButton
-            disabled={busy}
-            label={busy ? "Checking..." : "Activate payments"}
+            disabled={busy || (stage === "studentNumber" && resendSeconds > 0)}
+            label={stage === "studentNumber" && resendSeconds > 0 ? `Retry code in ${resendSeconds}s` : busy ? "Checking..." : "Activate payments"}
             onPress={() => void (stage === "studentNumber" ? requestOtp() : verifyOtp())}
             size="lg"
           />

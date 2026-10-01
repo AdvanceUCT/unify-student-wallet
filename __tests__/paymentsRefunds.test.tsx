@@ -1,3 +1,4 @@
+jest.mock("@/src/features/payment/usePaymentScope", () => ({ usePaymentScope: () => ({ walletId: "wallet-test", sessionId: "session", generation: 0, hydrated: true }) }));
 import { render, waitFor } from "@testing-library/react-native";
 
 import PaymentsScreen from "@/app/(wallet)/payments";
@@ -23,6 +24,7 @@ jest.mock("@tanstack/react-query", () => ({
 }));
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"),
   loadPaymentSession: (...args: unknown[]) => mockLoadPaymentSession(...args),
 }));
 
