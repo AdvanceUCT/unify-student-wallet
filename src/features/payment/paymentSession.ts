@@ -130,32 +130,48 @@ export async function clearPaymentSession(expected?: PaymentScope) {
 }
 
 export async function loadPaymentDeviceId() {
-  return Platform.OS === "web" ? webPaymentDeviceId : await getSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY);
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    const value = Platform.OS === "web" ? webPaymentDeviceId : await getSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY);
+    assertPaymentScope(owner);
+    return value;
+  });
 }
 
 export async function savePaymentDeviceId(deviceId: string) {
   const normalized = deviceId.trim();
   if (!normalized) throw new Error("Payment device ID cannot be empty.");
-  if (Platform.OS === "web") {
-    webPaymentDeviceId = normalized;
-    return;
-  }
-  await saveSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY, normalized);
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    if (Platform.OS === "web") webPaymentDeviceId = normalized;
+    else await saveSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY, normalized);
+    assertPaymentScope(owner);
+  });
 }
 
 export async function clearPaymentDeviceId() {
-  if (Platform.OS === "web") {
-    webPaymentDeviceId = null;
-    return;
-  }
-  await deleteSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY);
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    if (Platform.OS === "web") webPaymentDeviceId = null;
+    else await deleteSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY);
+    assertPaymentScope(owner);
+  });
 }
 
 export async function getOrCreatePaymentDeviceId() {
-  const existing = await loadPaymentDeviceId();
-  if (existing) return existing;
-
-  const deviceId = Crypto.randomUUID();
-  await savePaymentDeviceId(deviceId);
-  return deviceId;
+  const owner = getPaymentScope();
+  return serializedStorage(async () => {
+    assertPaymentScope(owner);
+    const existing = Platform.OS === "web" ? webPaymentDeviceId : await getSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY);
+    assertPaymentScope(owner);
+    if (existing) return existing;
+    const deviceId = Crypto.randomUUID();
+    if (Platform.OS === "web") webPaymentDeviceId = deviceId;
+    else await saveSecureValue(PAYMENT_DEVICE_ID_STORAGE_KEY, deviceId);
+    assertPaymentScope(owner);
+    return deviceId;
+  });
 }
