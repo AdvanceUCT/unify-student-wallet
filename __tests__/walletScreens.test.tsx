@@ -60,11 +60,11 @@ const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]
     return { data: [], isError: false, isLoading: false };
   }
 
-  if (queryKey[0] === "wallet-balance") {
+  if (queryKey[0] === "private-payment" && queryKey[4] === "balance") {
     return { data: null, isError: false, isLoading: false, refetch: jest.fn() };
   }
 
-  if (queryKey[0] === "wallet-activity") {
+  if (queryKey[0] === "private-payment" && queryKey[4] === "activity") {
     return { data: mockWalletActivity, isError: false, isLoading: false, refetch: jest.fn() };
   }
 

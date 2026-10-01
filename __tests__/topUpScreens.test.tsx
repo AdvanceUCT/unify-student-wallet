@@ -117,7 +117,7 @@ describe("top-up and payment activation screens", () => {
       deviceId: "device-001",
     }));
     expect(getOrCreatePaymentDeviceId).toHaveBeenCalled();
-    expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }));
+    expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }), expect.any(Object));
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments"));
   });
 
@@ -139,7 +139,7 @@ describe("top-up and payment activation screens", () => {
       deviceId: "device-001",
     }));
     expect(verifyPaymentActivation).not.toHaveBeenCalled();
-    expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }));
+    expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }), expect.any(Object));
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments"));
   });
 

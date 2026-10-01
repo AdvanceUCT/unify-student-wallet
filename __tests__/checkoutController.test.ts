@@ -4,6 +4,7 @@ import { getWalletBalance, getPaymentByReference, resolvePaymentDestination, sub
 import { resolvePaymentRequest, payRequest, getPaymentRequestReceipt } from "@/src/features/payment/paymentRequestApi";
 import { saveSecureValue } from "@/src/lib/storage/secureStore";
 import { ApiClientError } from "@/src/lib/api/apiClient";
+import { invalidatePaymentScope } from "@/src/features/payment/paymentScope";
 jest.mock("expo-crypto", () => ({ randomUUID: jest.fn(() => "original-key") }));
 jest.mock("@/src/features/payment/paymentApi", () => ({ getWalletBalance: jest.fn(), getPaymentByReference: jest.fn(), resolvePaymentDestination: jest.fn(), submitPayment: jest.fn() }));
 jest.mock("@/src/features/payment/paymentRequestApi", () => ({ resolvePaymentRequest: jest.fn(), payRequest: jest.fn(), getPaymentRequestReceipt: jest.fn() }));
@@ -25,6 +26,19 @@ beforeEach(async () => {
   jest.mocked(payRequest).mockResolvedValue({ ...receipt, id, branchId: "branch", expiresAt: pos.expiresAt, orderReference: "sale-1" });
 });
 describe("POS recovery", () => {
+  it("preserves the original submission when a late failure arrives after account replacement", async () => {
+    const controller = await begin();
+    let fail!: (error: Error) => void;
+    let submitted!: () => void;
+    const started = new Promise<void>(resolve => { submitted = resolve; });
+    jest.mocked(payRequest).mockImplementationOnce(() => { submitted(); return new Promise((_, reject) => { fail = reject; }); });
+    const approval = controller.approve();
+    await started;
+    invalidatePaymentScope("replacement-wallet");
+    fail(new Error("late offline failure"));
+    await expect(approval).rejects.toMatchObject({ name: "AbortError" });
+    expect(await loadCheckout()).toMatchObject({ accountId: "account", phase: "SUBMITTED", idempotencyKey: "original-key" });
+  });
   async function begin() {
     await selectPosCheckout(id);
     const controller = new CheckoutController(() => {}); await controller.recover(); return controller;

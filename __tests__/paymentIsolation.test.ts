@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { Platform } from "react-native";
-import { clearPaymentSession, loadPaymentSession, savePaymentSession } from "@/src/features/payment/paymentSession";
+import { clearPaymentSession, loadPaymentSession, savePaymentSession, savePaymentDeviceId } from "@/src/features/payment/paymentSession";
 import { getPaymentScope, invalidatePaymentScope, paymentQueryKey } from "@/src/features/payment/paymentScope";
 import { paymentApiClient } from "@/src/lib/api/apiClient";
 jest.mock("expo-crypto", () => ({ randomUUID: () => "request-id" }));
@@ -45,7 +45,6 @@ it("rejects a late A read even when transport ignores cancellation", async () =>
   expect(await loadPaymentSession()).toMatchObject({ sessionId: "B" });
 });
 it.each([true, false])("a late A refresh cannot save or clear B (success=%s)", async success => {
-  const { savePaymentDeviceId } = await import("@/src/features/payment/paymentSession");
   await savePaymentDeviceId("phone");
   let resolve!: (value: Response) => void;
   let started!: () => void;
