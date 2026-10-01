@@ -1073,8 +1073,8 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     const cleanupResults = await Promise.allSettled([
       clearWalletSessionState(),
       departing ? revokeCapturedPaymentSession(departing).catch(() => undefined) : Promise.resolve(),
-      clearPendingTopUp(),
       clearPaymentSession(),
+      clearPendingTopUp(),
       setPendingPaymentRequest(),
       clearPaymentDeviceId(),
       clearVerificationActivity(),

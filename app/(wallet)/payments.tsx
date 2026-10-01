@@ -1,5 +1,5 @@
 import { usePaymentScope } from "@/src/features/payment/usePaymentScope";
-import { paymentQueryKey } from "@/src/features/payment/paymentScope";
+import { assertPaymentScope, getPaymentScope, paymentQueryKey } from "@/src/features/payment/paymentScope";
 /**
  * @fileoverview Provides the proof-of-concept payments placeholder within the wallet shell.
  * @module app/(wallet)/payments
@@ -52,10 +52,12 @@ export default function PaymentsScreen() {
   });
 
   useFocusEffect(useCallback(() => {
+    const owner = getPaymentScope();
     let active = true;
     void Promise.all([loadPaymentSession({ allowExpired: true }), loadPendingTopUp()])
       .then(async ([session, pending]) => {
         if (!active) return;
+        assertPaymentScope(owner);
         const activated = Boolean(session);
         setPaymentActivated(activated);
         if (activated) {
@@ -65,7 +67,8 @@ export default function PaymentsScreen() {
               const topUp = await getTopUp(pending.topUpId);
               if (!active) return;
               if (topUp.status === "SUCCEEDED" || topUp.status === "FAILED") {
-                await clearPendingTopUp();
+                await clearPendingTopUp(owner);
+                assertPaymentScope(owner);
                 nextPending = null;
               }
             } catch {

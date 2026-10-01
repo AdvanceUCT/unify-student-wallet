@@ -6,6 +6,7 @@ import {
   savePendingTopUp,
 } from "@/src/features/payment/topUpSession";
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
+import { getPaymentScope, invalidatePaymentScope } from "@/src/features/payment/paymentScope";
 
 jest.mock("@/src/lib/storage/secureStore", () => ({
   deleteSecureValue: jest.fn(),
@@ -32,19 +33,19 @@ describe("top-up session storage", () => {
 
     expect(saveSecureValue).toHaveBeenCalledWith(
       PENDING_TOP_UP_STORAGE_KEY,
-      JSON.stringify(pendingTopUp),
+      JSON.stringify({ walletId: getPaymentScope().walletId, sessionId: getPaymentScope().sessionId, pending: pendingTopUp }),
     );
   });
 
   it("loads a valid pending checkout", async () => {
-    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify(pendingTopUp));
+    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify({ walletId: getPaymentScope().walletId, sessionId: getPaymentScope().sessionId, pending: pendingTopUp }));
 
     await expect(loadPendingTopUp()).resolves.toEqual(pendingTopUp);
     expect(deleteSecureValue).not.toHaveBeenCalled();
   });
 
   it("clears malformed pending checkout state", async () => {
-    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify({ ...pendingTopUp, topUpId: "" }));
+    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify({ walletId: getPaymentScope().walletId, sessionId: getPaymentScope().sessionId, pending: { ...pendingTopUp, topUpId: "" } }));
 
     await expect(loadPendingTopUp()).resolves.toBeNull();
     expect(deleteSecureValue).toHaveBeenCalledWith(PENDING_TOP_UP_STORAGE_KEY);
@@ -66,5 +67,15 @@ describe("top-up session storage", () => {
     await clearPendingTopUp();
 
     expect(deleteSecureValue).toHaveBeenCalledWith(PENDING_TOP_UP_STORAGE_KEY);
+  });
+  it("hides another scope's pending top-up and preserves an unbound historical reference", async () => {
+    const owner = getPaymentScope();
+    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify({ walletId: owner.walletId, sessionId: owner.sessionId, pending: pendingTopUp }));
+    invalidatePaymentScope("different-holder");
+    await expect(loadPendingTopUp()).resolves.toBeNull();
+    jest.mocked(getSecureValue).mockResolvedValueOnce(JSON.stringify(pendingTopUp));
+    await expect(loadPendingTopUp()).resolves.toBeNull();
+    expect(deleteSecureValue).not.toHaveBeenCalled();
+    await expect(savePendingTopUp(pendingTopUp, owner)).rejects.toMatchObject({ name: "AbortError" });
   });
 });

@@ -161,7 +161,7 @@ describe("top-up and payment activation screens", () => {
       amountMinor: 4575,
       idempotencyKey: "topup-request-001",
       topUpId: "topup-001",
-    }));
+    }), expect.any(Object));
     expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
       "https://checkout.paystack.test/pay/abc",
       "unifywallet://topup-return?topUpId=topup-001",

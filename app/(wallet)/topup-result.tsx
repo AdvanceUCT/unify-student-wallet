@@ -1,4 +1,4 @@
-import { paymentQueryKey } from "@/src/features/payment/paymentScope";
+import { assertPaymentScope, getPaymentScope, paymentQueryKey } from "@/src/features/payment/paymentScope";
 /**
  * @fileoverview Reconciles a hosted top-up after browser return or app resume.
  * @module app/(wallet)/topup-result
@@ -90,8 +90,11 @@ export default function TopUpResultScreen() {
   const reference = status?.reference ?? pending?.reference;
 
   const refreshStatus = useCallback(async (mode: "reconcile" | "poll") => {
+    const owner = getPaymentScope();
     if (!activeTopUpId || inFlightRef.current) return;
-    if (!(await isPaymentOnline())) {
+    const online = await isPaymentOnline();
+    if (getPaymentScope().generation !== owner.generation) return;
+    if (!online) {
       setChecking(false);
       setError("Reconnect to refresh this top-up. The pending reference is still saved.");
       return;
@@ -105,13 +108,15 @@ export default function TopUpResultScreen() {
         ? await reconcileTopUp(activeTopUpId)
         : await getTopUp(activeTopUpId);
       if (!mountedRef.current) return;
+      assertPaymentScope(owner);
       setStatus(nextStatus);
 
       if (nextStatus.status === "SUCCEEDED" || nextStatus.status === "FAILED") {
-        await clearPendingTopUp();
+        await clearPendingTopUp(owner);
+        assertPaymentScope(owner);
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance") }),
-          queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity") }),
+          queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance", owner) }),
+          queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity", owner) }),
         ]);
         setPending(null);
         return;
@@ -119,7 +124,7 @@ export default function TopUpResultScreen() {
 
       if (pending && nextStatus.status === "UNKNOWN") {
         const nextPending = { ...pending, status: "UNKNOWN" as const };
-        await savePendingTopUp(nextPending);
+        await savePendingTopUp(nextPending, owner);
         setPending(nextPending);
       }
     } catch (caught) {
@@ -137,7 +142,7 @@ export default function TopUpResultScreen() {
       if (!mountedRef.current) return;
       setPending(nextPending);
       if (!routeTopUpId && !nextPending) setChecking(false);
-    });
+    }).catch(caught => { if (mountedRef.current && caught?.name !== "AbortError") { setChecking(false); setError(paymentFailure(caught).message); } });
     return () => {
       mountedRef.current = false;
     };
