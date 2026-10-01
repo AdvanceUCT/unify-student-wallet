@@ -25,11 +25,13 @@ it("does not expose A cached activity to an unactivated or offline B", async () 
   const client = new QueryClient();
   client.setQueryData(paymentQueryKey("activity"), [{ id: "A-private-row" }]);
   client.setQueryData(paymentQueryKey("balance"), { postedBalanceMinor: 9000 });
+  client.setQueryData([...paymentQueryKey("receipt"), "receipt-A"], { amountMinor: 9000 });
   await clearPaymentSession();
   invalidatePaymentScope("holder-B");
   await loadPaymentSession();
   expect(client.getQueryData(paymentQueryKey("activity"))).toBeUndefined();
   expect(client.getQueryData(paymentQueryKey("balance"))).toBeUndefined();
+  expect(client.getQueryData([...paymentQueryKey("receipt"), "receipt-A"])).toBeUndefined();
   client.clear();
 });
 it("rejects a late A read even when transport ignores cancellation", async () => {

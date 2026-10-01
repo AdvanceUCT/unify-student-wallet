@@ -32,7 +32,9 @@ import { typography } from "@/src/theme/typography";
 
 type Stage = "studentNumber" | "otp";
 async function resumeCheckout() {
+  const owner = getPaymentScope();
   const pending = await loadCheckout();
+  assertPaymentScope(owner);
   if (pending?.kind === "POS") router.replace({ pathname: "/(wallet)/payment-request", params: { id: pending.id } });
   else if (pending?.kind === "STATIC" && pending.amountMinor) router.replace({ pathname: "/(wallet)/payment-confirm", params: { qrIdentifier: pending.qrIdentifier, amountMinor: String(pending.amountMinor), idempotencyKey: pending.idempotencyKey } });
   else if (pending?.kind === "STATIC") router.replace({ pathname: "/(wallet)/payment-amount", params: { qrIdentifier: pending.qrIdentifier } });

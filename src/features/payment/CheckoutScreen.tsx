@@ -1,4 +1,5 @@
 import { paymentQueryKey } from "@/src/features/payment/paymentScope";
+import { usePaymentScope } from "./usePaymentScope";
 import { router, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import { formatZarMinor } from "./money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "./network";
 
 export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } | { kind: "LEGACY" } }) {
+  const scope = usePaymentScope();
   const [state, setState] = useState<CheckoutState>({ phase: "CHECKING" });
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -58,8 +60,8 @@ export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } |
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     if (["CONFIRMED", "CANCELLED", "EXPIRED", "ALREADY_PAID"].includes(state.phase)) void refreshPendingCheckout();
-    if (state.phase === "CONFIRMED") void Promise.all([queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance") }), queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity") })]);
-  }, [queryClient, refreshPendingCheckout, state.phase]);
+    if (state.phase === "CONFIRMED") void Promise.all([queryClient.invalidateQueries({ queryKey: paymentQueryKey("balance", scope) }), queryClient.invalidateQueries({ queryKey: paymentQueryKey("activity", scope) })]);
+  }, [queryClient, refreshPendingCheckout, state.phase, scope]);
   async function approve() {
     if (!await isPaymentOnline()) { setState((old) => ({ ...old, message: "You are offline. Reconnect before approving payment." })); return; }
     try { await controller.approve(); } catch (error) { handleError(error); }

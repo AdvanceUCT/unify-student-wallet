@@ -12,6 +12,7 @@ import {
 } from "@/src/features/payment/paymentApi";
 import { getOrCreatePaymentDeviceId, savePaymentSession } from "@/src/features/payment/paymentSession";
 import { clearPendingTopUp, loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
+import { ApiClientError } from "@/src/lib/api/apiClient";
 
 const mockIsPaymentOnline = jest.fn(async () => true);
 const mockInvalidateQueries = jest.fn(async () => undefined);
@@ -141,6 +142,18 @@ describe("top-up and payment activation screens", () => {
     expect(verifyPaymentActivation).not.toHaveBeenCalled();
     expect(savePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-001" }), expect.any(Object));
     await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/(wallet)/payments"));
+  });
+
+  it("discards the superseded OTP after replacement delivery fails and waits before retrying", async () => {
+    const screen = render(<PaymentActivateScreen />);
+    fireEvent.changeText(screen.getByLabelText("Student number"), "ABC123");
+    jest.mocked(requestPaymentActivation).mockRejectedValueOnce(new ApiClientError("Delivery failed. Request a new code after 60 seconds.", "http", 502, "PAYMENT_OTP_DELIVERY_FAILED"));
+    fireEvent.press(screen.getByText("Activate payments"));
+    await waitFor(() => expect(screen.getByText(/Retry code in \d+s/)).toBeTruthy());
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+    fireEvent.press(screen.getByText(/Retry code in \d+s/));
+    expect(requestPaymentActivation).toHaveBeenCalledTimes(1);
+    expect(verifyPaymentActivation).not.toHaveBeenCalled();
   });
 
   it("creates a pending top-up, persists it, and opens hosted checkout in the browser", async () => {
