@@ -10,8 +10,9 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { InteractionManager } from "react-native";
 
 import { OperationStateScreen } from "@/src/components/OperationStateScreen";
-import { revokePaymentActivation } from "@/src/features/payment/paymentApi";
-import { clearPaymentDeviceId, clearPaymentSession } from "@/src/features/payment/paymentSession";
+import { revokeCapturedPaymentSession } from "@/src/lib/api/apiClient";
+import { invalidatePaymentScope } from "@/src/features/payment/paymentScope";
+import { capturedPaymentSession, clearPaymentDeviceId, clearPaymentSession } from "@/src/features/payment/paymentSession";
 import { clearPendingPaymentRequest, loadPendingPaymentRequest, selectPaymentRequest } from "@/src/features/payment/paymentRequestSession";
 import { loadCheckout, clearCheckout, type Checkout } from "@/src/features/payment/checkoutSession";
 import { clearPendingTopUp } from "@/src/features/payment/topUpSession";
@@ -1067,12 +1068,14 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [persistState, state]);
 
   const signOut = useCallback(async () => {
+    const departing = capturedPaymentSession();
+    invalidatePaymentScope();
     const cleanupResults = await Promise.allSettled([
       clearWalletSessionState(),
-      revokePaymentActivation().catch(() => undefined),
+      departing ? revokeCapturedPaymentSession(departing).catch(() => undefined) : Promise.resolve(),
+      clearPaymentSession(),
       clearPendingTopUp(),
       setPendingPaymentRequest(),
-      clearPaymentSession(),
       clearPaymentDeviceId(),
       clearVerificationActivity(),
       resetAgent(),

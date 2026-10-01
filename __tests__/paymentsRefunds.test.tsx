@@ -1,3 +1,4 @@
+jest.mock("@/src/features/payment/usePaymentScope", () => ({ usePaymentScope: () => ({ walletId: "wallet-test", sessionId: "session", generation: 0, hydrated: true }) }));
 import { render, waitFor } from "@testing-library/react-native";
 
 import PaymentsScreen from "@/app/(wallet)/payments";
@@ -23,6 +24,7 @@ jest.mock("@tanstack/react-query", () => ({
 }));
 
 jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"),
   loadPaymentSession: (...args: unknown[]) => mockLoadPaymentSession(...args),
 }));
 
@@ -61,7 +63,7 @@ describe("payments refund activity", () => {
       status: "PENDING",
     });
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: string[] }) => {
-      if (queryKey[0] === "wallet-balance") {
+      if (queryKey[0] === "private-payment" && queryKey[4] === "balance") {
         return {
           data: {
             accountStatus: "ACTIVE",
@@ -74,7 +76,7 @@ describe("payments refund activity", () => {
           refetch: mockRefetchBalance,
         };
       }
-      if (queryKey[0] === "wallet-activity") {
+      if (queryKey[0] === "private-payment" && queryKey[4] === "activity") {
         return {
           data: [{
             amountMinor: 1_250,

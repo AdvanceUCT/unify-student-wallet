@@ -23,6 +23,7 @@ import {
   MIN_TOP_UP_MINOR,
 } from "@/src/features/payment/paymentApi";
 import { paymentFailure } from "@/src/features/payment/paymentErrors";
+import { assertPaymentScope, getPaymentScope } from "@/src/features/payment/paymentScope";
 import { clearPendingTopUp, loadPendingTopUp, savePendingTopUp } from "@/src/features/payment/topUpSession";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { radii } from "@/src/theme/radii";
@@ -40,12 +41,15 @@ export default function TopUpAmountScreen() {
   const [busy, setBusy] = useState(false);
 
   async function startTopUp() {
+    const owner = getPaymentScope();
     const existing = await loadPendingTopUp();
+    assertPaymentScope(owner);
     if (existing) {
       try {
         const existingStatus = await getTopUp(existing.topUpId);
+        assertPaymentScope(owner);
         if (existingStatus.status === "SUCCEEDED" || existingStatus.status === "FAILED") {
-          await clearPendingTopUp();
+          await clearPendingTopUp(owner);
         } else {
           router.replace({
             pathname: "/(wallet)/topup-result",
@@ -54,6 +58,7 @@ export default function TopUpAmountScreen() {
           return;
         }
       } catch {
+        assertPaymentScope(owner);
         router.replace({
           pathname: "/(wallet)/topup-result",
           params: { topUpId: existing.topUpId },
@@ -73,7 +78,9 @@ export default function TopUpAmountScreen() {
 
     setBusy(true);
     setError(null);
-    if (!(await isPaymentOnline())) {
+    const online = await isPaymentOnline();
+    assertPaymentScope(owner);
+    if (!online) {
       setError("Reconnect before starting a top-up. No top-up was created.");
       setBusy(false);
       return;
@@ -86,6 +93,7 @@ export default function TopUpAmountScreen() {
         currency: "ZAR",
         idempotencyKey,
       });
+      assertPaymentScope(owner);
 
       await savePendingTopUp({
         amountMinor: topUp.amountMinor,
@@ -96,16 +104,18 @@ export default function TopUpAmountScreen() {
         reference: topUp.reference,
         status: topUp.status,
         topUpId: topUp.topUpId,
-      });
+      }, owner);
 
       if (topUp.status === "PENDING") {
         await WebBrowser.openAuthSessionAsync(topUp.authorizationUrl, `${TOP_UP_RETURN_URL}?topUpId=${encodeURIComponent(topUp.topUpId)}`);
       }
+      assertPaymentScope(owner);
       router.replace({
         pathname: "/(wallet)/topup-result",
         params: { topUpId: topUp.topUpId, returned: topUp.status === "PENDING" ? "1" : "0" },
       });
     } catch (caught) {
+      if (caught instanceof Error && caught.name === "AbortError") return;
       const failure = paymentFailure(caught);
       setError(failure.message);
     } finally {
@@ -120,7 +130,7 @@ export default function TopUpAmountScreen() {
           <AppButton
             disabled={busy || isOffline}
             label={busy ? "Opening checkout..." : "Top up"}
-            onPress={() => void startTopUp()}
+            onPress={() => void startTopUp().catch(caught => { if (caught?.name !== "AbortError") setError(paymentFailure(caught).message); })}
             size="lg"
           />
           <AppButton disabled={busy} label="Cancel" onPress={() => router.replace("/(wallet)/payments")} variant="secondary" />

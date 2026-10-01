@@ -10,6 +10,9 @@ export type VerificationStatus = "Pending" | "Approved" | "Declined" | "Expired"
 export type VerificationFailureCode =
   | "CREDO_PROTOCOL_ERROR"
   | "CREDENTIAL_NOT_CURRENT"
+  | "CREDENTIAL_EXPIRED"
+  | "CREDENTIAL_NOT_YET_VALID"
+  | "CREDENTIAL_VALIDITY_INVALID"
   | "PROOF_EXCHANGE_ABANDONED"
   | "PROOF_NOT_VERIFIED"
   | "PROOF_REQUEST_EXPIRED"
@@ -37,6 +40,9 @@ export type VerificationResult = {
 
 const FAILURE_MESSAGES: Record<VerificationFailureCode, string> = {
   CREDO_PROTOCOL_ERROR: "The verifier could not process the credential proof.",
+  CREDENTIAL_EXPIRED: "Your credential has expired. Contact your institution for renewal.",
+  CREDENTIAL_NOT_YET_VALID: "Your credential is not valid yet. Try again when its validity begins.",
+  CREDENTIAL_VALIDITY_INVALID: "Your credential has missing or invalid validity dates. Contact your institution.",
   CREDENTIAL_NOT_CURRENT: "This credential is suspended, revoked, or no longer current.",
   PROOF_EXCHANGE_ABANDONED: "The credential presentation was not completed.",
   PROOF_NOT_VERIFIED: "The credential proof could not be verified.",

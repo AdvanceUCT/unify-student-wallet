@@ -6,6 +6,7 @@
 import { Platform } from "react-native";
 
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
+import { assertPaymentScope, getPaymentScope, type PaymentScope } from "./paymentScope";
 
 export const PENDING_TOP_UP_STORAGE_KEY = "unify.payment.pending-topup.v1";
 
@@ -21,6 +22,9 @@ export type PendingTopUp = {
 };
 
 let webPendingTopUp: string | null = null;
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(operation: () => Promise<T>): Promise<T> { const result = queue.then(operation, operation); queue = result.catch(() => undefined); return result; }
+async function remove() { if (Platform.OS === "web") webPendingTopUp = null; else await deleteSecureValue(PENDING_TOP_UP_STORAGE_KEY); }
 
 export function parsePendingTopUp(rawValue: string | null): PendingTopUp | null {
   if (!rawValue) return null;
@@ -56,31 +60,39 @@ export function parsePendingTopUp(rawValue: string | null): PendingTopUp | null 
   }
 }
 
-export async function savePendingTopUp(pending: PendingTopUp) {
-  const serialized = JSON.stringify(pending);
-  if (!parsePendingTopUp(serialized)) {
+export async function savePendingTopUp(pending: PendingTopUp, owner: PaymentScope = getPaymentScope()) {
+  if (!parsePendingTopUp(JSON.stringify(pending))) {
     throw new Error("Pending top-up is malformed.");
   }
 
-  if (Platform.OS === "web") {
-    webPendingTopUp = serialized;
-    return;
-  }
-  await saveSecureValue(PENDING_TOP_UP_STORAGE_KEY, serialized);
+  const serialized = JSON.stringify({ walletId: owner.walletId, sessionId: owner.sessionId, pending });
+  return serial(async () => {
+    assertPaymentScope(owner);
+    if (Platform.OS === "web") webPendingTopUp = serialized;
+    else await saveSecureValue(PENDING_TOP_UP_STORAGE_KEY, serialized);
+    assertPaymentScope(owner);
+  });
 }
 
 export async function loadPendingTopUp() {
-  const rawValue = Platform.OS === "web" ? webPendingTopUp : await getSecureValue(PENDING_TOP_UP_STORAGE_KEY);
-  const pending = parsePendingTopUp(rawValue);
-  if (pending) return pending;
-  if (rawValue) await clearPendingTopUp();
-  return null;
+  const owner = getPaymentScope();
+  return serial(async () => {
+    assertPaymentScope(owner);
+    const rawValue = Platform.OS === "web" ? webPendingTopUp : await getSecureValue(PENDING_TOP_UP_STORAGE_KEY);
+    assertPaymentScope(owner);
+    if (!rawValue) return null;
+    let stored: { walletId?: string | null; sessionId?: string | null; pending?: PendingTopUp };
+    try { stored = JSON.parse(rawValue); } catch { await remove(); return null; }
+    // Historical unbound references are preserved for server recovery via return links.
+    if (!stored.pending && parsePendingTopUp(rawValue)) return null;
+    if (stored.walletId !== owner.walletId || stored.sessionId !== owner.sessionId) return null;
+    const pending = parsePendingTopUp(JSON.stringify(stored.pending));
+    if (!pending) await remove();
+    assertPaymentScope(owner);
+    return pending;
+  });
 }
 
-export async function clearPendingTopUp() {
-  if (Platform.OS === "web") {
-    webPendingTopUp = null;
-    return;
-  }
-  await deleteSecureValue(PENDING_TOP_UP_STORAGE_KEY);
+export async function clearPendingTopUp(owner: PaymentScope = getPaymentScope()) {
+  return serial(async () => { assertPaymentScope(owner); await remove(); assertPaymentScope(owner); });
 }

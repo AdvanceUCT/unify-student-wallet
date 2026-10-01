@@ -79,7 +79,7 @@ const KNOWN_FAILURES: Record<string, Omit<PaymentFailure, "requestId" | "outcome
   },
   PAYMENT_OTP_DELIVERY_FAILED: {
     title: "Activation code not sent",
-    message: "The activation code could not be sent. Try again shortly or contact support.",
+    message: "The replacement code could not be sent. Wait 60 seconds before requesting a new code.",
   },
   PAYMENT_WALLET_DISABLED: {
     title: "Payments unavailable",

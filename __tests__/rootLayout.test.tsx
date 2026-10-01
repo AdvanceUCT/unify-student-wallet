@@ -1,3 +1,4 @@
+jest.mock("@/src/features/payment/PaymentScopeBoundary", () => ({ PaymentScopeBoundary: ({ children }: { children: React.ReactNode }) => children }));
 import * as mockReact from "react";
 import type { ReactNode } from "react";
 import { Text as mockText } from "react-native";

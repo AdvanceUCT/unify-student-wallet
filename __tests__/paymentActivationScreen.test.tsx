@@ -7,7 +7,8 @@ import { ApiClientError } from "@/src/lib/api/apiClient";
 
 jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
 jest.mock("@/src/features/payment/paymentApi", () => ({ requestPaymentActivation: jest.fn(), verifyPaymentActivation: jest.fn() }));
-jest.mock("@/src/features/payment/paymentSession", () => ({ getOrCreatePaymentDeviceId: jest.fn(async () => "phone"), savePaymentSession: jest.fn(async () => {}) }));
+jest.mock("@/src/features/payment/paymentSession", () => ({
+  ...jest.requireActual("@/src/features/payment/paymentSession"), getOrCreatePaymentDeviceId: jest.fn(async () => "phone"), savePaymentSession: jest.fn(async () => {}) }));
 jest.mock("@/src/features/payment/checkoutSession", () => ({ loadCheckout: jest.fn() }));
 jest.mock("@/src/features/theme/ThemePreferenceProvider", () => ({ useThemePalette: () => require("@/src/theme/colors").lightColors }));
 
@@ -62,7 +63,7 @@ describe("Payment OTP activation", () => {
     const screen = await enterCodeScreen();
     const session = { accessToken: "access", accessExpiresAt: challenge.expiresAt, refreshToken: "refresh", refreshExpiresAt: challenge.expiresAt, sessionId: "session" };
     jest.mocked(verifyPaymentActivation).mockResolvedValueOnce(session);
-    jest.mocked(loadCheckout).mockImplementationOnce(async () => { expect(savePaymentSession).toHaveBeenCalledWith(session); return { kind: "POS", id: "sale" } as Awaited<ReturnType<typeof loadCheckout>>; });
+    jest.mocked(loadCheckout).mockImplementationOnce(async () => { expect(savePaymentSession).toHaveBeenCalledWith(session, expect.any(Object)); return { kind: "POS", id: "sale" } as Awaited<ReturnType<typeof loadCheckout>>; });
     fireEvent.changeText(screen.getByLabelText("6-digit code"), "123456");
     fireEvent.press(screen.getByText("Activate payments")); fireEvent.press(screen.getByText("Checking..."));
     await waitFor(() => expect(jest.requireMock("expo-router").router.replace).toHaveBeenCalledWith({ pathname: "/(wallet)/payment-request", params: { id: "sale" } }));

@@ -1,3 +1,5 @@
+import { usePaymentScope } from "@/src/features/payment/usePaymentScope";
+import { assertPaymentScope, getPaymentScope, paymentQueryKey } from "@/src/features/payment/paymentScope";
 /**
  * @fileoverview Provides the proof-of-concept payments placeholder within the wallet shell.
  * @module app/(wallet)/payments
@@ -26,6 +28,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 
 export default function PaymentsScreen() {
+  const paymentScope = usePaymentScope();
   const colors = useThemePalette();
   const [paymentActivated, setPaymentActivated] = useState(false);
   const [pendingTopUp, setPendingTopUp] = useState<PendingTopUp | null>(null);
@@ -35,24 +38,26 @@ export default function PaymentsScreen() {
     isLoading: balanceLoading,
     refetch: refetchBalance,
   } = useQuery({
-    queryKey: ["wallet-balance"],
+    queryKey: paymentQueryKey("balance", paymentScope),
     queryFn: ({ signal }) => getWalletBalance(signal),
-    enabled: paymentActivated,
+    enabled: paymentActivated && paymentScope.hydrated && Boolean(paymentScope.sessionId),
   });
   const {
     data: activity = [] as WalletActivity[],
     refetch: refetchActivity,
   } = useQuery({
-    queryKey: ["wallet-activity"],
+    queryKey: paymentQueryKey("activity", paymentScope),
     queryFn: ({ signal }) => getWalletActivity(signal),
-    enabled: paymentActivated,
+    enabled: paymentActivated && paymentScope.hydrated && Boolean(paymentScope.sessionId),
   });
 
   useFocusEffect(useCallback(() => {
+    const owner = getPaymentScope();
     let active = true;
     void Promise.all([loadPaymentSession({ allowExpired: true }), loadPendingTopUp()])
       .then(async ([session, pending]) => {
         if (!active) return;
+        assertPaymentScope(owner);
         const activated = Boolean(session);
         setPaymentActivated(activated);
         if (activated) {
@@ -62,7 +67,8 @@ export default function PaymentsScreen() {
               const topUp = await getTopUp(pending.topUpId);
               if (!active) return;
               if (topUp.status === "SUCCEEDED" || topUp.status === "FAILED") {
-                await clearPendingTopUp();
+                await clearPendingTopUp(owner);
+                assertPaymentScope(owner);
                 nextPending = null;
               }
             } catch {

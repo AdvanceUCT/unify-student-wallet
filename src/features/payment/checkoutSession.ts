@@ -3,6 +3,8 @@ import { Platform } from "react-native";
 import { z } from "zod";
 import { deleteSecureValue, getSecureValue, saveSecureValue } from "@/src/lib/storage/secureStore";
 
+import { assertPaymentScope, getPaymentScope } from "./paymentScope";
+
 export const CHECKOUT_STORAGE_KEY = "unify.payment.checkout.v2";
 export const LEGACY_POS_STORAGE_KEY = "unify.payment.pending-request.v1";
 const terms = z.object({ amountMinor: z.number().int().positive().safe(), currency: z.literal("ZAR"), vendorName: z.string().min(1), branchName: z.string().min(1), vendorBranchId: z.string().min(1), orderReference: z.string().optional(), expiresAt: z.string().datetime().optional() });
@@ -26,8 +28,11 @@ export async function loadCheckout(): Promise<Checkout | null> {
 }
 async function persist(checkout: Checkout) { await write(CHECKOUT_STORAGE_KEY, JSON.stringify(checkoutSchema.parse(checkout))); await remove(LEGACY_POS_STORAGE_KEY); }
 export async function saveCheckout(checkout: Checkout) {
+  const owner = getPaymentScope();
   return serial(async () => {
+    assertPaymentScope(owner);
     const old = await loadCheckout();
+    assertPaymentScope(owner);
     if (old && old.phase !== "REVIEW") {
       if (old.idempotencyKey !== checkout.idempotencyKey || old.kind !== checkout.kind || (old.kind === "POS" && checkout.kind === "POS" && old.id !== checkout.id) || (old.kind === "STATIC" && checkout.kind === "STATIC" && (old.qrIdentifier !== checkout.qrIdentifier || old.amountMinor !== checkout.amountMinor))) throw new Error("Recover the interrupted payment before starting another checkout.");
       if (old.accountId !== checkout.accountId || old.terms && JSON.stringify(old.terms) !== JSON.stringify(checkout.terms)) throw new Error("Submitted payment terms and account cannot change.");
@@ -36,9 +41,12 @@ export async function saveCheckout(checkout: Checkout) {
   });
 }
 export async function selectPosCheckout(id: string) {
+  const owner = getPaymentScope();
   return serial(async () => {
+    assertPaymentScope(owner);
     if (!/^[A-Za-z0-9_-]{32}$/.test(id)) throw new Error("Invalid payment request.");
     const old = await loadCheckout();
+    assertPaymentScope(owner);
     if (old?.kind === "POS" && old.id === id) return old;
     if (old && old.phase !== "REVIEW") throw new Error("Recover the interrupted payment before scanning another sale.");
     const next: Checkout = { version: 2, kind: "POS", id, idempotencyKey: Crypto.randomUUID(), phase: "REVIEW" };
@@ -49,8 +57,12 @@ export async function selectStaticCheckout(_input: { qrIdentifier: string; amoun
   throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
 export async function clearCheckout(expectedKey?: string) {
+  const owner = getPaymentScope();
   return serial(async () => {
-    if (expectedKey && (await loadCheckout())?.idempotencyKey !== expectedKey) return;
+    assertPaymentScope(owner);
+    const old = await loadCheckout();
+    assertPaymentScope(owner);
+    if (expectedKey && old?.idempotencyKey !== expectedKey) return;
     await remove(CHECKOUT_STORAGE_KEY); await remove(LEGACY_POS_STORAGE_KEY);
   });
 }
@@ -58,8 +70,11 @@ export async function selectStaticQr(_qrIdentifier: string): Promise<Checkout> {
   throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
 export async function abandonReviewCheckout() {
+  const owner = getPaymentScope();
   return serial(async () => {
+    assertPaymentScope(owner);
     const old = await loadCheckout();
+    assertPaymentScope(owner);
     if (old && old.phase !== "REVIEW") return false;
     await remove(CHECKOUT_STORAGE_KEY); await remove(LEGACY_POS_STORAGE_KEY); return true;
   });

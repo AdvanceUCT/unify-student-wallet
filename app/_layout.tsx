@@ -17,6 +17,8 @@ import { AutoLockProvider } from "@/src/features/wallet/AutoLockProvider";
 import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
 import { WalletRouteGate, WalletSessionProvider } from "@/src/features/wallet/WalletSessionProvider";
 
+import { PaymentScopeBoundary } from "@/src/features/payment/PaymentScopeBoundary";
+
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
@@ -63,7 +65,7 @@ function RootNavigator() {
         <HolderAgentProvider>
           <WalletSessionProvider>
             <AutoLockProvider>
-              <WalletRouteGate>
+              <PaymentScopeBoundary><WalletRouteGate>
                 <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} backgroundColor={colors.background} />
                 <Stack
                   screenOptions={{
@@ -79,7 +81,7 @@ function RootNavigator() {
                     dangerouslySingular
                   />
                 </Stack>
-              </WalletRouteGate>
+              </WalletRouteGate></PaymentScopeBoundary>
             </AutoLockProvider>
           </WalletSessionProvider>
         </HolderAgentProvider>
