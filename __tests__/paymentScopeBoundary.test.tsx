@@ -17,7 +17,7 @@ function Activity() {
 it("removes departed private queries and hides screens until replacement hydration completes", async () => {
   mockWalletId = "holder-A";
   invalidatePaymentScope(mockWalletId); hydratePaymentScope("A");
-  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: 0, retry: false } } });
   const oldKey = paymentQueryKey("activity");
   client.setQueryData(oldKey, "A-private");
   let hydrate!: () => void;
@@ -32,5 +32,6 @@ it("removes departed private queries and hides screens until replacement hydrati
   expect(getPaymentScope().hydrated).toBe(false);
   await act(async () => hydrate());
   await waitFor(() => expect(screen.getByText("unactivated")).toBeTruthy());
+  screen.unmount();
   client.clear();
 });
