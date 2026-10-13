@@ -47,7 +47,7 @@ function verificationTone(status: VerificationActivityRecord["status"]): Unified
 }
 
 function paymentTitle(item: WalletActivity) {
-  if (item.type === "TOPUP") return "Wallet top-up";
+  if (item.type === "TOPUP") return item.funderName ? `From ${item.funderName}` : "Wallet top-up";
   if (item.type === "REFUND") {
     const normalized = item.title.toLowerCase();
     return normalized.includes("refund") || normalized.includes("returned") ? item.title : `Refund from ${item.title}`;
@@ -60,7 +60,7 @@ function paymentSubtitle(item: WalletActivity) {
     const normalized = item.status.toLowerCase();
     if (normalized.includes("fail") || normalized.includes("cancel")) return "Top-up failed";
     if (normalized.includes("pending") || normalized.includes("unknown") || normalized.includes("processing")) return "Top-up pending";
-    return "Wallet credited";
+    return item.funderName ? "Sent to your wallet" : "Wallet credited";
   }
   if (item.type === "REFUND" && item.direction === "CREDIT") {
     const returned = "Money was returned to your wallet.";

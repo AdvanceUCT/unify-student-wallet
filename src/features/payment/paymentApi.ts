@@ -40,6 +40,8 @@ const walletActivitySchema = z.object({
   title: z.string().trim().min(1),
   subtitle: z.string().trim().min(1).optional(),
   reference: z.string().trim().min(1).optional(),
+  // Set on completed top-ups paid by an external funder through the portal's /fund page.
+  funderName: z.string().trim().min(1).max(60).optional(),
   completedAt: z.string().trim().min(1).optional(),
   createdAt: z.string().trim().min(1),
 }).refine((value) => !value.completedAt || Number.isFinite(Date.parse(value.completedAt)), {

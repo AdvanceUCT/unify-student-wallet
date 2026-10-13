@@ -25,6 +25,26 @@ describe("unified wallet activity", () => {
     expect(item.amountDirection).toBe("credit");
   });
 
+  it("names the funder on money sent by someone else, and keeps own top-ups unchanged", () => {
+    const base = {
+      amountMinor: 5_000,
+      completedAt: "2026-10-12T12:00:00.000Z",
+      createdAt: "2026-10-12T12:00:00.000Z",
+      currency: "ZAR" as const,
+      direction: "CREDIT" as const,
+      status: "COMPLETED",
+      title: "Wallet top-up",
+      type: "TOPUP" as const,
+    };
+    const [funded, own] = normalizeWalletActivity([
+      { ...base, id: "topup-funded", title: "From Jane Doe", funderName: "Jane Doe" },
+      { ...base, id: "topup-own" },
+    ]);
+
+    expect(funded).toMatchObject({ kind: "topup", title: "From Jane Doe", subtitle: "Sent to your wallet", amountDirection: "credit" });
+    expect(own).toMatchObject({ kind: "topup", title: "Wallet top-up", subtitle: "Wallet credited" });
+  });
+
   it("renders credits in green, debits in red, and uses compact sans amount type", () => {
     const items = normalizeWalletActivity([
       {
