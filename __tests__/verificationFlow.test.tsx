@@ -30,6 +30,8 @@ const claimedSession = {
   expiresAt: "2026-08-08T12:05:00.000Z",
 };
 
+let mockLockStatus: "locked" | "unlocked" = "unlocked";
+
 let mockPendingCheckout: {
   verificationRequestId: string;
   claimToken: string;
@@ -103,7 +105,7 @@ jest.mock("@/src/features/wallet/WalletSessionProvider", () => ({
   useWalletSession: () => ({
     clearPendingFlow: mockClearPendingFlow,
     pendingCheckoutVerification: mockPendingCheckout,
-    session: { authStatus: "signedIn", lockStatus: "unlocked", pendingOfferIds: [], walletId: "wallet-001" },
+    session: { authStatus: "signedIn", lockStatus: mockLockStatus, pendingOfferIds: [], walletId: "wallet-001" },
     setPendingCheckoutVerification: mockSetPendingCheckout,
     setPendingVerificationPublicServicePointId: mockSetPendingServicePoint,
   }),
@@ -119,6 +121,8 @@ jest.mock("@/src/features/verification/activityHistory", () => ({
 jest.mock("@/src/lib/api/verification", () => ({
   ApiClientError: class extends Error {},
   claimCheckoutVerificationSession: (...args: unknown[]) => mockClaimCheckoutSession(...args),
+  isVendorVerificationSuspended: (error: unknown) =>
+    (error as { code?: string } | undefined)?.code === "VENDOR_VERIFICATION_SUSPENDED",
   pollVerificationResult: (...args: unknown[]) => mockPollResult(...args),
   startVerificationSession: (...args: unknown[]) => mockStartVerificationSession(...args),
   verificationFailureMessage: jest.fn(() => "Verification failed"),
@@ -375,6 +379,51 @@ describe("checkout verification readiness", () => {
       expect.any(Error),
     );
     consoleError.mockRestore();
+  });
+
+  it.each([
+    ["checkout claim", { kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }],
+    ["static service point", { kind: "servicePoint", publicServicePointId: "sp-public-001" }],
+  ] as const)("explains a suspended vendor on a %s without offering a retry", async (_label, target) => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    const suspended = new ApiClientError("Vendor verification is suspended.", "http", 403, "VENDOR_VERIFICATION_SUSPENDED");
+    (target.kind === "checkout" ? mockClaimCheckoutSession : mockStartVerificationSession).mockRejectedValueOnce(suspended);
+
+    const screen = render(<VerificationFlowScreen target={target} />);
+
+    await waitFor(() => expect(screen.getByText("This vendor can't verify right now")).toBeTruthy());
+    expect(screen.getByText("No credential information was shared.")).toBeTruthy();
+    expect(screen.queryByText("Try again")).toBeNull();
+    expect(mockReceiveProof).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByText("Back to wallet"));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/(wallet)/home"));
+  });
+
+  it.each([
+    ["checkout", { kind: "checkout", verificationRequestId: "verification-001", claimToken: "single-use-claim-token" }],
+    ["servicePoint", { kind: "servicePoint", publicServicePointId: "sp-public-001" }],
+  ] as const)("forgets a %s scan rejected for a suspended vendor so reinstatement needs a fresh scan", async (pendingKind, target) => {
+    mockEnsureWalletReady.mockResolvedValue(null);
+    const suspended = new ApiClientError("Vendor verification is suspended.", "http", 403, "VENDOR_VERIFICATION_SUSPENDED");
+    (target.kind === "checkout" ? mockClaimCheckoutSession : mockStartVerificationSession).mockRejectedValueOnce(suspended);
+
+    const screen = render(<VerificationFlowScreen target={target} />);
+    await waitFor(() => expect(screen.getByText("This vendor can't verify right now")).toBeTruthy());
+    expect(mockClearPendingFlow).toHaveBeenCalledWith(pendingKind);
+
+    // The wallet auto-locks on the suspended screen, then the vendor is reinstated and the student unlocks.
+    mockSetPendingCheckout.mockClear();
+    mockSetPendingServicePoint.mockClear();
+    mockLockStatus = "locked";
+    screen.rerender(<VerificationFlowScreen target={target} />);
+    mockLockStatus = "unlocked";
+    screen.rerender(<VerificationFlowScreen target={target} />);
+
+    expect(mockSetPendingCheckout).not.toHaveBeenCalled();
+    expect(mockSetPendingServicePoint).not.toHaveBeenCalled();
+    expect(mockClaimCheckoutSession.mock.calls.length + mockStartVerificationSession.mock.calls.length).toBe(1);
+    expect(screen.getByText("This vendor can't verify right now")).toBeTruthy();
   });
 
   it("distinguishes an interrupted cancellation from a request failure", async () => {

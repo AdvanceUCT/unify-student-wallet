@@ -39,6 +39,7 @@ import {
   startVerificationSession,
   type StartVerificationSessionResult,
   type VerificationResult,
+  isVendorVerificationSuspended,
   verificationFailureMessage,
   verificationRequestErrorMessage,
 } from "@/src/lib/api/verification";
@@ -48,7 +49,7 @@ import { typography } from "@/src/theme/typography";
 
 type Phase = "idle" | "loading" | "review" | "presenting" | "polling" | "result" | "error";
 export type VerificationProgressStep = "opening-request" | "receiving-request" | "matching-credential" | "building-proof" | "awaiting-verifier";
-type FlowErrorKind = "before-sharing" | "after-sharing" | "cancelled" | "request";
+type FlowErrorKind = "before-sharing" | "after-sharing" | "cancelled" | "request" | "vendor-suspended";
 
 export type VerificationTarget =
   | { kind: "servicePoint"; publicServicePointId?: string }
@@ -90,11 +91,12 @@ function resultMessage(result: VerificationResult) {
 
 function classifyFlowError(error: unknown, connectionStage: "before-sharing" | "after-sharing"): FlowErrorKind {
   if (isAbortError(error) || (error instanceof ApiClientError && error.kind === "cancelled")) return "cancelled";
+  if (isVendorVerificationSuspended(error)) return "vendor-suspended";
   if (error instanceof ApiClientError && (error.kind === "network" || error.kind === "timeout")) return connectionStage;
   return "request";
 }
 
-function interruptionCopy(kind: Exclude<FlowErrorKind, "request">, message: string) {
+function interruptionCopy(kind: Exclude<FlowErrorKind, "request" | "vendor-suspended">, message: string) {
   if (kind === "after-sharing") {
     return {
       title: "Result connection lost",
@@ -164,6 +166,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
   const checkoutPreparationReleaseRef = useRef<(() => void) | null>(null);
   const preparationRef = useRef<Promise<void> | null>(null);
   const autoPreparedTargetRef = useRef<string | null>(null);
+  // A suspended vendor ends this scan for good; a later reinstatement must need a fresh scan.
+  const endedForSuspendedVendorRef = useRef(false);
   const pendingCheckoutVerificationRef = useRef(pendingCheckoutVerification);
   pendingCheckoutVerificationRef.current = pendingCheckoutVerification;
   const [phase, setPhase] = useState<Phase>("idle");
@@ -320,11 +324,15 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
           ? caught.message
           : verificationRequestErrorMessage(caught),
       );
-      setErrorKind(
-        caught instanceof WalletVerificationError && caught.code === "PROOF_REQUEST_TIMEOUT"
-          ? "before-sharing"
-          : classifyFlowError(caught, "before-sharing"),
-      );
+      const kind = caught instanceof WalletVerificationError && caught.code === "PROOF_REQUEST_TIMEOUT"
+        ? "before-sharing"
+        : classifyFlowError(caught, "before-sharing");
+      if (kind === "vendor-suspended") {
+        endedForSuspendedVendorRef.current = true;
+        await clearPendingFlow(target.kind === "checkout" ? "checkout" : "servicePoint");
+        clearSharedCheckoutPreparation();
+      }
+      setErrorKind(kind);
       setPhase("error");
     }
     })();
@@ -343,6 +351,8 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
       setPhase("error");
       return;
     }
+    // Neither re-save the pending flow on lock nor restart it on unlock.
+    if (endedForSuspendedVendorRef.current) return;
     if (!session.walletId || session.lockStatus !== "unlocked") {
       autoPreparedTargetRef.current = null;
       // Preserve deep links until the wallet is unlocked; route state alone does
@@ -496,6 +506,11 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     return <OperationStateScreen tone={approved ? "success" : result.status === "Expired" ? "warning" : "error"} eyebrow="Verification complete" title={approved ? "Credential verified" : result.status} message={resultMessage(result)} detail={sessionInfo ? `${sessionInfo.vendorName} · ${sessionInfo.servicePointName}` : undefined} primaryAction={{ label: "Done", onPress: () => router.replace("/(wallet)/activity") }} />;
   }
   if (phase === "error" && error) {
+    if (errorKind === "vendor-suspended") {
+      // The vendor's own account blocks verification, so retrying cannot help and the
+      // student should not suspect their wallet, credential, or UNIFY itself.
+      return <OperationStateScreen tone="warning" eyebrow="Vendor unavailable" title="This vendor can't verify right now" message="Verification with this vendor is temporarily unavailable because of an issue on the vendor's side. Your wallet and credentials are fine." detail="No credential information was shared." primaryAction={{ label: "Back to wallet", onPress: () => void continueToWallet() }} />;
+    }
     if (errorKind !== "request") {
       const interruption = interruptionCopy(errorKind, error);
       return <OperationStateScreen tone="warning" eyebrow="Verification interrupted" title={interruption.title} message={interruption.message} detail={interruption.detail} primaryAction={{ label: errorKind === "after-sharing" ? "Check result" : "Try again", onPress: () => void (errorKind === "after-sharing" ? checkExistingResult() : preparePresentation()) }} secondaryAction={{ label: "Continue to wallet", onPress: () => void continueToWallet() }} />;
