@@ -543,3 +543,30 @@ describe("holder verification invitation deadline", () => {
     expect(removeAbortListener).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 });
+
+
+describe("restored credential read lifecycle", () => {
+  afterEach(() => { clearActiveHolderAgent(); jest.useRealTimers(); });
+  it("does not let optional format enrichment strand an imported credential", async () => {
+    jest.useFakeTimers();
+    const record = { id: "restored-card", state: "done", credentialAttributes: [{ name: "firstName", value: "Synthetic" }] };
+    __holderAgentTestInternals.setActiveHolderAgentForTest({ didcomm: { credentials: { getAll: async () => [record], getFormatData: () => new Promise(() => {}) } } } as unknown as HolderAgent, "restored");
+    let result: unknown;
+    void getStoredCredentials().then(value => { result = value; });
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(result).toEqual([record]);
+  });
+  it("keeps attribute enrichment on the agent captured before getAll awaits", async () => {
+    let release!: (value: unknown[]) => void;
+    const original = { id: "original", state: "done", credentials: [{ credentialRecordId: "bound", credentialRecordType: "anoncreds" }] };
+    const first = { didcomm: { credentials: { getAll: () => new Promise<unknown[]>(resolve => { release = resolve; }) } }, modules: { anoncreds: { getCredential: async () => ({ attributes: { firstName: "Original" } }) } } };
+    const otherRead = jest.fn(async () => ({ attributes: { firstName: "Other wallet" } }));
+    __holderAgentTestInternals.setActiveHolderAgentForTest(first as unknown as HolderAgent, "original");
+    const reading = getStoredCredentials();
+    __holderAgentTestInternals.setActiveHolderAgentForTest({ modules: { anoncreds: { getCredential: otherRead } } } as unknown as HolderAgent, "other");
+    release([original]);
+    const records = await reading;
+    expect(otherRead).not.toHaveBeenCalled();
+    expect(records[0].credentialAttributes).toContainEqual({ name: "firstName", value: "Original" });
+  });
+});
