@@ -3,7 +3,6 @@
  * @module app/(wallet)/inbox
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { AlertTriangle, ArrowRight, Inbox as InboxIcon, Mail, ShieldAlert } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
@@ -18,7 +17,7 @@ import { Skeleton } from "@/src/components/Skeleton";
 import { StatusPill } from "@/src/components/StatusPill";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { buildCredentialInboxAlerts, type CredentialInboxAlert } from "@/src/features/wallet/inbox";
-import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
+import { useWalletCredentials } from "@/src/features/wallet/useWalletCredentials";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { radii } from "@/src/theme/radii";
@@ -63,11 +62,7 @@ export default function InboxScreen() {
   const colors = useThemePalette();
   const { pendingOfferIds, session } = useWalletSession();
   const holderAgent = useHolderAgent();
-  const credentialsQuery = useQuery({
-    queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
-    queryFn: getStoredCredentialsLazy,
-    enabled: holderAgent.status === "ready",
-  });
+  const credentialsQuery = useWalletCredentials();
   const alerts = buildCredentialInboxAlerts(credentialsQuery.data ?? []);
   const attentionCount = alerts.length + pendingOfferIds.length;
 

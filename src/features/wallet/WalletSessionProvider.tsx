@@ -184,6 +184,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [refreshPendingCheckout]);
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
+  const sessionLifecycle = useRef(0);
+  const restoreInProgress = useRef(false);
+  const sessionWrites = useRef<Promise<unknown>>(Promise.resolve());
   const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
   const firstRunSetupDraftRef = useRef<FirstRunSetupDraft | null>(null);
   const firstRunSetupPromiseRef = useRef<Promise<ActionResult> | null>(null);
@@ -253,7 +256,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     };
     stateRef.current = { ...stateRef.current, ...mergedState };
     setState((current) => ({ ...current, ...mergedState }));
-    await saveWalletSessionState(mergedState);
+    const write = sessionWrites.current.then(() => saveWalletSessionState(mergedState));
+    sessionWrites.current = write.catch(() => undefined);
+    await write;
   }, []);
 
   const setPendingVerificationPublicServicePointId = useCallback(async (publicServicePointId?: string) => {
@@ -760,8 +765,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: false, error: "Sign out before restoring a different wallet." };
       }
 
+      if (restoreInProgress.current) return { ok: false, error: "A wallet restore is already in progress." };
+      restoreInProgress.current = true;
+      const generation = ++sessionLifecycle.current;
       try {
         const { walletId } = await restoreHolderWallet(path, recoveryPassword);
+        if (generation !== sessionLifecycle.current) return { ok: false, error: "Restore was superseded. Open the current wallet." };
         await persistState({
           biometricEnabled: false,
           changePinAttempts: 0,
@@ -784,7 +793,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
           error,
           "The backup could not be opened. Check the file and recovery password, then try again.",
         );
-      }
+      } finally { restoreInProgress.current = false; }
     },
     [persistState, restoreHolderWallet],
   );
@@ -1068,10 +1077,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [persistState, state]);
 
   const signOut = useCallback(async () => {
+    ++sessionLifecycle.current;
     const departing = capturedPaymentSession();
     invalidatePaymentScope();
     const cleanupResults = await Promise.allSettled([
-      clearWalletSessionState(),
+      sessionWrites.current.then(() => clearWalletSessionState()),
       departing ? revokeCapturedPaymentSession(departing).catch(() => undefined) : Promise.resolve(),
       clearPaymentSession(),
       clearPendingTopUp(),

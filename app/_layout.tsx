@@ -1,3 +1,4 @@
+import { CredentialQueryBoundary } from "@/src/features/wallet/CredentialQueryBoundary";
 /**
  * @fileoverview Composes the root Expo Router stack with theme, agent, wallet session, and lock providers.
  * @module app/_layout
@@ -65,7 +66,7 @@ function RootNavigator() {
         <HolderAgentProvider>
           <WalletSessionProvider>
             <AutoLockProvider>
-              <PaymentScopeBoundary><WalletRouteGate>
+              <CredentialQueryBoundary><PaymentScopeBoundary><WalletRouteGate>
                 <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} backgroundColor={colors.background} />
                 <Stack
                   screenOptions={{
@@ -81,7 +82,7 @@ function RootNavigator() {
                     dangerouslySingular
                   />
                 </Stack>
-              </WalletRouteGate></PaymentScopeBoundary>
+              </WalletRouteGate></PaymentScopeBoundary></CredentialQueryBoundary>
             </AutoLockProvider>
           </WalletSessionProvider>
         </HolderAgentProvider>

@@ -187,7 +187,7 @@ describe("wallet screens", () => {
     expect(screen.queryByLabelText("Open settings")).toBeNull();
     expect(screen.getByText("Scan to receive")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
+      expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001", 0] }),
     );
   });
 

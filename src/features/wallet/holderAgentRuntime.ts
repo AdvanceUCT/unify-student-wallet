@@ -27,12 +27,12 @@ export function loadedHolderAgentRuntime() {
   return runtimePromise;
 }
 
-export async function getStoredCredentialsLazy() {
-  return (await loadHolderAgentRuntime()).getStoredCredentials();
+export async function getStoredCredentialsLazy(agent?: HolderAgentModule.HolderAgent | null, signal?: AbortSignal) {
+  return (await loadHolderAgentRuntime()).getStoredCredentials(agent, signal);
 }
 
-export async function getCredentialRecordLazy(credentialRecordId: string) {
-  return (await loadHolderAgentRuntime()).getCredentialRecord(credentialRecordId);
+export async function getCredentialRecordLazy(credentialRecordId: string, agent?: HolderAgentModule.HolderAgent | null) {
+  return (await loadHolderAgentRuntime()).getCredentialRecord(credentialRecordId, agent);
 }
 
 export async function receiveVerificationProofRequestLazy(invitationUrl: string, signal?: AbortSignal) {

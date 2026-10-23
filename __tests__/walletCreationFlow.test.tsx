@@ -1,4 +1,7 @@
-import { act, render, waitFor } from "@testing-library/react-native";
+import HomeScreen from "@/app/(wallet)/home";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CredentialQueryBoundary } from "@/src/features/wallet/CredentialQueryBoundary";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { Text } from "react-native";
 
 import {
@@ -9,7 +12,9 @@ import { HolderAgentProvider } from "@/src/features/wallet/HolderAgentProvider";
 import type { WalletSession } from "@/src/features/wallet/sessionTypes";
 
 const mockSecureValues = new Map<string, string>();
-const mockHolderAgent = { id: "holder-agent-001" };
+const mockGetAll = jest.fn(async () => [{ id: "synthetic-restored", state: "done", credentialAttributes: [{ name: "firstName", value: "Synthetic" }, { name: "lastName", value: "Student" }, { name: "studentNumber", value: "TEST001" }] }]);
+const mockGetFormatData = jest.fn(async () => ({ offerAttributes: [] }));
+const mockHolderAgent = { id: "holder-agent-001", shutdown: jest.fn(async () => undefined), didcomm: { credentials: { getAll: mockGetAll, getFormatData: mockGetFormatData } } };
 const mockCreateLocalHolderWallet = jest.fn(async () => ({ walletId: "wallet-uuid-001", agent: mockHolderAgent }));
 const mockResumeHolderAgentSession = jest.fn(async (_walletId: string) => mockHolderAgent);
 const mockRestoreEncryptedHolderWallet = jest.fn(async (_path: string, _password: string) => ({
@@ -37,6 +42,7 @@ jest.mock("@/src/features/wallet/holderAgent", () => ({
   getActiveHolderAgent: () => mockHolderAgent,
   getActiveWalletId: () => "wallet-uuid-001",
   getCredentialRecord: jest.fn(async () => null),
+  getStoredCredentials: (...args: unknown[]) => jest.requireActual("@/src/features/wallet/holderAgent").getStoredCredentials(...args),
   initializeHolderAgent: jest.fn(async () => mockHolderAgent),
   receiveCredentialOffer: (url: string) => mockReceiveCredentialOffer(url),
   restoreEncryptedHolderWallet: (path: string, password: string) =>
@@ -57,7 +63,8 @@ jest.mock("expo-local-authentication", () => ({
 }));
 
 jest.mock("expo-router", () => ({
-  router: { replace: jest.fn() },
+  router: { replace: jest.fn(), push: jest.fn() },
+  useFocusEffect: (callback: () => unknown) => require("react").useEffect(callback, [callback]),
   useSegments: jest.fn(() => ["(auth)", "set-pin"]),
 }));
 
@@ -92,6 +99,8 @@ describe("wallet creation flow", () => {
     mockReceiveCredentialOffer.mockClear();
     mockSubscribeToOfferReceived.mockClear();
     mockSecureValues.clear();
+    mockGetAll.mockClear();
+    mockGetFormatData.mockClear();
     walletContext = undefined;
   });
 
@@ -307,5 +316,50 @@ describe("wallet creation flow", () => {
     expect(mockCreateLocalHolderWallet).not.toHaveBeenCalled();
     expect(walletContext?.hasPin).toBe(true);
     expect(walletContext?.onboardingCompleted).toBe(true);
+  });
+});
+
+
+jest.mock("@/src/components/AnimatedEntry", () => ({ AnimatedEntry: ({ children }: { children: React.ReactNode }) => children }));
+function RestoredHome() {
+  const wallet = useWalletSession();
+  return wallet.hasPin && wallet.session.authStatus === "signedIn" ? <HomeScreen /> : null;
+}
+function restoreComposition() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const view = render(<QueryClientProvider client={client}><HolderAgentProvider><WalletSessionProvider><CredentialQueryBoundary><CaptureWalletContext /><RestoredHome /></CredentialQueryBoundary></WalletSessionProvider></HolderAgentProvider></QueryClientProvider>);
+  return { ...view, client };
+}
+describe("restore through real providers, query cache and Home", () => {
+  beforeEach(() => { mockSecureValues.clear(); walletContext = undefined; mockGetAll.mockClear(); mockGetFormatData.mockClear(); });
+  afterEach(() => jest.useRealTimers());
+  it.each([false, true])("renders restored cards without restart; previously signed out=%s", async signedOut => {
+    const view = restoreComposition();
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    if (signedOut) {
+      await act(async () => { await walletContext?.createWallet("2468", "2468"); });
+      await act(async () => { await walletContext?.signOut(); });
+      view.client.setQueryData(["stored-credentials", "old-wallet", 0], [{ id: "obsolete" }]);
+    }
+    await act(async () => { expect(await walletContext?.restoreWallet("/cache/synthetic-encrypted.unifywallet", "synthetic-backup-password")).toEqual({ ok: true }); });
+    await act(async () => { expect(await walletContext?.createWallet("2468", "2468")).toEqual({ ok: true }); });
+    await view.findByText("Synthetic Student");
+    expect(walletContext?.session.walletId).toBe("wallet-restored-001");
+    expect(view.client.getQueryData(["stored-credentials", "old-wallet", 0])).toBeUndefined();
+    expect(mockGetAll).toHaveBeenCalled();
+    view.unmount(); view.client.clear();
+  });
+  it("failed reads retry the existing restored store without another import", async () => {
+    mockGetAll.mockRejectedValueOnce(new Error("Synthetic native read failure"));
+    const view = restoreComposition();
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    await act(async () => { await walletContext?.restoreWallet("/cache/synthetic-encrypted.unifywallet", "synthetic-backup-password"); });
+    await act(async () => { await walletContext?.createWallet("2468", "2468"); });
+    await view.findByText("Your wallet is still protected");
+    const imports = mockRestoreEncryptedHolderWallet.mock.calls.length;
+    fireEvent.press(view.getByText("Try again"));
+    await view.findByText("Synthetic Student");
+    expect(mockRestoreEncryptedHolderWallet.mock.calls).toHaveLength(imports);
+    view.unmount(); view.client.clear();
   });
 });
