@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import HomeScreen from "@/app/(wallet)/home";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CredentialQueryBoundary } from "@/src/features/wallet/CredentialQueryBoundary";
@@ -357,6 +358,20 @@ describe("restore through real providers, query cache and Home", () => {
     await act(async () => { await walletContext?.createWallet("2468", "2468"); });
     await waitFor(() => expect(view.getByText("Synthetic Student")).toBeTruthy(), { timeout: 4000 });
     expect(walletContext?.session.walletId).toBe("wallet-restored-001");
+    view.unmount(); view.client.clear();
+  });
+  it("does not save a delayed restored-wallet PIN after sign-out", async () => {
+    const view = restoreComposition();
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    await act(async () => { await walletContext?.restoreWallet("/cache/synthetic-encrypted.unifywallet", "synthetic-backup-password"); });
+    let finish!: (value: string) => void;
+    jest.mocked(Crypto.digestStringAsync).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    let settingPin!: ReturnType<NonNullable<typeof walletContext>["createWallet"]>;
+    act(() => { settingPin = walletContext!.createWallet("2468", "2468"); });
+    await act(async () => { await walletContext?.signOut(); });
+    await act(async () => { finish("delayed-pin-hash"); expect(await settingPin).toMatchObject({ ok: false }); });
+    expect(walletContext?.session.authStatus).toBe("signedOut");
+    expect(mockSecureValues.has("unify.wallet.session.v1")).toBe(false);
     view.unmount(); view.client.clear();
   });
   it("failed reads retry the existing restored store without another import", async () => {
