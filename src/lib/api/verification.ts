@@ -65,8 +65,14 @@ const REQUEST_ERROR_MESSAGES: Record<string, string> = {
   VERIFICATION_SESSION_EXPIRED: "This checkout verification link expired. Return to the checkout for a new link.",
   VERIFICATION_SESSION_NOT_FOUND: "This checkout verification link is no longer valid.",
   VERIFICATION_SESSION_REUSED: "This checkout verification link has already been used.",
+  VENDOR_VERIFICATION_SUSPENDED: "This vendor cannot verify credentials right now. Nothing is wrong with your wallet.",
   VERIFIER_NOT_CONFIGURED: "Verification is temporarily unavailable at this service point.",
 };
+
+/** True when the vendor's account blocks verification, as opposed to a wallet or UNIFY fault. */
+export function isVendorVerificationSuspended(error: unknown) {
+  return error instanceof ApiClientError && error.code === "VENDOR_VERIFICATION_SUSPENDED";
+}
 
 export function verificationFailureMessage(code: VerificationFailureCode) {
   return FAILURE_MESSAGES[code] ?? "The verifier could not complete this verification.";

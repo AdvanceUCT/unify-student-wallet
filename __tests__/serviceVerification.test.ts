@@ -4,6 +4,7 @@ import {
   pollVerificationResult,
   startVerificationSession,
   verificationFailureMessage,
+  isVendorVerificationSuspended,
   verificationRequestErrorMessage,
   type VerificationStatus,
 } from "@/src/lib/api/verification";
@@ -80,6 +81,18 @@ describe("wallet verification API", () => {
 
     expect(verificationRequestErrorMessage(error)).toBe(
       "This checkout verification link has already been used.",
+    );
+  });
+
+  it("recognises a vendor suspension separately from other request failures", () => {
+    const suspended = new ApiClientError("Vendor verification is suspended.", "http", 403, "VENDOR_VERIFICATION_SUSPENDED");
+    const disabled = new ApiClientError("Service point verification is disabled.", "http", 410, "SERVICE_POINT_DISABLED");
+
+    expect(isVendorVerificationSuspended(suspended)).toBe(true);
+    expect(isVendorVerificationSuspended(disabled)).toBe(false);
+    expect(isVendorVerificationSuspended(new Error("VENDOR_VERIFICATION_SUSPENDED"))).toBe(false);
+    expect(verificationRequestErrorMessage(suspended)).toBe(
+      "This vendor cannot verify credentials right now. Nothing is wrong with your wallet.",
     );
   });
 
