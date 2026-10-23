@@ -349,6 +349,16 @@ describe("restore through real providers, query cache and Home", () => {
     expect(mockGetAll).toHaveBeenCalled();
     view.unmount(); view.client.clear();
   });
+  it("renders the restored card even when native optional enrichment never completes", async () => {
+    mockGetFormatData.mockImplementationOnce(() => new Promise(() => {}));
+    const view = restoreComposition();
+    await waitFor(() => expect(walletContext?.isHydrated).toBe(true));
+    await act(async () => { await walletContext?.restoreWallet("/cache/synthetic-encrypted.unifywallet", "synthetic-backup-password"); });
+    await act(async () => { await walletContext?.createWallet("2468", "2468"); });
+    await waitFor(() => expect(view.getByText("Synthetic Student")).toBeTruthy(), { timeout: 4000 });
+    expect(walletContext?.session.walletId).toBe("wallet-restored-001");
+    view.unmount(); view.client.clear();
+  });
   it("failed reads retry the existing restored store without another import", async () => {
     mockGetAll.mockRejectedValueOnce(new Error("Synthetic native read failure"));
     const view = restoreComposition();
