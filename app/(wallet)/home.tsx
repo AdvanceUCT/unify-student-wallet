@@ -27,7 +27,7 @@ import { loadPaymentSession } from "@/src/features/payment/paymentSession";
 import { getVerificationActivity, type VerificationActivityRecord } from "@/src/features/verification/activityHistory";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
 import { mergeUnifiedActivity } from "@/src/features/wallet/unifiedActivity";
-import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
+import { useWalletCredentials } from "@/src/features/wallet/useWalletCredentials";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import {
@@ -48,11 +48,7 @@ export default function HomeScreen() {
   const [recentActivity, setRecentActivity] = useState<VerificationActivityRecord[]>([]);
   const [paymentActivated, setPaymentActivated] = useState(false);
 
-  const credentialsQuery = useQuery({
-    queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
-    queryFn: getStoredCredentialsLazy,
-    enabled: holderAgent.status === "ready",
-  });
+  const credentialsQuery = useWalletCredentials();
   const {
     data: balance,
     isLoading: balanceLoading,
@@ -127,19 +123,7 @@ export default function HomeScreen() {
           style={[styles.credentialArea, { minHeight: credentialStageHeight }]}
           testID="home-credential-stage"
         >
-          {!hasCredentialData && (holderAgent.status === "idle" || holderAgent.status === "initializing") ? (
-            <CredentialSkeleton />
-          ) : holderAgent.status === "error" && !hasCredentialData ? (
-            <EmptyState
-              action={<AppButton label="Try again" onPress={() => session.walletId && void holderAgent.resumeWallet(session.walletId)} />}
-              body={holderAgent.error ?? "Secure wallet services could not be started."}
-              eyebrow="Wallet still opening"
-              heading="Credentials are temporarily unavailable"
-              icon={QrCode}
-            />
-          ) : credentialsQuery.isLoading && !hasCredentialData ? (
-            <CredentialSkeleton />
-          ) : credentialsQuery.isError && credentials.length === 0 ? (
+          {credentialsQuery.isError && !hasCredentialData ? (
             <EmptyState
               action={<AppButton label="Try again" onPress={() => void credentialsQuery.refetch()} />}
               body="Try reading the encrypted wallet again."
@@ -147,6 +131,8 @@ export default function HomeScreen() {
               heading="Your wallet is still protected"
               icon={QrCode}
             />
+          ) : !hasCredentialData && (credentialsQuery.isLoading || holderAgent.status === "idle" || holderAgent.status === "initializing") ? (
+            <CredentialSkeleton />
           ) : credentials.length ? (
             <AnimatedEntry delay={motion.stagger}>
               <CredentialCarousel

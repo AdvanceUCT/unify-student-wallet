@@ -13,6 +13,7 @@ type HolderRuntimeStatus = "idle" | "loading" | "ready" | "error";
 
 type HolderAgentState = {
   agent: HolderAgent | null;
+  generation?: number;
   error?: string;
   status: HolderAgentStatus;
   walletId?: string;
@@ -49,7 +50,14 @@ function errorMessageFromUnknown(error: unknown) {
 export function HolderAgentProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<HolderAgentState>({ agent: null, status: "idle" });
   const [runtimeStatus, setRuntimeStatus] = useState<HolderRuntimeStatus>("idle");
-  const initPromiseRef = useRef<Promise<HolderAgent | null> | null>(null);
+  const lifecycle = useRef(0);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingResume = useRef<{ walletId: string; generation: number; promise: Promise<HolderAgent | null> } | null>(null);
+  const serialize = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
+    const result = queue.current.then(operation, operation);
+    queue.current = result.catch(() => undefined);
+    return result;
+  }, []);
   const agentRef = useRef<HolderAgent | null>(null);
   const walletIdRef = useRef<string | undefined>(undefined);
 
@@ -65,101 +73,79 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
-  const resetAgent = useCallback(async () => {
-    const activeAgent = agentRef.current;
-    initPromiseRef.current = null;
+  const closeAgent = useCallback(async () => {
+    const active = agentRef.current;
     agentRef.current = null;
     walletIdRef.current = undefined;
-    const runtimePromise = loadedHolderAgentRuntime();
-    if (runtimePromise) {
-      const runtime = await runtimePromise;
-      runtime.clearActiveHolderAgent();
-    }
-    setState({ agent: null, status: "idle" });
-
-    if (activeAgent?.shutdown) {
-      await activeAgent.shutdown();
-    }
+    const runtime = loadedHolderAgentRuntime();
+    if (runtime) (await runtime).clearActiveHolderAgent();
+    if (active?.shutdown) await active.shutdown();
   }, []);
 
-  const createWallet = useCallback<HolderAgentContextValue["createWallet"]>(async () => {
-    setState({ agent: null, status: "initializing" });
-    setRuntimeStatus("loading");
+  const resetAgent = useCallback(async () => {
+    const generation = ++lifecycle.current;
+    pendingResume.current = null;
+    setState({ agent: null, status: "idle", generation });
+    await serialize(closeAgent);
+  }, [closeAgent, serialize]);
 
-    try {
-      await preloadRuntime();
-      const runtime = await loadHolderAgentRuntime();
-      const { walletId, agent } = await runtime.createLocalHolderWallet();
-      agentRef.current = agent;
-      walletIdRef.current = walletId;
-      setState({ agent, status: "ready", walletId });
-      return { walletId };
-    } catch (error) {
-      const message = errorMessageFromUnknown(error);
-      agentRef.current = null;
-      walletIdRef.current = undefined;
-      setState({ agent: null, error: message, status: "error" });
-      setRuntimeStatus("error");
-      throw error;
-    }
-  }, [preloadRuntime]);
-
-  const resumeWallet = useCallback<HolderAgentContextValue["resumeWallet"]>(async (walletId) => {
-    if (agentRef.current && walletIdRef.current === walletId) {
-      return agentRef.current;
-    }
-
-    if (initPromiseRef.current) {
-      return initPromiseRef.current;
-    }
-
-    setState({ agent: agentRef.current, status: "initializing", walletId });
-    initPromiseRef.current = preloadRuntime()
-      .then(() => loadHolderAgentRuntime())
-      .then((runtime) => {
-        return runtime.resumeHolderAgentSession(walletId);
-      })
-      .then((agent) => {
-        agentRef.current = agent;
-        walletIdRef.current = walletId;
-        setState({ agent, status: "ready", walletId });
-        initPromiseRef.current = null;
-        return agent;
-      })
-      .catch((error: unknown) => {
-        const message = errorMessageFromUnknown(error);
-        initPromiseRef.current = null;
-        agentRef.current = null;
-        walletIdRef.current = undefined;
-        setState({ agent: null, error: message, status: "error" });
-        setRuntimeStatus("error");
+  const activate = useCallback(async (
+    operation: (runtime: Awaited<ReturnType<typeof loadHolderAgentRuntime>>) => Promise<{ walletId: string; agent: HolderAgent | null }>,
+    walletId?: string,
+  ) => {
+    const generation = ++lifecycle.current;
+    setState({ agent: null, status: "initializing", walletId, generation });
+    return serialize(async () => {
+      const assertCurrent = () => {
+        if (generation !== lifecycle.current) throw new Error("Wallet opening was superseded by another wallet lifecycle.");
+      };
+      assertCurrent();
+      try {
+        await closeAgent();
+        assertCurrent();
+        await preloadRuntime();
+        assertCurrent();
+        const runtime = await loadHolderAgentRuntime();
+        const result = await operation(runtime);
+        // Keep ownership until a superseded native open has been closed. The next
+        // queued open must never run against its still-open Askar store.
+        agentRef.current = result.agent;
+        walletIdRef.current = result.walletId;
+        if (generation !== lifecycle.current) {
+          await closeAgent();
+          assertCurrent();
+        }
+        setState({ ...result, status: "ready", generation });
+        return result;
+      } catch (error) {
+        if (generation === lifecycle.current) {
+          setState({ agent: null, walletId, generation, status: "error", error: errorMessageFromUnknown(error) });
+        }
         throw error;
-      });
+      }
+    });
+  }, [closeAgent, preloadRuntime, serialize]);
 
-    return initPromiseRef.current;
-  }, [preloadRuntime]);
+  const createWallet = useCallback<HolderAgentContextValue["createWallet"]>(async () => {
+    const result = await activate(runtime => runtime.createLocalHolderWallet());
+    return { walletId: result.walletId };
+  }, [activate]);
 
-  const restoreWallet = useCallback<HolderAgentContextValue["restoreWallet"]>(async (path, recoveryPassword) => {
-    setState({ agent: null, status: "initializing" });
-    setRuntimeStatus("loading");
+  const restoreWallet = useCallback<HolderAgentContextValue["restoreWallet"]>(async (path, password) => {
+    const result = await activate(runtime => runtime.restoreEncryptedHolderWallet(path, password));
+    return { walletId: result.walletId };
+  }, [activate]);
 
-    try {
-      await preloadRuntime();
-      const runtime = await loadHolderAgentRuntime();
-      const { walletId, agent } = await runtime.restoreEncryptedHolderWallet(path, recoveryPassword);
-      agentRef.current = agent;
-      walletIdRef.current = walletId;
-      setState({ agent, status: "ready", walletId });
-      return { walletId };
-    } catch (error) {
-      const message = errorMessageFromUnknown(error);
-      agentRef.current = null;
-      walletIdRef.current = undefined;
-      setState({ agent: null, error: message, status: "error" });
-      setRuntimeStatus("error");
-      throw error;
-    }
-  }, [preloadRuntime]);
+  const resumeWallet = useCallback<HolderAgentContextValue["resumeWallet"]>((walletId) => {
+    const pending = pendingResume.current;
+    if (pending?.walletId === walletId && pending.generation === lifecycle.current) return pending.promise;
+    if (agentRef.current && walletIdRef.current === walletId && !pending) return Promise.resolve(agentRef.current);
+    const promise = activate(async runtime => ({ walletId, agent: await runtime.resumeHolderAgentSession(walletId) }), walletId).then(result => result.agent);
+    const entry = { walletId, generation: lifecycle.current, promise };
+    pendingResume.current = entry;
+    void promise.finally(() => { if (pendingResume.current === entry) pendingResume.current = null; }).catch(() => undefined);
+    return promise;
+  }, [activate]);
 
   const value = useMemo<HolderAgentContextValue>(
     () => ({

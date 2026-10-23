@@ -50,12 +50,12 @@ afterEach(() => {
 });
 
 describe("lock config", () => {
-  it("inactivity timeout is 2 minutes", () => {
-    expect(INACTIVITY_LOCK_MS).toBe(2 * 60 * 1000);
+  it("inactivity timeout is 5 minutes", () => {
+    expect(INACTIVITY_LOCK_MS).toBe(5 * 60 * 1000);
   });
 
-  it("background timeout is 30 seconds", () => {
-    expect(BACKGROUND_LOCK_MS).toBe(30 * 1000);
+  it("background timeout is 2 minutes", () => {
+    expect(BACKGROUND_LOCK_MS).toBe(120 * 1000);
   });
 
   it("background timeout is shorter than inactivity timeout", () => {
@@ -231,4 +231,10 @@ describe("auto-lock suspension", () => {
 
     expect(mockLockWallet).not.toHaveBeenCalled();
   });
+});
+
+it("counts repeated inactive/background events from the first departure", async () => {
+  renderProvider();
+  await act(async () => { simulateAppState("inactive"); jest.advanceTimersByTime(BACKGROUND_LOCK_MS - 1); simulateAppState("background"); jest.advanceTimersByTime(1); simulateAppState("background"); simulateAppState("active"); });
+  expect(mockLockWallet).toHaveBeenCalledTimes(1);
 });

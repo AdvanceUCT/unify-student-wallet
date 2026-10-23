@@ -87,7 +87,7 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     function handleAppStateChange(nextState: AppStateStatus) {
       if (nextState === "background" || nextState === "inactive") {
-        backgroundTimestampRef.current = Date.now();
+        backgroundTimestampRef.current ??= Date.now();
         clearInactivityTimer();
         return;
       }

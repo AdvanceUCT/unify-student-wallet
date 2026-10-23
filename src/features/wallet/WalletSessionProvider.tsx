@@ -184,6 +184,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [refreshPendingCheckout]);
   const [state, setState] = useState<WalletProviderState>(initialState);
   const stateRef = useRef<WalletProviderState>(initialState);
+  const sessionLifecycle = useRef(0);
+  const restoreInProgress = useRef(false);
+  const sessionWrites = useRef<Promise<unknown>>(Promise.resolve());
   const activationProcessingRef = useRef<Map<string, Promise<ActionResult>>>(new Map());
   const firstRunSetupDraftRef = useRef<FirstRunSetupDraft | null>(null);
   const firstRunSetupPromiseRef = useRef<Promise<ActionResult> | null>(null);
@@ -234,7 +237,9 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   const persistState = useCallback(async (
     nextState: Omit<PersistedWalletSessionState, "onboardingCompleted"> &
       Partial<Pick<PersistedWalletSessionState, "onboardingCompleted">>,
+    expectedLifecycle = sessionLifecycle.current,
   ) => {
+    if (expectedLifecycle !== sessionLifecycle.current) throw new Error("Wallet session changed. Open the current wallet.");
     const mergedState: PersistedWalletSessionState = {
       ...nextState,
       onboardingCompleted: nextState.onboardingCompleted ?? stateRef.current.onboardingCompleted,
@@ -253,7 +258,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     };
     stateRef.current = { ...stateRef.current, ...mergedState };
     setState((current) => ({ ...current, ...mergedState }));
-    await saveWalletSessionState(mergedState);
+    const write = sessionWrites.current.then(() => {
+      if (expectedLifecycle !== sessionLifecycle.current) return;
+      return saveWalletSessionState(mergedState);
+    });
+    sessionWrites.current = write.catch(() => undefined);
+    await write;
   }, []);
 
   const setPendingVerificationPublicServicePointId = useCallback(async (publicServicePointId?: string) => {
@@ -702,6 +712,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
   const createWallet = useCallback(
     async (pin: string, confirmation: string): Promise<ActionResult> => {
+      const generation = sessionLifecycle.current;
       const validation = validatePinConfirmation(pin, confirmation);
 
       if (!validation.ok) {
@@ -710,6 +721,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
 
       const pinSalt = createPinSalt();
       const pinHash = await hashPin(pin, pinSalt);
+      if (generation !== sessionLifecycle.current) return { ok: false, error: "Wallet session changed. Open the current wallet." };
       const current = stateRef.current;
       const isRestoredPinSetup = Boolean(current.session.walletId && !hasStoredPin(current));
 
@@ -745,9 +757,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         },
       };
 
-      await persistState(nextState);
+      if (generation !== sessionLifecycle.current) return { ok: false, error: "Wallet session changed. Open the current wallet." };
+      await persistState(nextState, generation);
 
-      return { ok: true };
+      return generation === sessionLifecycle.current ? { ok: true } : { ok: false, error: "Wallet session changed. Open the current wallet." };
     },
     [createHolderWallet, persistState],
   );
@@ -760,8 +773,12 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
         return { ok: false, error: "Sign out before restoring a different wallet." };
       }
 
+      if (restoreInProgress.current) return { ok: false, error: "A wallet restore is already in progress." };
+      restoreInProgress.current = true;
+      const generation = ++sessionLifecycle.current;
       try {
         const { walletId } = await restoreHolderWallet(path, recoveryPassword);
+        if (generation !== sessionLifecycle.current) return { ok: false, error: "Restore was superseded. Open the current wallet." };
         await persistState({
           biometricEnabled: false,
           changePinAttempts: 0,
@@ -776,15 +793,15 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
             pendingOfferIds: [],
             walletId,
           },
-        });
-        return { ok: true };
+        }, generation);
+        return generation === sessionLifecycle.current ? { ok: true } : { ok: false, error: "Restore was superseded. Open the current wallet." };
       } catch (error) {
         console.error("[wallet-restore] failed", error);
         return actionErrorFromUnknown(
           error,
           "The backup could not be opened. Check the file and recovery password, then try again.",
         );
-      }
+      } finally { restoreInProgress.current = false; }
     },
     [persistState, restoreHolderWallet],
   );
@@ -1068,10 +1085,13 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   }, [persistState, state]);
 
   const signOut = useCallback(async () => {
+    ++sessionLifecycle.current;
     const departing = capturedPaymentSession();
     invalidatePaymentScope();
+    const clearSession = sessionWrites.current.then(() => clearWalletSessionState());
+    sessionWrites.current = clearSession.catch(() => undefined);
     const cleanupResults = await Promise.allSettled([
-      clearWalletSessionState(),
+      clearSession,
       departing ? revokeCapturedPaymentSession(departing).catch(() => undefined) : Promise.resolve(),
       clearPaymentSession(),
       clearPendingTopUp(),
