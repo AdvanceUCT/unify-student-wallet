@@ -760,7 +760,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
       if (generation !== sessionLifecycle.current) return { ok: false, error: "Wallet session changed. Open the current wallet." };
       await persistState(nextState, generation);
 
-      return { ok: true };
+      return generation === sessionLifecycle.current ? { ok: true } : { ok: false, error: "Wallet session changed. Open the current wallet." };
     },
     [createHolderWallet, persistState],
   );
@@ -794,7 +794,7 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
             walletId,
           },
         }, generation);
-        return { ok: true };
+        return generation === sessionLifecycle.current ? { ok: true } : { ok: false, error: "Restore was superseded. Open the current wallet." };
       } catch (error) {
         console.error("[wallet-restore] failed", error);
         return actionErrorFromUnknown(
