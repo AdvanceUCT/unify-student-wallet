@@ -1,3 +1,4 @@
+import { boundedCredentialRead } from "./credentialRead";
 /**
  * @fileoverview Owns the native Credo holder agent, encrypted wallet, offers, credentials, and proof exchanges.
  * @module features/wallet/holderAgent
@@ -944,8 +945,8 @@ async function withOfferAttributes(
   }
 }
 
-async function withStoredCredentialAttributes(record: CredentialRecord): Promise<CredentialRecord> {
-  const anoncreds = agentRef?.modules?.anoncreds;
+async function withStoredCredentialAttributes(agent: HolderAgent, record: CredentialRecord): Promise<CredentialRecord> {
+  const anoncreds = agent?.modules?.anoncreds;
   const binding = record.credentials?.find((credential) =>
     credential.credentialRecordType === "w3c" || credential.credentialRecordType === "anoncreds",
   );
@@ -970,38 +971,43 @@ async function withStoredCredentialAttributes(record: CredentialRecord): Promise
 }
 
 async function withDisplayAttributes(
+  agent: HolderAgent,
   credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
   record: CredentialRecord,
 ) {
-  return withOfferAttributes(credentials, await withStoredCredentialAttributes(record));
+  try {
+    return await boundedCredentialRead((async () => withOfferAttributes(credentials, await withStoredCredentialAttributes(agent, record)))(), 2000, "display enrichment");
+  } catch { return record; }
 }
 
 /** Returns one credential exchange record when it exists in the active wallet. */
-export async function getCredentialRecord(credentialRecordId: string): Promise<CredentialRecord | null> {
-  if (!agentRef) {
+export async function getCredentialRecord(credentialRecordId: string, capturedAgent: HolderAgent | null = agentRef): Promise<CredentialRecord | null> {
+  const agent = capturedAgent;
+  if (!agent) {
     return null;
   }
 
-  const credentials = agentRef.didcomm?.credentials;
+  const credentials = agent.didcomm?.credentials;
 
   if (!credentials?.getById) {
     return null;
   }
 
   const record = await credentials.getById(credentialRecordId);
-  return withDisplayAttributes(credentials, record);
+  return withDisplayAttributes(agent, credentials, record);
 }
 
 /** Returns only completed or received credential records suitable for display. */
-export async function getStoredCredentials(): Promise<CredentialRecord[]> {
-  if (!agentRef) {
+export async function getStoredCredentials(capturedAgent: HolderAgent | null = agentRef, signal?: AbortSignal): Promise<CredentialRecord[]> {
+  const agent = capturedAgent;
+  if (!agent) {
     return [];
   }
 
-  const credentials = agentRef.didcomm?.credentials;
-  const all = await loggedStep("load stored credentials", async () => {
+  const credentials = agent.didcomm?.credentials;
+  const all = await boundedCredentialRead(loggedStep("load stored credentials", async () => {
     return (await credentials?.getAll?.()) ?? [];
-  });
+  }), 12000, "stored credential records", signal);
 
   console.log(
     "[holder-agent] credential states:",
@@ -1011,7 +1017,7 @@ export async function getStoredCredentials(): Promise<CredentialRecord[]> {
   const stored = all.filter((record) => record.state === "done" || record.state === "credential-received");
   if (!credentials) return stored;
 
-  return Promise.all(stored.map((record) => withDisplayAttributes(credentials, record)));
+  return Promise.all(stored.map((record) => withDisplayAttributes(agent, credentials, record)));
 }
 
 function throwIfCancelled(signal?: AbortSignal) {

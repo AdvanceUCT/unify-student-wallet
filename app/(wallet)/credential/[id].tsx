@@ -1,3 +1,5 @@
+import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
+import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 /**
  * @fileoverview Displays one stored credential and its normalized attributes.
  * @module app/(wallet)/credential/[id]
@@ -38,10 +40,12 @@ function category(attribute: CredentialAttribute) {
 
 export default function CredentialDetailScreen() {
   const colors = useThemePalette();
+  const holderAgent = useHolderAgent();
+  const { session } = useWalletSession();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - spacing.xl * 2, 430);
-  const credentialQuery = useQuery({ queryKey: ["credential", id], queryFn: () => getCredentialRecordLazy(id), enabled: Boolean(id) });
+  const credentialQuery = useQuery({ queryKey: ["credential", session.walletId, holderAgent.generation ?? 0, id], queryFn: () => getCredentialRecordLazy(id, holderAgent.agent), enabled: Boolean(id) && holderAgent.status === "ready" && holderAgent.walletId === session.walletId });
   const credential = credentialQuery.data;
   const attributes = credential?.credentialAttributes ?? [];
   const groups = ["Holder", "Student record", "Issuer", "Additional information"].map((title) => ({ title, attributes: attributes.filter((attribute) => category(attribute) === title) })).filter((group) => group.attributes.length);

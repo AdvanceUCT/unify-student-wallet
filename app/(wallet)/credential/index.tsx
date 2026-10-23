@@ -3,7 +3,6 @@
  * @module app/(wallet)/credential/index
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { IdCard } from "lucide-react-native";
 import { Text, View } from "react-native";
@@ -16,7 +15,7 @@ import { EmptyState } from "@/src/components/EmptyState";
 import { CredentialCarousel } from "@/src/components/CredentialCarousel";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useThemePalette } from "@/src/features/theme/ThemePreferenceProvider";
-import { getStoredCredentialsLazy } from "@/src/features/wallet/holderAgentRuntime";
+import { useWalletCredentials } from "@/src/features/wallet/useWalletCredentials";
 import { useHolderAgent } from "@/src/features/wallet/HolderAgentProvider";
 import { useWalletSession } from "@/src/features/wallet/WalletSessionProvider";
 import { spacing } from "@/src/theme/spacing";
@@ -26,12 +25,7 @@ export default function CredentialIndexScreen() {
   const colors = useThemePalette();
   const { session } = useWalletSession();
   const holderAgent = useHolderAgent();
-  const credentialsQuery = useQuery({
-    queryKey: ["stored-credentials", session.walletId ?? "no-wallet"],
-    queryFn: getStoredCredentialsLazy,
-    enabled: holderAgent.status === "ready",
-    refetchInterval: (query) => ((query.state.data ?? []).length === 0 ? 2000 : false),
-  });
+  const credentialsQuery = useWalletCredentials();
   const credentials = credentialsQuery.data ?? [];
 
   return (

@@ -48,7 +48,7 @@ let mockWalletActivity: Array<{
 }> = [];
 const mockUseQuery = jest.fn(({ queryKey, enabled = true }: { queryKey: string[]; enabled?: boolean }) => {
   if (queryKey[0] === "stored-credentials") {
-    const data = !enabled && mockStoredCredentials.length === 0 ? undefined : mockStoredCredentials;
+    const data = (!enabled || mockHolderAgent.status !== "ready") && mockStoredCredentials.length === 0 ? undefined : mockStoredCredentials;
     return { data, isError: false, isLoading: enabled && data === undefined };
   }
 
@@ -187,7 +187,7 @@ describe("wallet screens", () => {
     expect(screen.queryByLabelText("Open settings")).toBeNull();
     expect(screen.getByText("Scan to receive")).toBeTruthy();
     expect(mockUseQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001"] }),
+      expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001", 0] }),
     );
   });
 
@@ -330,7 +330,7 @@ describe("wallet screens", () => {
 
     expect(screen.getByText("Your identity")).toBeTruthy();
     expect(screen.getByLabelText("Loading credential")).toBeTruthy();
-    expect(mockUseQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    expect(mockUseQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["stored-credentials", "wallet-uuid-001", 0], enabled: true, retry: false }));
   });
 
   it("preserves the credential stage while the agent transitions from loading to ready", () => {
