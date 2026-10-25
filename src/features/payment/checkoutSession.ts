@@ -18,6 +18,10 @@ function serial<T>(work: () => Promise<T>): Promise<T> { const next = mutations.
 async function read(key: string) { return Platform.OS === "web" ? web.get(key) ?? null : getSecureValue(key); }
 async function write(key: string, value: string) { if (Platform.OS === "web") web.set(key, value); else await saveSecureValue(key, value); }
 async function remove(key: string) { web.delete(key); if (Platform.OS !== "web") await deleteSecureValue(key); }
+/**
+ * Read the durable checkout or upgrade a legacy pending reference without replacing its original key.
+ * Legacy submitted instructions remain unknown and unbound rather than being assigned to the currently signed-in account.
+ */
 export async function loadCheckout(): Promise<Checkout | null> {
   const raw = await read(CHECKOUT_STORAGE_KEY);
   if (raw) return checkoutSchema.parse(JSON.parse(raw));
@@ -27,6 +31,10 @@ export async function loadCheckout(): Promise<Checkout | null> {
   return { version: 2, kind: "POS", id: old.id, idempotencyKey: old.idempotencyKey, phase: old.submitted ? "UNKNOWN" : "REVIEW", ...(old.submitted ? { legacyUnbound: true } : {}) };
 }
 async function persist(checkout: Checkout) { await write(CHECKOUT_STORAGE_KEY, JSON.stringify(checkoutSchema.parse(checkout))); await remove(LEGACY_POS_STORAGE_KEY); }
+/**
+ * Serialize checkout writes and freeze account, terms and reference once submission has begun.
+ * The idempotency key is the reference that prevents the same payment instruction from being processed twice.
+ */
 export async function saveCheckout(checkout: Checkout) {
   const owner = getPaymentScope();
   return serial(async () => {
@@ -40,6 +48,9 @@ export async function saveCheckout(checkout: Checkout) {
     await persist(checkout); return checkout;
   });
 }
+/**
+ * Reuse the same saved sale, but refuse to replace an unresolved submitted instruction with a new scan.
+ */
 export async function selectPosCheckout(id: string) {
   const owner = getPaymentScope();
   return serial(async () => {
@@ -56,6 +67,10 @@ export async function selectPosCheckout(id: string) {
 export async function selectStaticCheckout(_input: { qrIdentifier: string; amountMinor: number; idempotencyKey: string }): Promise<Checkout> {
   throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
+/**
+ * Delete only the checkout matching the expected reference when one is supplied.
+ * An old completion must not erase a newer checkout selected while it was finishing.
+ */
 export async function clearCheckout(expectedKey?: string) {
   const owner = getPaymentScope();
   return serial(async () => {
@@ -69,6 +84,10 @@ export async function clearCheckout(expectedKey?: string) {
 export async function selectStaticQr(_qrIdentifier: string): Promise<Checkout> {
   throw new Error("Static payment QR codes are no longer supported. Ask the cashier for a POS sale QR.");
 }
+/**
+ * Discard only an unsubmitted review.
+ * Submitted or unknown payments retain their reference until their outcome can be recovered.
+ */
 export async function abandonReviewCheckout() {
   const owner = getPaymentScope();
   return serial(async () => {

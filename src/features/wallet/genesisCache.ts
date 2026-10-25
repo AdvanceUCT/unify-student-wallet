@@ -46,6 +46,10 @@ export function isValidGenesisTransactions(value: string) {
   });
 }
 
+/**
+ * Read and validate cached ledger bootstrap transactions.
+ * Treat missing, unreadable or corrupt cache as a miss so startup can fetch a valid copy.
+ */
 export async function readCachedGenesisTransactions() {
   const RNFS = await getReactNativeFs();
   const path = cachePath(RNFS.DocumentDirectoryPath);
@@ -61,6 +65,10 @@ export async function readCachedGenesisTransactions() {
   }
 }
 
+/**
+ * Validate bootstrap transactions before replacing the cache through a temporary file.
+ * Remove the temporary file on failure and let the caller decide whether caching is essential.
+ */
 export async function writeCachedGenesisTransactions(transactions: string) {
   if (!isValidGenesisTransactions(transactions)) {
     throw new Error("BCovrin genesis transactions are malformed.");

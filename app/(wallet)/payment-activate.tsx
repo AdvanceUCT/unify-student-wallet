@@ -63,6 +63,10 @@ export default function PaymentActivateScreen() {
   const resendSeconds = Math.max(0, Math.ceil((Math.max(retryAt, challenge?.resendAvailableAt ? Date.parse(challenge.resendAvailableAt) : 0) - now) / 1000));
   const expired = Boolean(challenge?.expiresAt && Date.parse(challenge.expiresAt) <= now);
 
+  /**
+   * Request a payment-activation code under the starting account scope and prevent duplicate submissions.
+   * A failed replacement email discards the superseded code and starts the retry cooldown.
+   */
   async function requestOtp() {
     if (operationInFlight.current || resendSeconds > 0) return;
     const normalizedStudentNumber = studentNumber.trim();
@@ -105,6 +109,10 @@ export default function PaymentActivateScreen() {
     }
   }
 
+  /**
+   * Exchange this challenge and device reference for a payment session, then resume the saved checkout.
+   * Save credentials only under the captured scope so a delayed activation cannot authenticate a replacement wallet.
+   */
   async function verifyOtp() {
     if (!challenge || operationInFlight.current) return;
     if (!/^\d{6}$/.test(otp.trim())) {

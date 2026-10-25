@@ -4,6 +4,10 @@ import { useWalletSession } from "./WalletSessionProvider";
 import { getStoredCredentialsLazy } from "./holderAgentRuntime";
 import { boundedCredentialRead } from "./credentialRead";
 
+/**
+ * Read credentials for this wallet and agent generation, opening the existing store if necessary.
+ * Bound the combined open/read wait to 15 seconds and let the screen offer retry; never reimport a backup here.
+ */
 export function useWalletCredentials() {
   const holder = useHolderAgent();
   const { session } = useWalletSession();

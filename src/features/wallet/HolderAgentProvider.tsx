@@ -47,12 +47,20 @@ function errorMessageFromUnknown(error: unknown) {
   return messages.join(" Caused by: ");
 }
 
+/**
+ * Own the native agent for the selected wallet and publish its readiness to screens.
+ * A generation is an in-memory version number: results from an older version cannot make a replacement wallet ready.
+ */
 export function HolderAgentProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<HolderAgentState>({ agent: null, status: "idle" });
   const [runtimeStatus, setRuntimeStatus] = useState<HolderRuntimeStatus>("idle");
   const lifecycle = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const pendingResume = useRef<{ walletId: string; generation: number; promise: Promise<HolderAgent | null> } | null>(null);
+  /**
+   * Run create, restore, resume and shutdown work in order because they share native wallet resources.
+   * Recover the queue after an error while returning that error to the operation's caller.
+   */
   const serialize = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
     const result = queue.current.then(operation, operation);
     queue.current = result.catch(() => undefined);
@@ -61,6 +69,9 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
   const agentRef = useRef<HolderAgent | null>(null);
   const walletIdRef = useRef<string | undefined>(undefined);
 
+  /**
+   * Load native wallet modules only when needed and expose loading or failure to the UI.
+   */
   const preloadRuntime = useCallback(async () => {
     const existingRuntime = loadedHolderAgentRuntime();
     if (!existingRuntime) setRuntimeStatus("loading");
@@ -73,6 +84,9 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  /**
+   * Forget the active agent before awaiting shutdown so new readers cannot reuse a closing wallet.
+   */
   const closeAgent = useCallback(async () => {
     const active = agentRef.current;
     agentRef.current = null;
@@ -82,6 +96,9 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     if (active?.shutdown) await active.shutdown();
   }, []);
 
+  /**
+   * Invalidate outstanding startup results immediately, then close the old agent through the lifecycle queue.
+   */
   const resetAgent = useCallback(async () => {
     const generation = ++lifecycle.current;
     pendingResume.current = null;
@@ -89,6 +106,11 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     await serialize(closeAgent);
   }, [closeAgent, serialize]);
 
+  /**
+   * Start a new lifecycle before queuing the native operation.
+   * Close the previous agent first, and publish readiness only if this operation still owns the current generation.
+   * If a superseded operation opens an agent, close it before the next queued operation uses native resources.
+   */
   const activate = useCallback(async (
     operation: (runtime: Awaited<ReturnType<typeof loadHolderAgentRuntime>>) => Promise<{ walletId: string; agent: HolderAgent | null }>,
     walletId?: string,
@@ -136,6 +158,10 @@ export function HolderAgentProvider({ children }: PropsWithChildren) {
     return { walletId: result.walletId };
   }, [activate]);
 
+  /**
+   * Reuse an already-open wallet or its current startup promise instead of opening the same store twice.
+   * Clear only this promise on completion so an older request cannot clear a newer startup.
+   */
   const resumeWallet = useCallback<HolderAgentContextValue["resumeWallet"]>((walletId) => {
     const pending = pendingResume.current;
     if (pending?.walletId === walletId && pending.generation === lifecycle.current) return pending.promise;

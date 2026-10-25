@@ -33,6 +33,10 @@ const SIGNING_CONFIG = `    def unifyReleaseStoreFile = findProperty("UNIFY_RELE
     }
 `;
 
+/**
+ * Replace Expo's generated signing block and point release builds at the configured release key.
+ * Fail if the expected Gradle structure changed rather than quietly producing an APK signed with the debug key.
+ */
 function applyReleaseSigning(contents) {
   const signingPattern = /    signingConfigs \{[\s\S]*?\n    \}\n\s*    buildTypes \{/;
   if (!signingPattern.test(contents)) {

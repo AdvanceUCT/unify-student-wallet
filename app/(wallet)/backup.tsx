@@ -28,6 +28,10 @@ export default function BackupWalletScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  /**
+   * Validate the matching recovery password before exporting and sharing the encrypted wallet.
+   * Keep export errors on this screen and release the busy state even when native sharing fails.
+   */
   async function handleBackup() {
     const validation = validateRecoveryPassword(recoveryPassword, confirmation);
     if (!validation.ok) {

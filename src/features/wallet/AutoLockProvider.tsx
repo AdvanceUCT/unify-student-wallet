@@ -60,6 +60,9 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  /**
+   * Replace the foreground idle timer only when the wallet is unlocked and no operation holds an idle-lock suspension.
+   */
   const startInactivityTimer = useCallback(() => {
     clearInactivityTimer();
 
@@ -85,6 +88,10 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
 
   // The app can sit in the background, so check the elapsed time when it comes back.
   useEffect(() => {
+    /**
+     * Measure time away from the first inactive/background event, not from the latest repeated event.
+     * On return, enforce the background limit even when an operation suspended foreground idle locking.
+     */
     function handleAppStateChange(nextState: AppStateStatus) {
       if (nextState === "background" || nextState === "inactive") {
         backgroundTimestampRef.current ??= Date.now();
@@ -115,6 +122,10 @@ export function AutoLockProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, [clearInactivityTimer, startInactivityTimer]);
 
+  /**
+   * Hold foreground idle locking for this operation key.
+   * Every outstanding key must be released before idle locking resumes; background locking is checked separately.
+   */
   const suspendAutoLock = useCallback((key: string) => {
     setSuspendKeys((prev) => {
       const next = new Set(prev);

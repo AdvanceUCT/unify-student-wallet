@@ -206,6 +206,10 @@ export function clearActiveHolderAgent() {
   activeWalletId = undefined;
 }
 
+/**
+ * Reuse this wallet's device-stored raw encryption key, generating and saving one only when absent.
+ * The recovery password protects exported backups separately from this device key.
+ */
 async function getOrCreateHolderWalletKey(walletId: string, generateRawKey: () => string) {
   const storageKey = `${HOLDER_WALLET_KEY_PREFIX}.${walletId}`;
   const existingKey = await getSecureValue(storageKey);
@@ -265,6 +269,10 @@ function restoredWalletImportPlan(sourceWalletId: string, createWalletId = Crypt
   };
 }
 
+/**
+ * Open the encrypted export with the recovery password and inspect its saved profiles.
+ * Always close the temporary store, including when no restorable profile can be found.
+ */
 async function readEncryptedBackupWalletId(path: string, recoveryPassword: string) {
   await import("@openwallet-foundation/askar-react-native");
   const { KdfMethod, Store, StoreKeyMethod } = await import("@openwallet-foundation/askar-shared");
@@ -296,6 +304,10 @@ export async function validateEncryptedHolderWalletBackup(path: string, recovery
   return readEncryptedBackupWalletId(path, recoveryPassword);
 }
 
+/**
+ * Use validated cached ledger bootstrap data when available; otherwise fetch and validate it.
+ * These genesis transactions tell the ledger client which network to connect to.
+ */
 async function loadBcovrinGenesisTransactions() {
   const cachedTransactions = await readCachedGenesisTransactions();
   if (cachedTransactions) {
@@ -428,6 +440,10 @@ async function loggedStep<T>(label: string, action: () => Promise<T>): Promise<T
   }
 }
 
+/**
+ * Reuse a ready mediator or provision its connection, then start message pickup.
+ * A saved connection alone is insufficient after restart: pickup must run to receive queued credential and proof messages.
+ */
 async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: string, mediatorPickupStrategy: unknown) {
   const oob = agent.didcomm?.oob;
   const connections = agent.didcomm?.connections;
@@ -511,7 +527,11 @@ async function initializeMediator(agent: HolderAgent, mediatorInvitationUrl: str
   await startMediatorPickup(mediationRecipient, mediation, mediatorPickupStrategy);
 }
 
-/** Initializes the native Credo agent for one wallet and provisions its mediator connection. */
+/**
+ * Load the native cryptography modules, open or import this wallet and connect it to the ledger and mediator.
+ * Keep proof presentation manual so receiving a request cannot disclose credentials without consent.
+ * Publish the global agent only after initialization; tests may receive null when native modules are unavailable.
+ */
 export async function initializeHolderAgent(
   config: HolderAgentConfig,
   importStore?: HolderAgentImport,
@@ -769,7 +789,10 @@ export async function exportEncryptedHolderWallet(path: string, recoveryPassword
   });
 }
 
-/** Imports an encrypted Askar export and returns its restored wallet identifier. */
+/**
+ * Read the backup's source profile, import it into a new local wallet ID and return that ID.
+ * Remove the newly generated device key on failure; callers coordinate agent replacement and session publication.
+ */
 export async function restoreEncryptedHolderWallet(
   path: string,
   recoveryPassword: string,
@@ -914,6 +937,10 @@ export async function declineCredentialOffer(credentialRecordId: string): Promis
   await credentials.declineOffer(credentialRecordId);
 }
 
+/**
+ * Fill missing offer display fields from protocol data, preserving fields already present.
+ * If optional metadata cannot be read, return the original record rather than losing the offer.
+ */
 async function withOfferAttributes(
   credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
   record: CredentialRecord,
@@ -945,6 +972,10 @@ async function withOfferAttributes(
   }
 }
 
+/**
+ * Read accepted attributes through the agent captured by the caller.
+ * Use stored credential values over exchange metadata and fall back to the record if enrichment fails.
+ */
 async function withStoredCredentialAttributes(agent: HolderAgent, record: CredentialRecord): Promise<CredentialRecord> {
   const anoncreds = agent?.modules?.anoncreds;
   const binding = record.credentials?.find((credential) =>
@@ -970,6 +1001,10 @@ async function withStoredCredentialAttributes(agent: HolderAgent, record: Creden
   }
 }
 
+/**
+ * Bound optional display enrichment so one slow attribute lookup cannot hold the entire credential list.
+ * On failure or timeout, keep the underlying credential record available.
+ */
 async function withDisplayAttributes(
   agent: HolderAgent,
   credentials: NonNullable<NonNullable<HolderAgent["didcomm"]>["credentials"]>,
@@ -980,7 +1015,10 @@ async function withDisplayAttributes(
   } catch { return record; }
 }
 
-/** Returns one credential exchange record when it exists in the active wallet. */
+/**
+ * Read one exchange using the supplied or currently captured agent, then enrich it through that same agent.
+ * Avoid looking up the mutable global agent after an asynchronous read.
+ */
 export async function getCredentialRecord(credentialRecordId: string, capturedAgent: HolderAgent | null = agentRef): Promise<CredentialRecord | null> {
   const agent = capturedAgent;
   if (!agent) {
@@ -997,7 +1035,10 @@ export async function getCredentialRecord(credentialRecordId: string, capturedAg
   return withDisplayAttributes(agent, credentials, record);
 }
 
-/** Returns only completed or received credential records suitable for display. */
+/**
+ * Read completed/received credentials from the captured agent with a bounded wait.
+ * Enrich each record independently so missing display metadata does not hide successfully stored credentials.
+ */
 export async function getStoredCredentials(capturedAgent: HolderAgent | null = agentRef, signal?: AbortSignal): Promise<CredentialRecord[]> {
   const agent = capturedAgent;
   if (!agent) {
@@ -1026,7 +1067,11 @@ function throwIfCancelled(signal?: AbortSignal) {
   }
 }
 
-/** Opens a verifier invitation and attaches to the proof exchange created for it. */
+/**
+ * Reuse a matching received proof or listen and poll for the exchange created by this invitation.
+ * Subscribe before opening it because native processing may emit the proof before the invitation promise settles.
+ * Timeout or cancellation removes listeners; it never presents the credential.
+ */
 export async function receiveVerificationProofRequest(
   invitationUrl: string,
   signal?: AbortSignal,
@@ -1155,7 +1200,11 @@ export async function receiveVerificationProofRequest(
   });
 }
 
-/** Selects a current, non-revoked credential set and returns the values for consent review. */
+/**
+ * Ask Credo for credentials satisfying the request's revocation rules and collect their values for review.
+ * A second lookup without those rules is diagnostic only; never return its credentials for presentation.
+ * Return the exact selection for the later explicit-consent action.
+ */
 export async function selectVerificationCredentials(
   proofRecordId: string,
   requestedAttributes: readonly string[],

@@ -138,6 +138,10 @@ async function deleteAskarFiles(path: string) {
   );
 }
 
+/**
+ * Collect the encrypted database and any SQLite sidecar files needed to reopen its export.
+ * Require the main file; optional sidecars depend on how SQLite finished its writes.
+ */
 async function readAskarBackupBundleFiles(path: string): Promise<BackupBundleFile[]> {
   const RNFS = await getReactNativeFs();
   const files: BackupBundleFile[] = [];
@@ -158,6 +162,10 @@ async function readAskarBackupBundleFiles(path: string): Promise<BackupBundleFil
   return files;
 }
 
+/**
+ * Validate the portable bundle format before unpacking it.
+ * This checks the container structure; Askar still checks the encrypted wallet and recovery password when it opens the export.
+ */
 function parseBackupBundle(raw: string): BackupBundle {
   const parsed = JSON.parse(raw) as Partial<BackupBundle>;
 
@@ -187,6 +195,10 @@ async function writeBackupBundle(bundlePath: string, files: BackupBundleFile[]) 
   await RNFS.writeFile(bundlePath, JSON.stringify(bundle), "utf8");
 }
 
+/**
+ * Replace the temporary restore files with the bundle's decoded database and sidecars.
+ * Return the database path that native Askar will open with the recovery password.
+ */
 async function unpackBackupBundle(bundlePath: string, outputPath: string) {
   const RNFS = await getReactNativeFs();
   const bundle = parseBackupBundle(await RNFS.readFile(bundlePath, "utf8"));
@@ -202,6 +214,10 @@ async function unpackBackupBundle(bundlePath: string, outputPath: string) {
   return outputPath;
 }
 
+/**
+ * Copy a picked document into app-owned cache before native code tries to open it.
+ * Reject an empty copy and unpack the portable bundle into a separate temporary database.
+ */
 async function copyBackupIntoRestoreCache(uri: string) {
   const restoreBundleFile = new File(Paths.cache, restoreFilename());
   const restoreAskarFile = new File(Paths.cache, restoreAskarFilename());
@@ -222,7 +238,11 @@ async function copyBackupIntoRestoreCache(uri: string) {
   );
 }
 
-/** Creates, validates, packages, and shares a portable encrypted wallet backup. */
+/**
+ * Export the active wallet encrypted with the recovery password and package its database files.
+ * Reopen both the export and unpacked bundle to check they can be read before opening the share sheet.
+ * Clean temporary native databases in finally, including when validation or sharing fails.
+ */
 export async function createAndShareEncryptedBackup(recoveryPassword: string) {
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error("File sharing is unavailable on this device.");
@@ -266,7 +286,10 @@ export async function createAndShareEncryptedBackup(recoveryPassword: string) {
   return await markWalletBackedUp();
 }
 
-/** Lets the student choose a supported backup bundle for restore. */
+/**
+ * Let the student choose a supported bundle, copy it into restore cache and return its native path.
+ * Cancellation returns null; selection alone does not import or authenticate the wallet.
+ */
 export async function pickEncryptedBackupFile() {
   const result = await DocumentPicker.getDocumentAsync({
     copyToCacheDirectory: true,

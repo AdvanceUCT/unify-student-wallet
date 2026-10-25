@@ -200,6 +200,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let isMounted = true;
 
+    /**
+     * Load saved session and recovery references before routing the student.
+     * Lock a returning PIN-protected wallet, check biometric availability and discard only unsubmitted retired static checkouts.
+     */
     async function hydrateSession() {
       const [storedState, biometricAvailable] = await Promise.all([loadWalletSessionState(), canUseBiometricUnlock()]);
       const pendingPayment = await loadPendingPaymentRequest();
@@ -234,6 +238,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  /**
+   * Merge session changes and serialize secure-storage writes.
+   * Check the lifecycle inside the queue as well as before saving, so a queued old write cannot restore signed-out state.
+   */
   const persistState = useCallback(async (
     nextState: Omit<PersistedWalletSessionState, "onboardingCompleted"> &
       Partial<Pick<PersistedWalletSessionState, "onboardingCompleted">>,
@@ -313,6 +321,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     state.session.walletId,
   ]);
 
+  /**
+   * Share one setup attempt and remember any wallet already created by it.
+   * A retry after a storage failure reuses that wallet ID instead of creating another, then saves its PIN and signed-in state.
+   */
   const continueFirstRunSetup = useCallback(async (): Promise<ActionResult> => {
     if (firstRunSetupPromiseRef.current) {
       return firstRunSetupPromiseRef.current;
@@ -447,6 +459,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!state.isHydrated) return;
 
+    /**
+     * Classify incoming links and save references that must survive setup or unlock.
+     * For an already-unlocked checkout App Link, leave navigation to Expo Router to avoid opening a second proof screen.
+     */
     const stashVerificationLink = (url: string | null) => {
       if (!url) return;
       const paymentRequest = parsePaymentRequestLink(url);
@@ -669,6 +685,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [setPendingActivationUrl, setPendingCheckoutVerification, setPendingVerificationPublicServicePointId],
   );
 
+  /**
+   * Choose the saved flow to resume, prioritizing short-lived checkout claims over other links and offers.
+   * Opening an activation can receive an offer; returning a verification route does not share a credential.
+   */
   const continuePendingFlow = useCallback(async (): Promise<PendingFlowContinuation> => {
     const current = stateRef.current;
 
@@ -710,6 +730,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     return { ok: true, kind: "home", href: "/(wallet)/home" };
   }, [processIncomingLink, setPendingActivationUrl]);
 
+  /**
+   * Validate and hash the new device PIN, then create a wallet or reuse the restored store awaiting PIN setup.
+   * Check the lifecycle after asynchronous work so obsolete setup cannot replace the current session.
+   */
   const createWallet = useCallback(
     async (pin: string, confirmation: string): Promise<ActionResult> => {
       const generation = sessionLifecycle.current;
@@ -765,6 +789,11 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [createHolderWallet, persistState],
   );
 
+  /**
+   * Import a backup once and bind the resulting wallet to this restore lifecycle.
+   * Leave it ready for a new device PIN, without restoring biometric or payment authentication.
+   * A superseding lifecycle prevents this result from publishing a signed-in session.
+   */
   const restoreWallet = useCallback(
     async (path: string, recoveryPassword: string): Promise<ActionResult> => {
       const current = stateRef.current;
@@ -835,6 +864,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [removePendingOfferId],
   );
 
+  /**
+   * Enforce the saved attempt limit and persist failed attempts before returning an error.
+   * On success, unlock immediately and open the existing native wallet in the background; startup errors remain visible through its provider.
+   */
   const unlockWithPin = useCallback(
     async (pin: string): Promise<ActionResult> => {
       if (!state.pinHash || !state.pinSalt) {
@@ -891,6 +924,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [ensureWalletReady, persistState, state],
   );
 
+  /**
+   * Ask the device to authenticate before unlocking the saved session and resuming its existing wallet.
+   * Keep native agent startup separate from the biometric prompt so its errors can be retried on screen.
+   */
   const unlockWithBiometric = useCallback(async (): Promise<ActionResult> => {
     if (!state.biometricAvailable || !state.biometricEnabled) {
       return { ok: false, error: "Biometric unlock is not enabled." };
@@ -924,6 +961,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     return { ok: true };
   }, [ensureWalletReady, persistState, state]);
 
+  /**
+   * Require a successful enrolled-device biometric challenge before saving opt-in.
+   * Disabling follows a separate PIN-confirmation path rather than trusting the toggle alone.
+   */
   const setBiometricEnabled = useCallback(
     async (enabled: boolean): Promise<BiometricToggleResult> => {
       if (enabled) {
@@ -1003,6 +1044,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     [persistState, state],
   );
 
+  /**
+   * Check the current PIN and its separate attempt limit before validating the replacement.
+   * Save a fresh salt and hash together; keep the encrypted wallet itself and its identifier.
+   */
   const changePin = useCallback(
     async (currentPin: string, newPin: string, confirmation: string): Promise<ActionResult> => {
       if (!state.pinHash || !state.pinSalt) {
@@ -1084,6 +1129,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
     });
   }, [persistState, state]);
 
+  /**
+   * Invalidate old session work before cleanup and capture the departing payment credentials for revocation.
+   * Wait for storage cleanup and agent reset, then publish signed-out state; report cleanup failure without revoking a newer session.
+   */
   const signOut = useCallback(async () => {
     ++sessionLifecycle.current;
     const departing = capturedPaymentSession();
@@ -1200,7 +1249,10 @@ export function WalletSessionProvider({ children }: PropsWithChildren) {
   return <WalletSessionContext.Provider value={value}>{children}</WalletSessionContext.Provider>;
 }
 
-/** Redirects routes that do not match the current setup, lock, or pending-flow state. */
+/**
+ * Route from hydrated authentication, PIN and pending-flow state.
+ * Only resume a saved flow when the wallet is usable, avoiding a second navigation while that flow is already open.
+ */
 export function WalletRouteGate({ children }: PropsWithChildren) {
   const {
     pendingStaticCheckout,

@@ -45,6 +45,10 @@ if (!env.ANDROID_SDK_ROOT && env.ANDROID_HOME) {
   env.ANDROID_SDK_ROOT = env.ANDROID_HOME;
 }
 
+/**
+ * Run each release step in the repository with the prepared environment and visible output.
+ * Stop on failure so prebuild errors cannot be mistaken for a successful signed release.
+ */
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: root, env, stdio: "inherit" });
   if (result.error) throw result.error;
