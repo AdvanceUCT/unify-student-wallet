@@ -7,23 +7,38 @@ import { loadCheckout, saveCheckout, clearCheckout, abandonReviewCheckout, type 
 export type CheckoutState = { phase: "REVIEW" | "CHECKING" | "SUBMITTING" | "UNKNOWN" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "ALREADY_PAID" | "BLOCKED"; checkout?: Checkout; terms?: CheckoutTerms; receipt?: PaymentReceipt; canRetry?: boolean; message?: string };
 const api = { getWalletBalance, getPaymentByReference, resolvePaymentRequest, getPaymentRequestReceipt, payRequest };
 const store = { load: loadCheckout, save: saveCheckout, clear: clearCheckout, abandon: abandonReviewCheckout };
+/**
+ * Coordinate explicit payment approval and recovery for the scope captured at construction.
+ * Keep immutable submitted terms and their original reference until the server confirms an outcome.
+ */
 export class CheckoutController {
   private readonly owner = getPaymentScope();
   private busy = false;
   state: CheckoutState = { phase: "CHECKING" };
   constructor(private notify: (state: CheckoutState) => void, private service = api, private storage = store) {}
   private show(state: CheckoutState) { assertPaymentScope(this.owner); this.state = state; this.notify(state); return state; }
+  /**
+   * Check account ownership on both sides of asynchronous work so a late response cannot update a replacement session.
+   */
   private async scoped<A extends unknown[], T>(operation: (...args: A) => Promise<T>, ...args: A): Promise<T> {
     assertPaymentScope(this.owner);
     const result = await operation(...args);
     assertPaymentScope(this.owner);
     return result;
   }
+  /**
+   * Check the recovered amount before clearing this checkout's reference and displaying its receipt.
+   */
   private async confirmed(checkout: Checkout, receipt: PaymentReceipt) {
     if (checkout.terms && receipt.amountMinor !== checkout.terms.amountMinor) throw new Error("The recovered receipt does not match this checkout.");
     await this.scoped(this.storage.clear, checkout.idempotencyKey);
     return this.show({ phase: "CONFIRMED", checkout, terms: checkout.terms, receipt });
   }
+  /**
+   * Read server status and reconcile it with the saved sale and original payment account.
+   * A missing posting does not prove failure: keep its reference and allow only a safe, explicitly requested retry.
+   * Never reassign an unknown instruction or expose another payer's receipt.
+   */
   private async recoverCurrent(): Promise<CheckoutState> {
     let checkout = await this.scoped(this.storage.load);
     if (!checkout) return this.state.phase === "CONFIRMED" ? this.state : this.show({ phase: "BLOCKED", message: "No saved checkout. Scan a payment QR to begin." });
@@ -63,6 +78,10 @@ export class CheckoutController {
     }
     return this.show({ phase: "REVIEW", checkout, terms: checkout.terms });
   }
+  /**
+   * Check the saved payment outcome without sending a payment.
+   * Serialize controller actions and preserve uncertainty when the server cannot be reached.
+   */
   async recover() {
     if (this.busy) return this.state;
     if (["CONFIRMED", "CANCELLED", "EXPIRED", "ALREADY_PAID"].includes(this.state.phase)) return this.state;
@@ -71,6 +90,10 @@ export class CheckoutController {
     catch (error) { this.show({ ...this.state, phase: "UNKNOWN", canRetry: false, message: error instanceof Error ? error.message : "Reconnect to check the payment result." }); throw error; }
     finally { this.busy = false; }
   }
+  /**
+   * Recheck the saved sale, then durably mark its original instruction submitted before sending money.
+   * On an uncertain error, retain the same reference as UNKNOWN instead of starting another payment.
+   */
   async approve() {
     if (this.busy || !(this.state.phase === "REVIEW" || this.state.phase === "UNKNOWN" && this.state.canRetry)) return;
     this.busy = true;

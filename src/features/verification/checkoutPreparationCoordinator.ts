@@ -31,6 +31,11 @@ export function checkoutPreparationKey(walletId: string, verificationRequestId: 
   return `${walletId}:${verificationRequestId}`;
 }
 
+/**
+ * Share one in-flight checkout claim/proof preparation between matching screen consumers.
+ * Each consumer receives progress and releases its listener; abort unfinished work only when none remain.
+ * Preparation selects credentials for review and does not grant consent to share them.
+ */
 export function acquireCheckoutPreparation({
   key,
   onProgress,

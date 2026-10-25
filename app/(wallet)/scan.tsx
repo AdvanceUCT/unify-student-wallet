@@ -70,6 +70,10 @@ export default function ScanScreen() {
     setScanError(null);
   }
 
+  /**
+   * Handle one camera result at a time and route only recognized UNIFY link formats.
+   * Persist recoverable checkout/claim references before navigation, and reject retired static payment QR codes.
+   */
   async function handleRawPayload(rawPayload: string) {
     if (scanLockedRef.current) return;
     scanLockedRef.current = true;

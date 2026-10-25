@@ -41,6 +41,10 @@ export function parsePaymentLink(rawValue: string) {
   }
 }
 
+/**
+ * Accept only the expected native return route and one opaque top-up ID.
+ * A return link selects which server record to check; it is not evidence that payment succeeded.
+ */
 export function parseTopUpReturnLink(rawValue: string) {
   try {
     const url = new URL(rawValue.trim());

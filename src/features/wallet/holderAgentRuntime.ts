@@ -9,6 +9,10 @@ export type HolderAgentRuntime = typeof HolderAgentModule;
 
 let runtimePromise: Promise<HolderAgentRuntime> | null = null;
 
+/**
+ * Share one lazy native-module load so ordinary navigation does not initialize native wallet code.
+ * Clear a failed load promise so a later user retry can try loading again.
+ */
 export function loadHolderAgentRuntime() {
   runtimePromise ??= Promise.resolve()
     .then(

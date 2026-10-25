@@ -19,6 +19,10 @@ import { loadPaymentSession } from "./paymentSession";
 import { formatZarMinor } from "./money";
 import { isPaymentOnline, usePaymentNetworkStatus } from "./network";
 
+/**
+ * Restore the selected sale and recover its status on focus, reconnect and app resume.
+ * Effects only check outcomes; the student must press the payment action to call the controller's approval method.
+ */
 export function CheckoutScreen({ input }: { input: { kind: "POS"; id: string } | { kind: "LEGACY" } }) {
   const scope = usePaymentScope();
   const [state, setState] = useState<CheckoutState>({ phase: "CHECKING" });

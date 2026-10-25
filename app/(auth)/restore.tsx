@@ -39,6 +39,10 @@ export default function RestoreWalletScreen() {
     }
   }
 
+  /**
+   * Validate the chosen backup and recovery password, then delegate import to the wallet lifecycle provider.
+   * After success, set a new device PIN for the imported store rather than creating a replacement wallet.
+   */
   async function handleRestore() {
     if (!backup) {
       setError("Choose a UNIFY wallet backup first.");

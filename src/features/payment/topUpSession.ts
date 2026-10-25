@@ -60,6 +60,10 @@ export function parsePendingTopUp(rawValue: string | null): PendingTopUp | null 
   }
 }
 
+/**
+ * Save the hosted checkout reference with its wallet and payment-session identity.
+ * Check scope inside the storage queue so a late browser handoff cannot populate another account.
+ */
 export async function savePendingTopUp(pending: PendingTopUp, owner: PaymentScope = getPaymentScope()) {
   if (!parsePendingTopUp(JSON.stringify(pending))) {
     throw new Error("Pending top-up is malformed.");
@@ -74,6 +78,10 @@ export async function savePendingTopUp(pending: PendingTopUp, owner: PaymentScop
   });
 }
 
+/**
+ * Return only a well-formed top-up bound to this wallet and session.
+ * Preserve older unbound references for server recovery rather than silently assigning them to the current account.
+ */
 export async function loadPendingTopUp() {
   const owner = getPaymentScope();
   return serial(async () => {

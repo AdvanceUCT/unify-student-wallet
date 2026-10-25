@@ -40,6 +40,10 @@ export default function TopUpAmountScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /**
+   * Recover any unresolved top-up before allowing a new amount.
+   * Create a hosted checkout and save its returned reference before opening the provider browser, keeping work bound to the starting session.
+   */
   async function startTopUp() {
     const owner = getPaymentScope();
     const existing = await loadPendingTopUp();

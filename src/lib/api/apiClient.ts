@@ -117,6 +117,11 @@ function waitForRetry(ms: number, signal: AbortSignal | undefined, requestId: st
   });
 }
 
+/**
+ * Send one API operation with timeout, cancellation and a correlation reference for diagnostics.
+ * Only configured safe reads receive transport retries; writes are not automatically repeated after an uncertain response.
+ * Validate the HTTP/JSON result and always remove request timers and listeners.
+ */
 async function request<T>(config: TransportConfig, path: string, options: RequestOptions): Promise<T> {
   const url = requestUrl(config.baseUrl(), path);
   const requestId = Crypto.randomUUID();
@@ -255,6 +260,10 @@ function sessionFromRefreshResponse(value: unknown): PaymentSession {
   return session;
 }
 
+/**
+ * Share refresh work only within the same session and generation.
+ * Check ownership before saving rotated tokens or clearing rejected credentials, so a late result cannot change another account.
+ */
 async function refreshPaymentSession(current: PaymentSession, owner: PaymentScope) {
   assertPaymentScope(owner);
   if (paymentRefresh?.generation === owner.generation && paymentRefresh.sessionId === current.sessionId) return paymentRefresh.promise;
@@ -284,10 +293,17 @@ async function refreshPaymentSession(current: PaymentSession, owner: PaymentScop
   finally { if (paymentRefresh === entry) paymentRefresh = null; }
 }
 
+/**
+ * Revoke the explicit departing session rather than looking up whatever session is current after logout begins.
+ */
 export async function revokeCapturedPaymentSession(session: PaymentSession) {
   await request(paymentTransport, "/api/wallet/v1/sessions/revoke", { method: "POST", body: {}, accessToken: session.accessToken });
 }
 
+/**
+ * Capture account scope before loading authentication and keep it through the response.
+ * After an authorization failure, refresh and retry only that same session; never borrow replacement-account credentials.
+ */
 async function paymentAuthenticatedRequest<T>(method: "GET" | "POST", path: string, options: { body?: object; signal?: AbortSignal; timeoutMs?: number } = {}) {
   const starting = getPaymentScope();
   const session = await loadPaymentSession({ allowExpired: true });

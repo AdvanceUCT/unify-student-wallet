@@ -13,6 +13,10 @@ export function serializeWalletSessionState(state: PersistedWalletSessionState) 
   return JSON.stringify(state);
 }
 
+/**
+ * Recover saved wallet/session fields and validate the nested checkout claim before reusing it.
+ * Default old installations to completed onboarding; unreadable JSON falls back to a signed-out session.
+ */
 export function parseWalletSessionState(rawValue: string | null): PersistedWalletSessionState {
   if (!rawValue) {
     return {

@@ -89,6 +89,10 @@ export default function TopUpResultScreen() {
   const amountMinor = status?.amountMinor ?? pending?.amountMinor;
   const reference = status?.reference ?? pending?.reference;
 
+  /**
+   * Check the top-up with UNIFY, asking for provider reconciliation when returning from the browser.
+   * Only a terminal server result clears the pending reference and refreshes account totals; UNKNOWN remains recoverable.
+   */
   const refreshStatus = useCallback(async (mode: "reconcile" | "poll") => {
     const owner = getPaymentScope();
     if (!activeTopUpId || inFlightRef.current) return;

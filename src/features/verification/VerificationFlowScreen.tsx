@@ -196,6 +196,11 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     }
   }, [session.walletId, target.kind, targetId]);
 
+  /**
+   * Open or recover this verification request, receive its proof and prepare the selected values for review.
+   * Share concurrent preparation and retain checkout claims so navigation does not consume the capability twice.
+   * Stop at the review screen: only the later consent action sends a proof.
+   */
   const preparePresentation = useCallback(async () => {
     // React effects and retry actions can converge here. Share the in-flight
     // promise so one screen cannot claim or open the same session twice.
@@ -392,6 +397,10 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     });
   }
 
+  /**
+   * Present the reviewed selection after the student presses the consent action, then poll the verifier's decision.
+   * Distinguish errors before sharing from uncertain errors afterwards so retry guidance does not imply nothing was disclosed.
+   */
   async function presentCredential() {
     if (!selection || !sessionInfo) return;
     controllerRef.current?.abort();
@@ -439,6 +448,10 @@ export function VerificationFlowScreen({ target }: { target: VerificationTarget 
     }
   }
 
+  /**
+   * Poll the existing verification result without presenting credentials again.
+   * Record a terminal result or explain that its visibility window expired; preparation runs only if no session exists.
+   */
   async function checkExistingResult() {
     if (!sessionInfo) {
       await preparePresentation();

@@ -6,6 +6,11 @@ import { clearPaymentSession, loadPaymentSession } from "./paymentSession";
 import { getPaymentScope, invalidatePaymentScope, paymentQueryPrefix, subscribePaymentScope } from "./paymentScope";
 import { usePaymentScope } from "./usePaymentScope";
 
+/**
+ * Hide payment screens until this wallet's saved session has been loaded.
+ * On scope changes, cancel/remove old private queries and remount children to clear screen-local state.
+ * The first hydration adopts saved authentication; later wallet replacement clears it.
+ */
 export function PaymentScopeBoundary({ children }: PropsWithChildren) {
   const { session } = useWalletSession();
   const walletId = session.walletId ?? null;

@@ -1,4 +1,7 @@
-/** Bounds UI work without cancelling or replacing the encrypted wallet itself. */
+/**
+ * Stop waiting when this UI read times out or is superseded, and remove its timer/listener.
+ * The native operation can still finish; rejecting this promise does not delete, reopen or replace the encrypted wallet.
+ */
 export function boundedCredentialRead<T>(operation: Promise<T>, timeoutMs: number, stage: string, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const finish = (error?: Error, value?: T) => {

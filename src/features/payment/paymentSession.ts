@@ -23,6 +23,10 @@ export type PaymentSession = {
 
 let cachedSession: PaymentSession | null = null;
 let storageQueue: Promise<unknown> = Promise.resolve();
+/**
+ * Keep payment-session storage operations in order even after one fails.
+ * Callers still receive their own errors, and each operation checks scope inside this queue.
+ */
 function serializedStorage<T>(operation: () => Promise<T>): Promise<T> {
   const result = storageQueue.then(operation, operation);
   storageQueue = result.catch(() => undefined);
@@ -32,7 +36,10 @@ export function capturedPaymentSession() { return cachedSession; }
 let webPaymentSession: string | null = null;
 let webPaymentDeviceId: string | null = null;
 
-/** Parses a payment session and rejects malformed or expired bearer credentials. */
+/**
+ * Validate saved token fields and reject an expired refresh window.
+ * An expired access token can remain usable for obtaining fresh access through the refresh endpoint.
+ */
 export function parsePaymentSession(rawValue: string | null, now = Date.now()): PaymentSession | null {
   if (!rawValue) return null;
 
@@ -80,7 +87,10 @@ function serializedPaymentSession(session: PaymentSession) {
   return JSON.stringify(validated);
 }
 
-/** Saves a valid payment session without mixing it into credential-wallet state. */
+/**
+ * Validate and save tokens only for the captured scope, checking again inside the storage queue.
+ * Fence an old session before yielding when its ID changes; ordinary token rotation preserves its cache identity.
+ */
 export async function savePaymentSession(session: PaymentSession, expected = getPaymentScope()) {
   assertPaymentScope(expected);
   const serialized = serializedPaymentSession(session);
@@ -97,6 +107,10 @@ export async function savePaymentSession(session: PaymentSession, expected = get
   });
 }
 
+/**
+ * Read saved payment authentication under its starting scope and remove malformed or expired state.
+ * Recovery can request allowExpired to read historical credentials; callers still rely on server authorization.
+ */
 export async function loadPaymentSession(options: { allowExpired?: boolean } = {}): Promise<PaymentSession | null> {
   const owner = getPaymentScope();
   return serializedStorage(async () => {
@@ -115,6 +129,10 @@ export async function loadPaymentSession(options: { allowExpired?: boolean } = {
   });
 }
 
+/**
+ * Invalidate the current generation before deleting credentials so old requests lose ownership immediately.
+ * Check ownership during queued deletion to avoid clearing a subsequently activated session.
+ */
 export async function clearPaymentSession(expected?: PaymentScope) {
   if (expected) assertPaymentScope(expected);
   invalidatePaymentScope();
@@ -161,6 +179,10 @@ export async function clearPaymentDeviceId() {
   });
 }
 
+/**
+ * Read or create one device reference inside the storage queue.
+ * Scope checks prevent delayed device setup from being reused after a wallet replacement.
+ */
 export async function getOrCreatePaymentDeviceId() {
   const owner = getPaymentScope();
   return serializedStorage(async () => {
